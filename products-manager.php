@@ -23,6 +23,13 @@ final class HP_Products_Manager {
     const HANDLE  = 'hp-products-manager';
 
     /**
+     * Track whether we injected into the toolbar.
+     *
+     * @var bool
+     */
+    private $toolbar_button_added = false;
+
+    /**
      * Retrieve the singleton instance.
      *
      * @return HP_Products_Manager
@@ -47,6 +54,7 @@ final class HP_Products_Manager {
 
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('admin_bar_menu', [$this, 'maybe_add_toolbar_button'], 80);
+        add_action('admin_bar_menu', [$this, 'remove_default_view_link'], 120);
     }
 
     /**
@@ -75,16 +83,16 @@ final class HP_Products_Manager {
             return;
         }
 
-        // Remove the default "View Product" node when present to avoid clutter.
-        if ($admin_bar->get_node('view')) {
-            $admin_bar->remove_node('view');
-        }
-
         $reference    = $admin_bar->get_node('eao-create-new-order');
-        $parent       = $reference && !empty($reference->parent) ? $reference->parent : 'top-secondary';
+        $parent       = $reference && !empty($reference->parent) ? $reference->parent : 'root-default';
         $position     = $reference && isset($reference->meta['position'])
             ? (int) $reference->meta['position'] + 1
-            : 60;
+            : 31;
+
+        // Ensure we don't duplicate if already added.
+        if ($admin_bar->get_node('hp-products-manager')) {
+            $admin_bar->remove_node('hp-products-manager');
+        }
 
         $admin_bar->add_node([
             'id'     => 'hp-products-manager',
@@ -97,6 +105,33 @@ final class HP_Products_Manager {
                 'position' => $position,
             ],
         ]);
+
+        $this->toolbar_button_added = true;
+    }
+
+    /**
+     * Remove generic "View" toolbar node so only the Products button shows.
+     *
+     * @param \WP_Admin_Bar $admin_bar Toolbar instance.
+     */
+    public function remove_default_view_link(\WP_Admin_Bar $admin_bar): void {
+        if (!$this->toolbar_button_added) {
+            return;
+        }
+
+        $candidate_ids = [
+            'view',
+            'view-site',
+            'view-product',
+            'view-page',
+            'view-post',
+        ];
+
+        foreach ($candidate_ids as $candidate) {
+            if ($admin_bar->get_node($candidate)) {
+                $admin_bar->remove_node($candidate);
+            }
+        }
     }
 }
 

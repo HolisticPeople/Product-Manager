@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.1.4
+ * Version: 0.1.5
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.1.4';
+    const VERSION = '0.1.5';
     const HANDLE  = 'hp-products-manager';
 
     /**
@@ -57,11 +57,21 @@ final class HP_Products_Manager {
             return;
         }
 
+        $asset_base = plugin_dir_url(__FILE__) . 'assets/';
+
         wp_enqueue_style(
             self::HANDLE,
-            plugin_dir_url(__FILE__) . 'assets/css/admin.css',
+            $asset_base . 'css/admin.css',
             [],
             self::VERSION
+        );
+
+        wp_enqueue_script(
+            self::HANDLE . '-script',
+            $asset_base . 'js/admin.js',
+            [],
+            self::VERSION,
+            true
         );
     }
 

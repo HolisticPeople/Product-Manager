@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
+    var locale = (config.locale || navigator.language || 'en-US').replace(/_/g, '-');
+    var currencyCode = config.currency || 'USD';
+
     var columns = [
         {
             formatter: 'rowSelection',
@@ -226,14 +229,17 @@ document.addEventListener('DOMContentLoaded', function () {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
         }
 
-        var formatter = new Intl.NumberFormat(config.locale || 'en-US', {
-            style: 'currency',
-            currency: config.currency || 'USD',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
-
-        return formatter.format(number);
+        try {
+            var formatter = new Intl.NumberFormat(locale, {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            return formatter.format(number);
+        } catch (error) {
+            return number.toFixed(2);
+        }
     }
 });
 

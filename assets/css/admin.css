@@ -19,3 +19,21 @@
         margin: 10px 0 0 0 !important;
     }
 }
+
+#wpadminbar li.hp-products-toolbar-node {
+    margin-left: 6px;
+}
+
+#wpadminbar li.hp-products-toolbar-node > a.ab-item.hp-products-button {
+    background: #2271b1;
+    border-radius: 3px;
+    color: #ffffff;
+    font-weight: 600;
+    padding: 0 14px;
+}
+
+#wpadminbar li.hp-products-toolbar-node > a.ab-item.hp-products-button:hover,
+#wpadminbar li.hp-products-toolbar-node > a.ab-item.hp-products-button:focus {
+    background: #1a5f8a;
+    color: #ffffff;
+}

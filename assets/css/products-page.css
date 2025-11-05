@@ -14,8 +14,7 @@
 }
 
 .hp-pm-header .description {
-    margin: 4px 0 0;
-    color: #5d6470;
+    display: none;
 }
 
 .hp-pm-version {

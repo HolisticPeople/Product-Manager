@@ -19,6 +19,9 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PLUGIN_SLUG: products-manager
+
 jobs:
   deploy-staging:
     if: |
@@ -35,42 +38,44 @@ jobs:
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.KINSTA_PM_SSH_KEY }}
+          ssh-private-key: ${{ secrets.KINSTA_SSH_KEY }}
 
       - name: Trust host key (custom port, bracketed form)
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.KINSTA_PM_PORT }}" "${{ secrets.KINSTA_PM_HOST }}" \
-            | sed -e "s/^${{ secrets.KINSTA_PM_HOST }}/[${{ secrets.KINSTA_PM_HOST }}]:${{ secrets.KINSTA_PM_PORT }}/" \
+          ssh-keyscan -p "${{ secrets.KINSTA_PORT }}" "${{ secrets.KINSTA_HOST }}" \
+            | sed -e "s/^${{ secrets.KINSTA_HOST }}/[${{ secrets.KINSTA_HOST }}]:${{ secrets.KINSTA_PORT }}/" \
             >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Ensure plugin dir exists
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.KINSTA_PM_HOST }}
-          port:     ${{ secrets.KINSTA_PM_PORT }}
-          username: ${{ secrets.KINSTA_PM_USER }}
-          key:      ${{ secrets.KINSTA_PM_SSH_KEY }}
+          host:     ${{ secrets.KINSTA_HOST }}
+          port:     ${{ secrets.KINSTA_PORT }}
+          username: ${{ secrets.KINSTA_USER }}
+          key:      ${{ secrets.KINSTA_SSH_KEY }}
           script: |
-            mkdir -p "${{ secrets.KINSTA_PM_PLUGIN_PATH }}"
+            mkdir -p "${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
 
       - name: Rsync plugin files
         run: |
+          PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
           rsync -az --delete \
-            -e "ssh -p ${{ secrets.KINSTA_PM_PORT }}" \
+            -e "ssh -p ${{ secrets.KINSTA_PORT }}" \
             --exclude-from=".github/deploy-exclude.txt" \
-            ./ "${{ secrets.KINSTA_PM_USER }}@${{ secrets.KINSTA_PM_HOST }}:${{ secrets.KINSTA_PM_PLUGIN_PATH }}"
+            ./ "${{ secrets.KINSTA_USER }}@${{ secrets.KINSTA_HOST }}:${PLUGIN_PATH}"
 
       - name: Post-deploy (wp-cli)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.KINSTA_PM_HOST }}
-          port:     ${{ secrets_KINSTA_PM_PORT }}
-          username: ${{ secrets_KINSTA_PM_USER }}
-          key:      ${{ secrets.KINSTA_PM_SSH_KEY }}
+          host:     ${{ secrets.KINSTA_HOST }}
+          port:     ${{ secrets.KINSTA_PORT }}
+          username: ${{ secrets.KINSTA_USER }}
+          key:      ${{ secrets.KINSTA_SSH_KEY }}
           script: |
-            WP_PATH="$(dirname "$(dirname "${{ secrets.KINSTA_PM_PLUGIN_PATH }}")")"
+            PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
+            WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
             wp --path="$WP_PATH" cache flush || true
             wp --path="$WP_PATH" plugin activate products-manager || true
 
@@ -87,41 +92,43 @@ jobs:
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.KINSTAPROD_PM_SSH_KEY }}
+          ssh-private-key: ${{ secrets.KINSTAPROD_SSH_KEY }}
 
       - name: Trust host key (custom port, bracketed form)
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.KINSTAPROD_PM_PORT }}" "${{ secrets.KINSTAPROD_PM_HOST }}" \
-            | sed -e "s/^${{ secrets.KINSTAPROD_PM_HOST }}/[${{ secrets.KINSTAPROD_PM_HOST }}]:${{ secrets.KINSTAPROD_PM_PORT }}/" \
+          ssh-keyscan -p "${{ secrets.KINSTAPROD_PORT }}" "${{ secrets.KINSTAPROD_HOST }}" \
+            | sed -e "s/^${{ secrets.KINSTAPROD_HOST }}/[${{ secrets.KINSTAPROD_HOST }}]:${{ secrets.KINSTAPROD_PORT }}/" \
             >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Ensure plugin dir exists
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.KINSTAPROD_PM_HOST }}
-          port:     ${{ secrets.KINSTAPROD_PM_PORT }}
-          username: ${{ secrets.KINSTAPROD_PM_USER }}
-          key:      ${{ secrets.KINSTAPROD_PM_SSH_KEY }}
+          host:     ${{ secrets.KINSTAPROD_HOST }}
+          port:     ${{ secrets.KINSTAPROD_PORT }}
+          username: ${{ secrets.KINSTAPROD_USER }}
+          key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
           script: |
-            mkdir -p "${{ secrets.KINSTAPROD_PM_PLUGIN_PATH }}"
+            mkdir -p "${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
 
       - name: Rsync plugin files
         run: |
+          PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
           rsync -az --delete \
-            -e "ssh -p ${{ secrets.KINSTAPROD_PM_PORT }}" \
+            -e "ssh -p ${{ secrets.KINSTAPROD_PORT }}" \
             --exclude-from=".github/deploy-exclude.txt" \
-            ./ "${{ secrets.KINSTAPROD_PM_USER }}@${{ secrets.KINSTAPROD_PM_HOST }}:${{ secrets.KINSTAPROD_PM_PLUGIN_PATH }}"
+            ./ "${{ secrets.KINSTAPROD_USER }}@${{ secrets.KINSTAPROD_HOST }}:${PLUGIN_PATH}"
 
       - name: Post-deploy (wp-cli)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:     ${{ secrets.KINSTAPROD_PM_HOST }}
-          port:     ${{ secrets.KINSTAPROD_PM_PORT }}
-          username: ${{ secrets.KINSTAPROD_PM_USER }}
-          key:      ${{ secrets.KINSTAPROD_PM_SSH_KEY }}
+          host:     ${{ secrets.KINSTAPROD_HOST }}
+          port:     ${{ secrets.KINSTAPROD_PORT }}
+          username: ${{ secrets.KINSTAPROD_USER }}
+          key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
           script: |
-            WP_PATH="$(dirname "$(dirname "${{ secrets.KINSTAPROD_PM_PLUGIN_PATH }}")")"
+            PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
+            WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
             wp --path="$WP_PATH" cache flush || true
             wp --path="$WP_PATH" plugin activate products-manager || true

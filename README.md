@@ -16,13 +16,13 @@ Lightweight WooCommerce admin helper that adds a blue **Products** quick-access 
 
 ### Required GitHub secrets
 
+This repository reuses the HolisticPeople organization secrets:
+
 | Secret | Purpose |
 | ------ | ------- |
-| `KINSTA_PM_HOST` / `KINSTA_PM_PORT` / `KINSTA_PM_USER` | SSH connection info for the staging server |
-| `KINSTA_PM_SSH_KEY` | Private key for staging deployment |
-| `KINSTA_PM_PLUGIN_PATH` | Remote plugin directory for staging (e.g. `/www/holisticpeople/shared/plugins/products-manager`) |
-| `KINSTAPROD_PM_HOST` / `KINSTAPROD_PM_PORT` / `KINSTAPROD_PM_USER` | SSH connection info for production |
-| `KINSTAPROD_PM_SSH_KEY` | Private key for production deployment |
-| `KINSTAPROD_PM_PLUGIN_PATH` | Remote plugin directory for production |
+| `KINSTA_HOST`, `KINSTA_PORT`, `KINSTA_USER`, `KINSTA_SSH_KEY` | Staging SSH connection |
+| `KINSTA_PLUGINS_BASE` | Base staging plugins directory (workflow appends `/products-manager`) |
+| `KINSTAPROD_HOST`, `KINSTAPROD_PORT`, `KINSTAPROD_USER`, `KINSTAPROD_SSH_KEY` | Production SSH connection |
+| `KINSTAPROD_PLUGINS_BASE` | Base production plugins directory (workflow appends `/products-manager`) |
 
-Be sure to add the corresponding public key to each Kinsta instance and allow SSH access.
+Ensure the associated public SSH keys are installed on both Kinsta environments.

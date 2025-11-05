@@ -41,6 +41,7 @@
 
         var createAnchor = findCreateButton();
         if (!createAnchor) {
+            productNode.classList.remove('hp-products-hidden');
             return;
         }
 
@@ -51,6 +52,7 @@
         }
 
         parent.insertBefore(productNode, createNode.nextSibling);
+        productNode.classList.remove('hp-products-hidden');
     }
 
     function init() {

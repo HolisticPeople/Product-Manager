@@ -1,0 +1,149 @@
+.hp-products-manager-page {
+    max-width: 100%;
+}
+
+.hp-pm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.hp-pm-header h1 {
+    margin: 0;
+}
+
+.hp-pm-header .description {
+    margin: 4px 0 0;
+    color: #5d6470;
+}
+
+.hp-pm-header-actions .button {
+    margin-left: 8px;
+}
+
+.hp-pm-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    background: #fff;
+    padding: 16px;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.hp-pm-filter-group label {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    color: #3c434a;
+}
+
+.hp-pm-filter-group input,
+.hp-pm-filter-group select {
+    margin-top: 6px;
+    min-width: 180px;
+}
+
+.hp-pm-filter-group input[type="number"] {
+    width: 90px;
+}
+
+.hp-pm-filter-actions {
+    margin-left: auto;
+}
+
+.hp-pm-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.hp-pm-metric {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.hp-pm-metric-label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #646970;
+    margin-bottom: 4px;
+}
+
+.hp-pm-metric-value {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.hp-pm-metric-value--warning {
+    color: #cc7a00;
+}
+
+.hp-pm-metric-value--muted {
+    color: #787c82;
+}
+
+.hp-pm-metric-value--success {
+    color: #1f6c3c;
+}
+
+.hp-pm-table .tabulator {
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+}
+
+.hp-pm-table .tabulator .tabulator-header {
+    background: #f0f2f4;
+}
+
+.hp-pm-table .tabulator-row:nth-child(even) {
+    background: #fbfbfc;
+}
+
+.hp-pm-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    border: 1px solid #dcdcde;
+    object-fit: cover;
+}
+
+.hp-pm-stock-detail {
+    font-size: 11px;
+    color: #787c82;
+}
+
+.hp-pm-stock-low {
+    color: #d63638;
+    font-weight: 600;
+}
+
+.hp-pm-stock-ok {
+    color: #1f6c3c;
+    font-weight: 600;
+}
+
+.hp-pm-visibility-hidden {
+    color: #787c82;
+    font-style: italic;
+}
+
+@media (max-width: 960px) {
+    .hp-pm-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .hp-pm-header-actions .button {
+        margin-left: 0;
+        margin-right: 8px;
+    }
+}

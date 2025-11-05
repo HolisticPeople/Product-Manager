@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.2.2
+ * Version: 0.3.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.2.2';
+    const VERSION = '0.3.0';
     const HANDLE  = 'hp-products-manager';
 
     /**
@@ -47,12 +47,13 @@ final class HP_Products_Manager {
 
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('admin_bar_menu', [$this, 'maybe_add_toolbar_button'], 80);
+        add_action('admin_menu', [$this, 'register_admin_page'], 30);
     }
 
     /**
      * Load admin CSS for the Products button.
      */
-    public function enqueue_admin_assets(): void {
+    public function enqueue_admin_assets($hook_suffix): void {
         if (!current_user_can('edit_products')) {
             return;
         }
@@ -73,6 +74,40 @@ final class HP_Products_Manager {
             self::VERSION,
             true
         );
+
+        $is_products_page = $hook_suffix === 'woocommerce_page_hp-products-manager';
+
+        if ($is_products_page) {
+            wp_enqueue_style(
+                'tabulator-css',
+                'https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css',
+                [],
+                '5.5.2'
+            );
+
+            wp_enqueue_style(
+                self::HANDLE . '-products-css',
+                $asset_base . 'css/products-page.css',
+                [],
+                self::VERSION
+            );
+
+            wp_enqueue_script(
+                'tabulator-js',
+                'https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js',
+                [],
+                '5.5.2',
+                true
+            );
+
+            wp_enqueue_script(
+                self::HANDLE . '-products-js',
+                $asset_base . 'js/products-page.js',
+                ['tabulator-js'],
+                self::VERSION,
+                true
+            );
+        }
     }
 
     /**
@@ -92,7 +127,7 @@ final class HP_Products_Manager {
         $admin_bar->add_node([
             'id'     => 'hp-products-manager',
             'title'  => esc_html__('Products', 'hp-products-manager'),
-            'href'   => admin_url('edit.php?post_type=product'),
+            'href'   => admin_url('admin.php?page=hp-products-manager'),
             'parent' => 'root-default',
             'meta'   => [
                 'class'    => 'hp-products-toolbar-node hp-products-hidden',
@@ -100,6 +135,107 @@ final class HP_Products_Manager {
                 'position' => 40,
             ],
         ]);
+    }
+
+    /**
+     * Register the Products Manager admin page.
+     */
+    public function register_admin_page(): void {
+        add_submenu_page(
+            'woocommerce',
+            __('Products Manager', 'hp-products-manager'),
+            __('Products Manager', 'hp-products-manager'),
+            'manage_woocommerce',
+            'hp-products-manager',
+            [$this, 'render_products_page'],
+            30
+        );
+    }
+
+    /**
+     * Render the Products Manager interface (mock layout).
+     */
+    public function render_products_page(): void {
+        ?>
+        <div class="wrap hp-products-manager-page">
+            <header class="hp-pm-header">
+                <div>
+                    <h1><?php esc_html_e('Products Manager', 'hp-products-manager'); ?></h1>
+                    <p class="description">
+                        <?php esc_html_e('High-performance catalog dashboard for rapid merchandising updates.', 'hp-products-manager'); ?>
+                    </p>
+                </div>
+                <div class="hp-pm-header-actions">
+                    <button class="button button-primary"><?php esc_html_e('Add Product', 'hp-products-manager'); ?></button>
+                    <button class="button"><?php esc_html_e('Bulk Update', 'hp-products-manager'); ?></button>
+                    <button class="button"><?php esc_html_e('Export CSV', 'hp-products-manager'); ?></button>
+                </div>
+            </header>
+
+            <section class="hp-pm-filters">
+                <div class="hp-pm-filter-group">
+                    <label>
+                        <?php esc_html_e('Search', 'hp-products-manager'); ?>
+                        <input type="search" placeholder="<?php esc_attr_e('Name or SKU…', 'hp-products-manager'); ?>">
+                    </label>
+                </div>
+                <div class="hp-pm-filter-group">
+                    <label>
+                        <?php esc_html_e('Brand', 'hp-products-manager'); ?>
+                        <select>
+                            <option value=""><?php esc_html_e('All brands', 'hp-products-manager'); ?></option>
+                            <option>Pure Encapsulations</option>
+                            <option>Life Extension</option>
+                            <option>Organic India</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="hp-pm-filter-group">
+                    <label>
+                        <?php esc_html_e('Status', 'hp-products-manager'); ?>
+                        <select>
+                            <option value=""><?php esc_html_e('Any status', 'hp-products-manager'); ?></option>
+                            <option><?php esc_html_e('Enabled', 'hp-products-manager'); ?></option>
+                            <option><?php esc_html_e('Disabled', 'hp-products-manager'); ?></option>
+                        </select>
+                    </label>
+                </div>
+                <div class="hp-pm-filter-group">
+                    <label>
+                        <?php esc_html_e('Stock Range', 'hp-products-manager'); ?>
+                        <input type="number" min="0" placeholder="0"> –
+                        <input type="number" min="0" placeholder="999">
+                    </label>
+                </div>
+                <div class="hp-pm-filter-actions">
+                    <button class="button"><?php esc_html_e('Reset Filters', 'hp-products-manager'); ?></button>
+                </div>
+            </section>
+
+            <section class="hp-pm-metrics">
+                <div class="hp-pm-metric">
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Catalog', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value">1,549</span>
+                </div>
+                <div class="hp-pm-metric">
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Low Stock', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--warning">82</span>
+                </div>
+                <div class="hp-pm-metric">
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--muted">67</span>
+                </div>
+                <div class="hp-pm-metric">
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Avg. Margin', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--success">48%</span>
+                </div>
+            </section>
+
+            <section class="hp-pm-table">
+                <div id="hp-products-table"></div>
+            </section>
+        </div>
+        <?php
     }
 }
 

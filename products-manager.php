@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.1.6
+ * Version: 0.1.7
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.1.6';
+    const VERSION = '0.1.7';
     const HANDLE  = 'hp-products-manager';
 
     /**
@@ -89,11 +89,11 @@ final class HP_Products_Manager {
         $this->remove_default_view_links($admin_bar);
 
         $reference = $admin_bar->get_node('eao-create-new-order');
-        $parent    = 'top-secondary'; // default secondary toolbar
-        $position  = 60;              // near other action buttons
+        $parent    = 'root-default'; // align with primary quick actions
+        $position  = 35;             // just after create new order
 
         if ($reference) {
-            $parent   = $reference->parent ?: 'top-secondary';
+            $parent   = $reference->parent ?: 'root-default';
             $position = isset($reference->meta['position'])
                 ? (int) $reference->meta['position'] + 1
                 : $position;

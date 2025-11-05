@@ -31,10 +31,8 @@
             return;
         }
 
-        var anchors = ADMIN_BAR.querySelectorAll('li > a');
         var createAnchor = null;
-
-        anchors.forEach(function (anchor) {
+        ADMIN_BAR.querySelectorAll('li > a').forEach(function (anchor) {
             if (normalize(anchor.textContent) === 'create new order') {
                 createAnchor = anchor;
             }

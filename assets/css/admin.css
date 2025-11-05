@@ -13,12 +13,12 @@
     background-color: #2271b1 !important;
     border-color: #2271b1 !important;
     color: #ffffff !important;
-    font-weight: 400 !important;
+    font-weight: 500 !important;
     font-size: 13px !important;
     border-radius: 3px;
     padding: 0 14px;
-    height: 28px !important;
-    line-height: 28px !important;
+    height: 30px !important;
+    line-height: 30px !important;
     display: flex !important;
     align-items: center !important;
 }

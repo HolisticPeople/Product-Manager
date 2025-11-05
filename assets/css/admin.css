@@ -1,0 +1,21 @@
+/* Admin styles for the Products Manager quick action button */
+.hp-products-button {
+    background-color: #2271b1 !important;
+    border-color: #2271b1 !important;
+    color: #ffffff !important;
+    margin-left: 10px !important;
+}
+
+.hp-products-button:hover,
+.hp-products-button:focus {
+    background-color: #1a5f8a !important;
+    border-color: #1a5f8a !important;
+    color: #ffffff !important;
+}
+
+@media (max-width: 782px) {
+    .hp-products-button {
+        display: block !important;
+        margin: 10px 0 0 0 !important;
+    }
+}

@@ -1,0 +1,19 @@
+# VCS & CI
+.git/
+.github/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+
+# Build/temp
+node_modules/
+vendor/
+*.log
+*.zip
+
+# Local-only folders (examples — adjust as needed)
+Backups/
+Plans and reports/
+Ref Plugins/
+WPCode snippets/

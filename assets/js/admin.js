@@ -9,6 +9,7 @@
     var BUTTON_CLASS = 'hp-products-button';
     var TARGET_SELECTOR = '#eao-create-new-order, .eao-create-new-order-button';
     var FALLBACK_CONTAINER = '.wrap .page-title-actions';
+    var LABEL_TARGET = 'create new order';
 
     function buttonExists() {
         return document.querySelector('.' + BUTTON_CLASS) !== null;
@@ -31,6 +32,19 @@
         var referenceNode = document.querySelector(TARGET_SELECTOR);
         if (referenceNode && referenceNode.parentElement) {
             referenceNode.insertAdjacentElement('afterend', buildButton());
+            return true;
+        }
+
+        var labelMatch = Array.prototype.find.call(
+            document.querySelectorAll('a, button'),
+            function (element) {
+                return element.textContent &&
+                    element.textContent.trim().toLowerCase() === LABEL_TARGET;
+            }
+        );
+
+        if (labelMatch && labelMatch.parentElement) {
+            labelMatch.insertAdjacentElement('afterend', buildButton());
             return true;
         }
 

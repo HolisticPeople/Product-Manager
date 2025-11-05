@@ -18,6 +18,12 @@
     color: #5d6470;
 }
 
+.hp-pm-version {
+    margin: 4px 0;
+    font-size: 12px;
+    color: #646970;
+}
+
 .hp-pm-header-actions .button {
     margin-left: 8px;
 }

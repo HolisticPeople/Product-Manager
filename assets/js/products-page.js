@@ -1,50 +1,10 @@
 document.addEventListener('DOMContentLoaded', function () {
+    var config = window.HPProductsManagerData || {};
     var tableElement = document.getElementById('hp-products-table');
+
     if (!tableElement || typeof Tabulator === 'undefined') {
         return;
     }
-
-    var sampleData = [
-        {
-            id: 1,
-            image: 'https://via.placeholder.com/40x40.png?text=HP',
-            name: 'BrainON Blue Green Algae Extract',
-            sku: 'BEA-90',
-            cost: 18.75,
-            price: 42.95,
-            brand: 'E3Live',
-            stock: 40,
-            stock_detail: 'Wilton (new): 6 / 6',
-            status: 'Enabled',
-            visibility: 'Catalog, Search'
-        },
-        {
-            id: 2,
-            image: 'https://via.placeholder.com/40x40.png?text=PE',
-            name: 'Inositol (powder) 250g',
-            sku: 'PE-INP2',
-            cost: 23.37,
-            price: 50.20,
-            brand: 'Pure Encapsulations',
-            stock: 15,
-            stock_detail: 'Wilton (new): 1 / 1',
-            status: 'Enabled',
-            visibility: 'Catalog, Search'
-        },
-        {
-            id: 3,
-            image: 'https://via.placeholder.com/40x40.png?text=LI',
-            name: 'Huperzine A 60 caps',
-            sku: 'LEF01527',
-            cost: 20.00,
-            price: 30.00,
-            brand: 'Life Extension',
-            stock: 0,
-            stock_detail: 'Wilton (new): 0 / 0',
-            status: 'Disabled',
-            visibility: 'Not Visible Individually'
-        }
-    ];
 
     var columns = [
         {
@@ -62,51 +22,219 @@ document.addEventListener('DOMContentLoaded', function () {
             hozAlign: 'center',
             formatter: function (cell) {
                 var url = cell.getValue();
-                return '<img src="' + url + '" alt="" class="hp-pm-thumb">';
+                if (url) {
+                    return '<img src="' + url + '" alt="" loading="lazy" decoding="async" class="hp-pm-thumb">';
+                }
+                return '<div class="hp-pm-thumb hp-pm-thumb--placeholder"></div>';
             },
             headerSort: false
         },
         { title: 'Name', field: 'name', minWidth: 250, formatter: 'textarea' },
-        { title: 'SKU', field: 'sku', width: 140 },
-        { title: 'Cost', field: 'cost', width: 110, hozAlign: 'right', formatter: 'money', formatterParams: { symbol: '$', precision: 2 } },
-        { title: 'Price', field: 'price', width: 110, hozAlign: 'right', formatter: 'money', formatterParams: { symbol: '$', precision: 2 } },
-        { title: 'Brand', field: 'brand', width: 170 },
+        { title: 'SKU', field: 'sku', width: 140, formatter: textFormatter },
+        { title: 'Cost', field: 'cost', width: 110, hozAlign: 'right', formatter: currencyFormatter },
+        { title: 'Price', field: 'price', width: 110, hozAlign: 'right', formatter: currencyFormatter },
+        { title: 'Brand', field: 'brand', width: 170, formatter: textFormatter },
         {
             title: 'Stock',
             field: 'stock',
             width: 130,
             formatter: function (cell) {
                 var value = cell.getValue();
-                var detail = cell.getRow().getData().stock_detail;
+                var detail = cell.getRow().getData().stock_detail || '';
                 var klass = value > 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low';
+
+                if (value === null || typeof value === 'undefined') {
+                    return '<span class="hp-pm-cell-muted">&mdash;</span><div class="hp-pm-stock-detail">' + detail + '</div>';
+                }
+
                 return '<span class="' + klass + '">' + value + '</span><div class="hp-pm-stock-detail">' + detail + '</div>';
             }
         },
-        { title: 'Status', field: 'status', width: 130 },
-        {
-            title: 'Visibility',
-            field: 'visibility',
-            minWidth: 160,
-            formatter: function (cell) {
-                var text = cell.getValue();
-                if (text.toLowerCase().indexOf('not visible') !== -1) {
-                    return '<span class="hp-pm-visibility-hidden">' + text + '</span>';
-                }
-                return text;
-            }
-        }
+        { title: 'Status', field: 'status', width: 130, formatter: textFormatter },
+        { title: 'Visibility', field: 'visibility', minWidth: 160, formatter: textFormatter }
     ];
 
-    new Tabulator(tableElement, {
-        data: sampleData,
+    var table = new Tabulator(tableElement, {
+        data: [],
         layout: 'fitColumns',
         reactiveData: true,
         height: '620px',
         selectable: true,
         columns: columns,
-        initialSort: [
-            { column: 'stock', dir: 'asc' }
-        ],
-        placeholder: 'Loading products…'
+        placeholder: (config.i18n && config.i18n.loading) || 'Loading products...'
     });
+
+    populateBrands(config.brands || []);
+    updateMetrics(config.metrics || {});
+    loadProducts({});
+
+    var filterForm = document.getElementById('hp-products-filters');
+    var resetButton = document.getElementById('hp-pm-filters-reset');
+
+    if (filterForm) {
+        filterForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            loadProducts(collectFilters());
+        });
+    }
+
+    if (resetButton) {
+        resetButton.addEventListener('click', function () {
+            if (filterForm) {
+                filterForm.reset();
+            }
+            loadProducts({});
+        });
+    }
+
+    function collectFilters() {
+        var filters = {};
+        var search = document.getElementById('hp-pm-filter-search');
+        var brand = document.getElementById('hp-pm-filter-brand');
+        var status = document.getElementById('hp-pm-filter-status');
+        var stockMin = document.getElementById('hp-pm-filter-stock-min');
+        var stockMax = document.getElementById('hp-pm-filter-stock-max');
+
+        if (search && search.value.trim() !== '') {
+            filters.search = search.value.trim();
+        }
+
+        if (brand && brand.value) {
+            var parts = brand.value.split(':');
+            filters.brand_tax = parts[0];
+            filters.brand_slug = parts[1] || '';
+        }
+
+        if (status && status.value) {
+            filters.status = status.value;
+        }
+
+        if (stockMin && stockMin.value !== '') {
+            filters.stock_min = stockMin.value;
+        }
+
+        if (stockMax && stockMax.value !== '') {
+            filters.stock_max = stockMax.value;
+        }
+
+        return filters;
+    }
+
+    function loadProducts(query) {
+        query = query || {};
+        var url = new URL(config.restUrl);
+        url.searchParams.set('per_page', config.perPage || 50);
+
+        Object.keys(query).forEach(function (key) {
+            if (query[key] !== '' && query[key] !== null && typeof query[key] !== 'undefined') {
+                url.searchParams.set(key, query[key]);
+            }
+        });
+
+        table.replaceData([]);
+
+        fetch(url.toString(), {
+            headers: {
+                'X-WP-Nonce': config.nonce || '',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error((config.i18n && config.i18n.loadError) || 'Request failed');
+                }
+                return response.json();
+            })
+            .then(function (payload) {
+                table.replaceData(payload.products || []);
+                updateMetrics(payload.metrics || {});
+            })
+            .catch(function (error) {
+                console.error('Products Manager:', error);
+                table.replaceData([]);
+            });
+    }
+
+    function populateBrands(brands) {
+        var select = document.getElementById('hp-pm-filter-brand');
+        if (!select || !Array.isArray(brands)) {
+            return;
+        }
+
+        select.innerHTML = '';
+        var defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = (config.i18n && config.i18n.allBrands) || 'All brands';
+        select.appendChild(defaultOption);
+
+        brands.forEach(function (term) {
+            if (!term || !term.slug) {
+                return;
+            }
+            var option = document.createElement('option');
+            option.value = term.taxonomy + ':' + term.slug;
+            option.textContent = term.name;
+            select.appendChild(option);
+        });
+    }
+
+    function updateMetrics(metrics) {
+        var mapping = {
+            catalog: 'hp-pm-metric-catalog',
+            low_stock: 'hp-pm-metric-low-stock',
+            hidden: 'hp-pm-metric-hidden',
+            avg_margin: 'hp-pm-metric-avg-margin'
+        };
+
+        Object.keys(mapping).forEach(function (key) {
+            var element = document.getElementById(mapping[key]);
+            if (!element) {
+                return;
+            }
+
+            var value = metrics[key];
+            if (value === null || typeof value === 'undefined') {
+                element.textContent = '--';
+                return;
+            }
+
+            if (key === 'avg_margin') {
+                element.textContent = value + '%';
+                return;
+            }
+
+            element.textContent = value;
+        });
+    }
+
+    function textFormatter(cell) {
+        var value = cell.getValue();
+        if (!value) {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+        return value;
+    }
+
+    function currencyFormatter(cell) {
+        var amount = cell.getValue();
+        if (amount === null || typeof amount === 'undefined' || amount === '') {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+
+        var number = parseFloat(amount);
+        if (Number.isNaN(number)) {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+
+        var formatter = new Intl.NumberFormat(config.locale || 'en-US', {
+            style: 'currency',
+            currency: config.currency || 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        return formatter.format(number);
+    }
 });
+

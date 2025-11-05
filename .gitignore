@@ -9,3 +9,7 @@ node_modules/
 vendor/
 *.log
 *.zip
+
+# Tooling artifacts
+.cursorindexingignore
+.specstory/

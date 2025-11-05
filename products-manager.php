@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.3.3
+ * Version: 0.4.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -15,19 +15,24 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+use WP_Query;
+use WP_REST_Request;
+use WP_REST_Server;
+use WC_Product;
+
 /**
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.3.3';
+    private const REST_NAMESPACE = 'hp-products-manager/v1';
+
+    const VERSION = '0.4.1';
     const HANDLE  = 'hp-products-manager';
 
     /**
      * Retrieve the singleton instance.
-     *
-     * @return HP_Products_Manager
      */
-    public static function instance(): HP_Products_Manager {
+    public static function instance(): self {
         static $instance = null;
 
         if ($instance === null) {
@@ -47,11 +52,15 @@ final class HP_Products_Manager {
 
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('admin_bar_menu', [$this, 'maybe_add_toolbar_button'], 80);
+        add_action('admin_head', [$this, 'maybe_suppress_notices'], 0);
+        add_action('in_admin_header', [$this, 'maybe_suppress_notices'], 0);
+        add_action('rest_api_init', [$this, 'register_rest_routes']);
         add_action('admin_menu', [$this, 'register_admin_page'], 30);
+        add_filter('admin_body_class', [$this, 'maybe_flag_body_class']);
     }
 
     /**
-     * Load admin CSS for the Products button.
+     * Load admin assets.
      */
     public function enqueue_admin_assets($hook_suffix): void {
         if (!current_user_can('edit_products')) {
@@ -77,43 +86,62 @@ final class HP_Products_Manager {
 
         $is_products_page = $hook_suffix === 'woocommerce_page_hp-products-manager';
 
-        if ($is_products_page) {
-            wp_enqueue_style(
-                'tabulator-css',
-                'https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css',
-                [],
-                '5.5.2'
-            );
-
-            wp_enqueue_style(
-                self::HANDLE . '-products-css',
-                $asset_base . 'css/products-page.css',
-                [],
-                self::VERSION
-            );
-
-            wp_enqueue_script(
-                'tabulator-js',
-                'https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js',
-                [],
-                '5.5.2',
-                true
-            );
-
-            wp_enqueue_script(
-                self::HANDLE . '-products-js',
-                $asset_base . 'js/products-page.js',
-                ['tabulator-js'],
-                self::VERSION,
-                true
-            );
+        if (!$is_products_page) {
+            return;
         }
+
+        wp_enqueue_style(
+            'tabulator-css',
+            'https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css',
+            [],
+            '5.5.2'
+        );
+
+        wp_enqueue_style(
+            self::HANDLE . '-products-css',
+            $asset_base . 'css/products-page.css',
+            [],
+            self::VERSION
+        );
+
+        wp_enqueue_script(
+            'tabulator-js',
+            'https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js',
+            [],
+            '5.5.2',
+            true
+        );
+
+        wp_enqueue_script(
+            self::HANDLE . '-products-js',
+            $asset_base . 'js/products-page.js',
+            ['tabulator-js'],
+            self::VERSION,
+            true
+        );
+
+        wp_localize_script(
+            self::HANDLE . '-products-js',
+            'HPProductsManagerData',
+            [
+                'restUrl' => rest_url(self::REST_NAMESPACE . '/products'),
+                'nonce'   => wp_create_nonce('wp_rest'),
+                'perPage' => 50,
+                'currency'=> get_woocommerce_currency(),
+                'locale'  => get_locale(),
+                'brands'  => $this->get_brand_options(),
+                'metrics' => $this->get_metrics_data(),
+                'i18n'    => [
+                    'loading'   => __('Loading products...', 'hp-products-manager'),
+                    'loadError' => __('Unable to load products. Please try again.', 'hp-products-manager'),
+                    'allBrands' => __('All brands', 'hp-products-manager'),
+                ],
+            ]
+        );
     }
 
     /**
-     * Inject Products button into the admin toolbar.
-     *
-     * @param \WP_Admin_Bar $admin_bar Toolbar instance.
+     * Inject Products shortcut in admin toolbar.
      */
     public function maybe_add_toolbar_button(\WP_Admin_Bar $admin_bar): void {
         if (!is_admin_bar_showing() || !current_user_can('edit_products')) {
@@ -138,6 +166,36 @@ final class HP_Products_Manager {
     }
 
     /**
+     * Suppress global admin notices on the Products Manager page.
+     */
+    public function maybe_suppress_notices(): void {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+
+        if (!$screen || $screen->id !== 'woocommerce_page_hp-products-manager') {
+            return;
+        }
+
+        remove_all_actions('admin_notices');
+        remove_all_actions('all_admin_notices');
+        remove_all_actions('user_admin_notices');
+        remove_all_actions('network_admin_notices');
+        remove_all_actions('woocommerce_admin_notices');
+    }
+
+    /**
+     * Flag the admin body element so CSS can hide residual notices added later.
+     */
+    public function maybe_flag_body_class(string $classes): string {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+
+        if ($screen && $screen->id === 'woocommerce_page_hp-products-manager') {
+            $classes .= ' hp-pm-hide-notices';
+        }
+
+        return $classes;
+    }
+
+    /**
      * Register the Products Manager admin page.
      */
     public function register_admin_page(): void {
@@ -153,12 +211,9 @@ final class HP_Products_Manager {
     }
 
     /**
-     * Render the Products Manager interface (mock layout).
+     * Render the Products Manager interface.
      */
     public function render_products_page(): void {
-        remove_all_actions('admin_notices');
-        remove_all_actions('all_admin_notices');
-
         ?>
         <div class="wrap hp-products-manager-page">
             <header class="hp-pm-header">
@@ -167,7 +222,6 @@ final class HP_Products_Manager {
                     <p class="hp-pm-version">
                         <?php
                         printf(
-                            /* translators: %s version number */
                             esc_html__('Version %s', 'hp-products-manager'),
                             esc_html(self::VERSION)
                         );
@@ -181,62 +235,63 @@ final class HP_Products_Manager {
                 </div>
             </header>
 
-            <section class="hp-pm-filters">
+            <form id="hp-products-filters" class="hp-pm-filters">
                 <div class="hp-pm-filter-group">
-                    <label>
+                    <label for="hp-pm-filter-search">
                         <?php esc_html_e('Search', 'hp-products-manager'); ?>
-                        <input type="search" placeholder="<?php esc_attr_e('Name or SKU…', 'hp-products-manager'); ?>">
+                        <input id="hp-pm-filter-search" type="search" placeholder="<?php esc_attr_e('Name or SKU?', 'hp-products-manager'); ?>">
                     </label>
                 </div>
                 <div class="hp-pm-filter-group">
-                    <label>
+                    <label for="hp-pm-filter-brand">
                         <?php esc_html_e('Brand', 'hp-products-manager'); ?>
-                        <select>
+                        <select id="hp-pm-filter-brand">
                             <option value=""><?php esc_html_e('All brands', 'hp-products-manager'); ?></option>
-                            <option>Pure Encapsulations</option>
-                            <option>Life Extension</option>
-                            <option>Organic India</option>
                         </select>
                     </label>
                 </div>
                 <div class="hp-pm-filter-group">
-                    <label>
+                    <label for="hp-pm-filter-status">
                         <?php esc_html_e('Status', 'hp-products-manager'); ?>
-                        <select>
+                        <select id="hp-pm-filter-status">
                             <option value=""><?php esc_html_e('Any status', 'hp-products-manager'); ?></option>
-                            <option><?php esc_html_e('Enabled', 'hp-products-manager'); ?></option>
-                            <option><?php esc_html_e('Disabled', 'hp-products-manager'); ?></option>
+                            <option value="enabled"><?php esc_html_e('Enabled', 'hp-products-manager'); ?></option>
+                            <option value="disabled"><?php esc_html_e('Disabled', 'hp-products-manager'); ?></option>
                         </select>
                     </label>
                 </div>
                 <div class="hp-pm-filter-group">
-                    <label>
+                    <label for="hp-pm-filter-stock-min">
                         <?php esc_html_e('Stock Range', 'hp-products-manager'); ?>
-                        <input type="number" min="0" placeholder="0"> –
-                        <input type="number" min="0" placeholder="999">
+                        <div class="hp-pm-stock-range">
+                            <input id="hp-pm-filter-stock-min" type="number" min="0" placeholder="0">
+                            <span>&ndash;</span>
+                            <input id="hp-pm-filter-stock-max" type="number" min="0" placeholder="999">
+                        </div>
                     </label>
                 </div>
                 <div class="hp-pm-filter-actions">
-                    <button class="button"><?php esc_html_e('Reset Filters', 'hp-products-manager'); ?></button>
+                    <button type="submit" class="button button-primary"><?php esc_html_e('Apply', 'hp-products-manager'); ?></button>
+                    <button type="button" class="button" id="hp-pm-filters-reset"><?php esc_html_e('Reset Filters', 'hp-products-manager'); ?></button>
                 </div>
-            </section>
+            </form>
 
             <section class="hp-pm-metrics">
                 <div class="hp-pm-metric">
                     <span class="hp-pm-metric-label"><?php esc_html_e('Catalog', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value">1,549</span>
+                    <span class="hp-pm-metric-value" id="hp-pm-metric-catalog">--</span>
                 </div>
                 <div class="hp-pm-metric">
                     <span class="hp-pm-metric-label"><?php esc_html_e('Low Stock', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value hp-pm-metric-value--warning">82</span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--warning" id="hp-pm-metric-low-stock">--</span>
                 </div>
                 <div class="hp-pm-metric">
                     <span class="hp-pm-metric-label"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value hp-pm-metric-value--muted">67</span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--muted" id="hp-pm-metric-hidden">--</span>
                 </div>
                 <div class="hp-pm-metric">
                     <span class="hp-pm-metric-label"><?php esc_html_e('Avg. Margin', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value hp-pm-metric-value--success">48%</span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--success" id="hp-pm-metric-avg-margin">--</span>
                 </div>
             </section>
 
@@ -246,6 +301,267 @@ final class HP_Products_Manager {
         </div>
         <?php
     }
+
+    /**
+     * Register REST routes.
+     */
+    public function register_rest_routes(): void {
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/products',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_get_products'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('edit_products');
+                },
+            ]
+        );
+    }
+
+    /**
+     * REST callback returning product rows.
+     */
+    public function rest_get_products(WP_REST_Request $request) {
+        $page     = max(1, (int) $request->get_param('page'));
+        $per_page = min(200, max(1, (int) $request->get_param('per_page') ?: 50));
+        $search   = sanitize_text_field((string) $request->get_param('search'));
+        $status   = sanitize_key((string) $request->get_param('status'));
+        $brand_tax = sanitize_key((string) $request->get_param('brand_tax'));
+        $brand_slug = sanitize_title((string) $request->get_param('brand_slug'));
+
+        $stock_min = $request->get_param('stock_min');
+        $stock_max = $request->get_param('stock_max');
+        $stock_min = ($stock_min !== null && $stock_min !== '') ? (float) $stock_min : null;
+        $stock_max = ($stock_max !== null && $stock_max !== '') ? (float) $stock_max : null;
+
+        $args = [
+            'post_type'      => ['product'],
+            'post_status'    => ['publish', 'draft', 'pending', 'private'],
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'fields'         => 'ids',
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'suppress_filters' => false,
+        ];
+
+        if ($search !== '') {
+            $args['s'] = $search;
+        }
+
+        if ($status === 'enabled') {
+            $args['post_status'] = ['publish'];
+        } elseif ($status === 'disabled') {
+            $args['post_status'] = ['draft', 'pending', 'private'];
+        }
+
+        if ($brand_tax && $brand_slug && taxonomy_exists($brand_tax)) {
+            $args['tax_query'] = [
+                [
+                    'taxonomy' => $brand_tax,
+                    'field'    => 'slug',
+                    'terms'    => $brand_slug,
+                ],
+            ];
+        }
+
+        $query = new WP_Query($args);
+
+        $rows = [];
+
+        foreach ($query->posts as $product_id) {
+            $product = wc_get_product($product_id);
+
+            if (!$product instanceof WC_Product) {
+                continue;
+            }
+
+            $row = $this->format_product_row($product);
+
+            if ($stock_min !== null && $row['stock'] !== null && $row['stock'] < $stock_min) {
+                continue;
+            }
+
+            if ($stock_max !== null && $row['stock'] !== null && $row['stock'] > $stock_max) {
+                continue;
+            }
+
+            $rows[] = $row;
+        }
+
+        wp_reset_postdata();
+
+        return rest_ensure_response([
+            'products'   => $rows,
+            'pagination' => [
+                'page'        => $page,
+                'per_page'    => $per_page,
+                'total'       => (int) $query->found_posts,
+                'total_pages' => (int) max(1, $query->max_num_pages),
+            ],
+            'metrics'    => $this->get_metrics_data(),
+        ]);
+    }
+
+    /**
+     * Build a response row for the product table.
+     */
+    private function format_product_row(WC_Product $product): array {
+        $product_id    = $product->get_id();
+        $stock_qty     = $product->managing_stock() ? $product->get_stock_quantity() : null;
+        $stock_qty     = $stock_qty !== null ? (int) $stock_qty : null;
+        $stock_status  = function_exists('wc_get_stock_status_name')
+            ? wc_get_stock_status_name($product->get_stock_status())
+            : ucfirst($product->get_stock_status());
+
+        $cost  = $this->get_product_cost($product_id);
+        $price = $product->get_price('edit');
+        $price = $price !== '' ? (float) $price : null;
+
+        return [
+            'id'           => $product_id,
+            'image'        => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'name'         => $product->get_name(),
+            'sku'          => $product->get_sku(),
+            'cost'         => $cost,
+            'price'        => $price,
+            'brand'        => $this->get_product_brand_label($product_id),
+            'stock'        => $stock_qty,
+            'stock_detail' => $stock_status,
+            'status'       => $product->get_status() === 'publish' ? __('Enabled', 'hp-products-manager') : __('Disabled', 'hp-products-manager'),
+            'visibility'   => $this->map_visibility_label($product->get_catalog_visibility()),
+        ];
+    }
+
+    private function get_product_brand_label(int $product_id): string {
+        $names = [];
+
+        foreach (['product_brand', 'pa_brand'] as $taxonomy) {
+            if (!taxonomy_exists($taxonomy)) {
+                continue;
+            }
+
+            $terms = get_the_terms($product_id, $taxonomy);
+
+            if (is_wp_error($terms) || empty($terms)) {
+                continue;
+            }
+
+            foreach ($terms as $term) {
+                $names[$term->name] = true;
+            }
+        }
+
+        if (empty($names)) {
+            return '';
+        }
+
+        return implode(', ', array_keys($names));
+    }
+
+    private function map_visibility_label(string $visibility): string {
+        switch ($visibility) {
+            case 'visible':
+                return __('Catalog & Search', 'hp-products-manager');
+            case 'catalog':
+                return __('Catalog Only', 'hp-products-manager');
+            case 'search':
+                return __('Search Only', 'hp-products-manager');
+            case 'hidden':
+                return __('Hidden', 'hp-products-manager');
+            default:
+                return ucfirst($visibility);
+        }
+    }
+
+    private function get_product_cost(int $product_id): ?float {
+        $meta_keys = ['_purchase_price', '_wc_cog_cost', '_wc_cog_product_cost', '_product_cost'];
+
+        foreach ($meta_keys as $key) {
+            $value = get_post_meta($product_id, $key, true);
+
+            if ($value !== '' && $value !== null) {
+                return (float) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function get_metrics_data(): array {
+        $counts = wp_count_posts('product');
+        $catalog = isset($counts->publish) ? (int) $counts->publish : 0;
+
+        return [
+            'catalog'   => $catalog,
+            'low_stock' => null,
+            'hidden'    => $this->count_hidden_products(),
+            'avg_margin'=> null,
+        ];
+    }
+
+    private function count_hidden_products(): int {
+        if (!taxonomy_exists('product_visibility')) {
+            return 0;
+        }
+
+        $query = new WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'tax_query'      => [
+                'relation' => 'OR',
+                [
+                    'taxonomy' => 'product_visibility',
+                    'field'    => 'name',
+                    'terms'    => ['exclude-from-catalog'],
+                    'include_children' => false,
+                ],
+                [
+                    'taxonomy' => 'product_visibility',
+                    'field'    => 'name',
+                    'terms'    => ['exclude-from-search'],
+                    'include_children' => false,
+                ],
+            ],
+        ]);
+
+        wp_reset_postdata();
+
+        return (int) $query->found_posts;
+    }
+
+    private function get_brand_options(): array {
+        $taxonomies = array_filter(['product_brand', 'pa_brand'], 'taxonomy_exists');
+
+        if (empty($taxonomies)) {
+            return [];
+        }
+
+        $terms = get_terms([
+            'taxonomy'   => $taxonomies,
+            'hide_empty' => false,
+        ]);
+
+        if (is_wp_error($terms) || empty($terms)) {
+            return [];
+        }
+
+        $options = [];
+
+        foreach ($terms as $term) {
+            $options[] = [
+                'taxonomy' => $term->taxonomy,
+                'slug'     => $term->slug,
+                'name'     => $term->name,
+            ];
+        }
+
+        return $options;
+    }
 }
 
 HP_Products_Manager::instance();
+

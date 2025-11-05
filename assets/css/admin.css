@@ -6,7 +6,10 @@
     font-weight: 600;
     border-radius: 3px;
     padding: 0 14px;
-    margin-left: 8px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+    display: flex !important;
+    align-items: center !important;
 }
 
 #wp-admin-bar-hp-products-manager > a:hover,
@@ -20,9 +23,11 @@
     #wp-admin-bar-hp-products-manager > a {
         display: block !important;
         margin: 10px 0 0 0 !important;
+        height: auto !important;
+        line-height: normal !important;
     }
 }
 
 #wpadminbar li.hp-products-toolbar-node {
-    margin-left: 0;
+    margin-left: 8px !important;
 }

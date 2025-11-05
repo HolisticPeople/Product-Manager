@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.1.7
+ * Version: 0.1.8
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.1.7';
+    const VERSION = '0.1.8';
     const HANDLE  = 'hp-products-manager';
 
     /**
@@ -88,14 +88,14 @@ final class HP_Products_Manager {
         // Remove native view links to avoid duplication.
         $this->remove_default_view_links($admin_bar);
 
-        $reference = $admin_bar->get_node('eao-create-new-order');
-        $parent    = 'root-default'; // align with primary quick actions
-        $position  = 35;             // just after create new order
+        $parent   = 'root-default';
+        $position = 40;
 
-        if ($reference) {
-            $parent   = $reference->parent ?: 'root-default';
-            $position = isset($reference->meta['position'])
-                ? (int) $reference->meta['position'] + 1
+        $match = $this->find_toolbar_node_by_label($admin_bar, __('Create New Order', 'enhanced-admin-order'));
+        if ($match) {
+            $parent   = $match->parent ?: $parent;
+            $position = isset($match->meta['position'])
+                ? (int) $match->meta['position'] + 1
                 : $position;
         }
 
@@ -130,6 +130,29 @@ final class HP_Products_Manager {
                 $admin_bar->remove_node($candidate);
             }
         }
+    }
+
+    /**
+     * Find a toolbar node by its display title.
+     *
+     * @param \WP_Admin_Bar $admin_bar Toolbar instance.
+     * @param string        $label      Normalized label to locate.
+     * @return object|null
+     */
+    private function find_toolbar_node_by_label(\WP_Admin_Bar $admin_bar, string $label) {
+        $label = trim(wp_strip_all_tags($label));
+        if ($label === '') {
+            return null;
+        }
+
+        foreach ($admin_bar->get_nodes() as $node) {
+            $text = trim(wp_strip_all_tags($node->title));
+            if (strcasecmp($text, $label) === 0) {
+                return $node;
+            }
+        }
+
+        return null;
     }
 }
 

@@ -50,13 +50,6 @@
             return;
         }
 
-        // Mirror structural classes for consistent spacing
-        var productAnchor = productNode.querySelector('a');
-        productNode.className = createNode.className;
-        if (productAnchor && createAnchor) {
-            productAnchor.className = createAnchor.className;
-        }
-
         parent.insertBefore(productNode, createNode.nextSibling);
     }
 
@@ -71,6 +64,5 @@
         init();
     }
 
-    // Re-run after Ajax navigation (WP 5.8 toolbar menus use partial reloads)
     document.addEventListener('wp-admin-bar-added', init);
 })();

@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Products Manager
- * Description: Admin-only helper plugin that surfaces a quick Products shortcut next to the Enhanced Admin Order Create button.
+ * Description: Adds a persistent blue Products shortcut to the WordPress admin toolbar.
  * Author: Holistic People Dev Team
- * Version: 0.1.0
+ * Version: 0.1.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.1.0';
+    const VERSION = '0.1.1';
     const HANDLE  = 'hp-products-manager';
 
     /**
@@ -46,58 +46,45 @@ final class HP_Products_Manager {
         }
 
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+        add_action('admin_bar_menu', [$this, 'register_toolbar_button'], 95);
     }
 
     /**
-     * Load admin assets when on the Orders Summary experience.
+     * Load admin CSS for the toolbar button.
      */
     public function enqueue_admin_assets(): void {
-        if (!$this->should_activate_for_current_screen()) {
+        if (!current_user_can('edit_products')) {
             return;
         }
 
-        $style_path = plugin_dir_url(__FILE__) . 'assets/css/admin.css';
-        $script_path = plugin_dir_url(__FILE__) . 'assets/js/admin.js';
-
         wp_enqueue_style(
             self::HANDLE,
-            $style_path,
+            plugin_dir_url(__FILE__) . 'assets/css/admin.css',
             [],
             self::VERSION
-        );
-
-        wp_enqueue_script(
-            self::HANDLE,
-            $script_path,
-            ['jquery'],
-            self::VERSION,
-            true
-        );
-
-        wp_localize_script(
-            self::HANDLE,
-            'HPProductsManager',
-            [
-                'productsUrl' => admin_url('edit.php?post_type=product'),
-                'buttonLabel' => esc_html__('Products', 'hp-products-manager'),
-            ]
         );
     }
 
     /**
-     * Determine if the current screen should load the plugin assets.
+     * Add the Products shortcut to the admin toolbar.
      *
-     * @return bool
+     * @param \WP_Admin_Bar $admin_bar Admin bar instance.
      */
-    private function should_activate_for_current_screen(): bool {
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-
-        if ($screen && strpos((string) $screen->id, 'orders-summary') !== false) {
-            return true;
+    public function register_toolbar_button(\WP_Admin_Bar $admin_bar): void {
+        if (!is_admin_bar_showing() || !current_user_can('edit_products')) {
+            return;
         }
 
-        $page = isset($_GET['page']) ? sanitize_key((string) wp_unslash($_GET['page'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        return $page === 'orders-summary';
+        $admin_bar->add_node([
+            'id'     => 'hp-products-manager',
+            'title'  => esc_html__('Products', 'hp-products-manager'),
+            'href'   => admin_url('edit.php?post_type=product'),
+            'parent' => 'root-default',
+            'meta'   => [
+                'class'    => 'hp-products-button',
+                'title'    => esc_attr__('Go to Products', 'hp-products-manager'),
+            ],
+        ]);
     }
 }
 

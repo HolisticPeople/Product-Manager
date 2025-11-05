@@ -1,21 +1,31 @@
-/* Admin styles for the Products Manager quick action button */
-.hp-products-button {
-    background-color: #2271b1 !important;
-    border-color: #2271b1 !important;
-    color: #ffffff !important;
-    margin-left: 10px !important;
+/* Admin toolbar button styling */
+#wpadminbar li.hp-products-button {
+    margin-left: 6px;
 }
 
-.hp-products-button:hover,
-.hp-products-button:focus {
-    background-color: #1a5f8a !important;
-    border-color: #1a5f8a !important;
-    color: #ffffff !important;
+#wpadminbar li.hp-products-button > a.ab-item {
+    background-color: #2271b1;
+    border-radius: 3px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    height: 28px;
+    line-height: 1;
+    margin-top: 2px;
+    padding: 0 14px;
+    font-weight: 600;
 }
 
-@media (max-width: 782px) {
-    .hp-products-button {
-        display: block !important;
-        margin: 10px 0 0 0 !important;
+#wpadminbar li.hp-products-button > a.ab-item:hover,
+#wpadminbar li.hp-products-button > a.ab-item:focus {
+    background-color: #1a5f8a;
+    color: #ffffff;
+}
+
+@media screen and (max-width: 782px) {
+    #wpadminbar li.hp-products-button > a.ab-item {
+        height: auto;
+        margin: 0;
+        padding: 10px 14px;
     }
 }

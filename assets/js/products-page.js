@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var table = new Tabulator(tableElement, {
         data: [],
         layout: 'fitColumns',
-        reactiveData: true,
         height: '620px',
         selectable: true,
         columns: columns,
@@ -131,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        table.replaceData([]);
+        table.clearData();
 
         fetch(url.toString(), {
             headers: {
@@ -147,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(function (payload) {
-                table.replaceData(payload.products || []);
+                table.setData(payload.products || []);
                 updateMetrics(payload.metrics || {});
             })
             .catch(function (error) {

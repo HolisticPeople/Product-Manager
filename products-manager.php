@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.1.3
+ * Version: 0.1.4
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,15 +19,8 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.1.3';
+    const VERSION = '0.1.4';
     const HANDLE  = 'hp-products-manager';
-
-    /**
-     * Track whether we injected into the toolbar.
-     *
-     * @var bool
-     */
-    private $toolbar_button_added = false;
 
     /**
      * Retrieve the singleton instance.
@@ -54,7 +47,6 @@ final class HP_Products_Manager {
 
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('admin_bar_menu', [$this, 'maybe_add_toolbar_button'], 80);
-        add_action('admin_bar_menu', [$this, 'remove_default_view_link'], 120);
     }
 
     /**
@@ -83,11 +75,19 @@ final class HP_Products_Manager {
             return;
         }
 
-        $reference    = $admin_bar->get_node('eao-create-new-order');
-        $parent       = $reference && !empty($reference->parent) ? $reference->parent : 'root-default';
-        $position     = $reference && isset($reference->meta['position'])
-            ? (int) $reference->meta['position'] + 1
-            : 31;
+        // Remove native view links to avoid duplication.
+        $this->remove_default_view_links($admin_bar);
+
+        $reference = $admin_bar->get_node('eao-create-new-order');
+        $parent    = 'top-secondary'; // default secondary toolbar
+        $position  = 60;              // near other action buttons
+
+        if ($reference) {
+            $parent   = $reference->parent ?: 'top-secondary';
+            $position = isset($reference->meta['position'])
+                ? (int) $reference->meta['position'] + 1
+                : $position;
+        }
 
         // Ensure we don't duplicate if already added.
         if ($admin_bar->get_node('hp-products-manager')) {
@@ -105,27 +105,15 @@ final class HP_Products_Manager {
                 'position' => $position,
             ],
         ]);
-
-        $this->toolbar_button_added = true;
     }
 
     /**
-     * Remove generic "View" toolbar node so only the Products button shows.
+     * Remove generic "View" toolbar nodes so only the Products button shows.
      *
      * @param \WP_Admin_Bar $admin_bar Toolbar instance.
      */
-    public function remove_default_view_link(\WP_Admin_Bar $admin_bar): void {
-        if (!$this->toolbar_button_added) {
-            return;
-        }
-
-        $candidate_ids = [
-            'view',
-            'view-site',
-            'view-product',
-            'view-page',
-            'view-post',
-        ];
+    private function remove_default_view_links(\WP_Admin_Bar $admin_bar): void {
+        $candidate_ids = ['view', 'view-site', 'view-product', 'view-page', 'view-post'];
 
         foreach ($candidate_ids as $candidate) {
             if ($admin_bar->get_node($candidate)) {

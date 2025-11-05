@@ -2,7 +2,7 @@
 #wp-admin-bar-hp-products-manager {
     margin-left: 8px !important;
     margin-right: 8px !important;
-    margin-top: 2px !important;
+    margin-top: 0 !important;
 }
 
 #wp-admin-bar-hp-products-manager.hp-products-hidden {
@@ -13,7 +13,7 @@
     background-color: #2271b1 !important;
     border-color: #2271b1 !important;
     color: #ffffff !important;
-    font-weight: 600 !important;
+    font-weight: 400 !important;
     font-size: 13px !important;
     border-radius: 3px;
     padding: 0 14px;

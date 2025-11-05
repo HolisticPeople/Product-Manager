@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.1.10
+ * Version: 0.2.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
-    const VERSION = '0.1.10';
+    const VERSION = '0.2.0';
     const HANDLE  = 'hp-products-manager';
 
     /**
@@ -85,74 +85,21 @@ final class HP_Products_Manager {
             return;
         }
 
-        // Remove native view links to avoid duplication.
-        $this->remove_default_view_links($admin_bar);
-
-        $parent   = 'root-default';
-        $position = 40;
-
-        $match = $this->find_toolbar_node_by_label($admin_bar, __('Create New Order', 'enhanced-admin-order'));
-        if ($match) {
-            $parent   = $match->parent ?: $parent;
-            $position = isset($match->meta['position'])
-                ? (int) $match->meta['position'] + 1
-                : $position;
-        }
-
-        // Ensure we don't duplicate if already added.
         if ($admin_bar->get_node('hp-products-manager')) {
-            $admin_bar->remove_node('hp-products-manager');
+            return;
         }
 
         $admin_bar->add_node([
             'id'     => 'hp-products-manager',
             'title'  => esc_html__('Products', 'hp-products-manager'),
             'href'   => admin_url('edit.php?post_type=product'),
-            'parent' => $parent,
+            'parent' => 'root-default',
             'meta'   => [
                 'class'    => 'hp-products-toolbar-node hp-products-hidden',
                 'title'    => esc_attr__('Go to Products', 'hp-products-manager'),
-                'position' => $position,
+                'position' => 40,
             ],
         ]);
-    }
-
-    /**
-     * Remove generic "View" toolbar nodes so only the Products button shows.
-     *
-     * @param \WP_Admin_Bar $admin_bar Toolbar instance.
-     */
-    private function remove_default_view_links(\WP_Admin_Bar $admin_bar): void {
-        $candidate_ids = ['view', 'view-site', 'view-product', 'view-page', 'view-post'];
-
-        foreach ($candidate_ids as $candidate) {
-            if ($admin_bar->get_node($candidate)) {
-                $admin_bar->remove_node($candidate);
-            }
-        }
-    }
-
-    /**
-     * Find a toolbar node by its display title.
-     *
-     * @param \WP_Admin_Bar $admin_bar Toolbar instance.
-     * @param string        $label      Normalized label to locate.
-     * @return object|null
-     */
-    private function find_toolbar_node_by_label(\WP_Admin_Bar $admin_bar, string $label) {
-        $label = trim(wp_strip_all_tags($label));
-        if ($label === '') {
-            return null;
-        }
-
-        foreach ($admin_bar->get_nodes() as $node) {
-            $text = trim(wp_strip_all_tags($node->title));
-            if (strcasecmp($text, $label) === 0) {
-                return $node;
-            }
-        }
-
-        return null;
     }
 }
 

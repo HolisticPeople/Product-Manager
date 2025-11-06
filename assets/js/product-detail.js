@@ -253,7 +253,15 @@ document.addEventListener('DOMContentLoaded', function () {
   if (applyBtn) applyBtn.addEventListener('click', function () {
     var staged = readStaged(); if (Object.keys(staged).length === 0) { alert(data.i18n.nothingToApply); return; }
     fetch(data.restBase + '/apply', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': data.nonce }, body: JSON.stringify({ changes: staged }) })
-    .then(function (r) { if (!r.ok) throw new Error('Network'); return r.json(); })
+    .then(function (r) {
+      return r.json().then(function (body) {
+        if (!r.ok) {
+          var msg = (body && (body.message || body.data && body.data.message)) || 'Apply failed';
+          throw new Error(msg);
+        }
+        return body;
+      });
+    })
     .then(function (payload) {
       if (payload && payload.id) {
         original = payload;
@@ -265,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       writeStaged({}); alert(data.i18n.applied);
     })
-    .catch(function () { alert('Failed to apply changes'); });
+    .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });
 });
 

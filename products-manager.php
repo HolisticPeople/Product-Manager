@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.17
+ * Version: 0.5.18
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.17';
+    const VERSION = '0.5.18';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -960,6 +960,12 @@ final class HP_Products_Manager {
         return $out;
     }
 
+    private function get_shipping_class_slug_for(int $product_id): string {
+        $t = wc_get_product_terms($product_id, 'product_shipping_class', ['fields' => 'all']);
+        $sl = $this->extract_term_slugs($t);
+        return !empty($sl) ? $sl[0] : '';
+    }
+
     private function get_metrics_data(): array {
         $cached = wp_cache_get(self::METRICS_CACHE_KEY, self::CACHE_GROUP);
 
@@ -1167,7 +1173,7 @@ final class HP_Products_Manager {
             'brands'     => $this->extract_term_slugs($terms),
             'categories' => $this->extract_term_slugs(wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
             'tags'       => $this->extract_term_slugs(wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
-            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); $sl=$this->extract_term_slugs($t); return !empty($sl) ? $sl[0] : ''; })(),
+            'shipping_class' => $this->get_shipping_class_slug_for($id),
             'weight'     => $product->get_weight('edit'),
             'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
@@ -1309,7 +1315,7 @@ final class HP_Products_Manager {
             'brands'     => $this->extract_term_slugs($terms_brand),
             'categories' => $this->extract_term_slugs(wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
             'tags'       => $this->extract_term_slugs(wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
-            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); $sl=$this->extract_term_slugs($t); return !empty($sl) ? $sl[0] : ''; })(),
+            'shipping_class' => $this->get_shipping_class_slug_for($id),
             'weight'     => $product->get_weight('edit'),
             'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
@@ -1324,6 +1330,19 @@ final class HP_Products_Manager {
         ];
         return rest_ensure_response($snapshot);
         } catch (\Throwable $e) {
+            // Log rich context for debugging on staging
+            $context = [
+                'product_id' => isset($id) ? (int) $id : 0,
+                'payload'    => isset($payload) ? $payload : null,
+                'apply_keys' => isset($apply) ? array_keys($apply) : [],
+                'file'       => $e->getFile(),
+                'line'       => $e->getLine(),
+            ];
+            if (function_exists('wp_json_encode')) {
+                error_log('[HP PM] apply_failed: ' . $e->getMessage() . ' | ctx=' . wp_json_encode($context));
+            } else {
+                error_log('[HP PM] apply_failed: ' . $e->getMessage());
+            }
             // Surface failure as REST error instead of fatal 500 without message
             return new \WP_Error('apply_failed', $e->getMessage(), ['status' => 500]);
         }

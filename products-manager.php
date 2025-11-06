@@ -416,7 +416,7 @@ final class HP_Products_Manager {
                     'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
                     'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
                     'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
-                    'cost'       => $this->get_product_cost($product_id),
+                    'cost'       => $this->get_strict_cost($product_id),
                     'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
                     'image_id'   => $product->get_image_id() ?: null,
                     'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -938,6 +938,13 @@ final class HP_Products_Manager {
         return null;
     }
 
+    // Strict cost reader for Product Detail page: do not scan; use canonical key only.
+    private function get_strict_cost(int $product_id): ?float {
+        $value = get_post_meta($product_id, 'product_po_cost', true);
+        $parsed = $this->parse_decimal($value);
+        return $parsed !== null ? $parsed : null;
+    }
+
     private function get_metrics_data(): array {
         $cached = wp_cache_get(self::METRICS_CACHE_KEY, self::CACHE_GROUP);
 
@@ -1150,7 +1157,7 @@ final class HP_Products_Manager {
             'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
             'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
-            'cost'       => $this->get_product_cost($id),
+            'cost'       => $this->get_strict_cost($id),
             'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -1264,9 +1271,33 @@ final class HP_Products_Manager {
         $product->save();
         $this->flush_metrics_cache();
 
-        $req = new WP_REST_Request('GET', '');
-        $req->set_param('id', $id);
-        return $this->rest_get_product_detail($req); // fresh snapshot
+        // Build fresh snapshot inline to avoid any WP_REST_Request quirks
+        $terms_brand = wc_get_product_terms($id, 'yith_product_brand', ['fields' => 'all']);
+        $snapshot = [
+            'id'         => $product->get_id(),
+            'name'       => $product->get_name(),
+            'sku'        => $product->get_sku(),
+            'price'      => ($product->get_price('edit') !== '' ? (float) $product->get_price('edit') : null),
+            'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
+            'status'     => $product->get_status(),
+            'visibility' => $product->get_catalog_visibility(),
+            'brands'     => array_map(function ($t) { return $t->slug; }, (array) $terms_brand),
+            'categories' => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
+            'tags'       => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
+            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); return !empty($t) ? $t[0]->slug : ''; })(),
+            'weight'     => $product->get_weight('edit'),
+            'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
+            'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
+            'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
+            'cost'       => $this->get_strict_cost($id),
+            'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'image_id'   => $product->get_image_id() ?: null,
+            'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
+            'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
+            'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
+            'viewLink'   => get_permalink($id),
+        ];
+        return rest_ensure_response($snapshot);
     }
     /**
      * Build a map of reserved quantities per product based on Processing orders.

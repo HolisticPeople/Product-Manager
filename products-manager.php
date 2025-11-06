@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.26
+ * Version: 0.5.27
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.26';
+    const VERSION = '0.5.27';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -35,6 +35,18 @@ final class HP_Products_Manager {
     private const METRICS_TTL       = 60; // 1 minute for fresher stats
     // Definitive cost meta key (locked)
     private const COST_META_KEY     = '_cogs_total_value';
+
+    /**
+     * DB table helpers
+     */
+    private function table_movements(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'hp_pm_movements';
+    }
+    private function table_state(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'hp_pm_state';
+    }
 
     /**
      * Cached map of reserved quantities per product for this request.
@@ -65,6 +77,13 @@ final class HP_Products_Manager {
             return;
         }
 
+        // Ensure DB tables exist and hooks are registered
+        add_action('admin_init', [$this, 'maybe_install_tables']);
+        add_action('woocommerce_reduce_order_stock', [$this, 'on_reduce_order_stock'], 10, 1);
+        add_action('woocommerce_restore_order_stock', [$this, 'on_restore_order_stock'], 10, 1);
+        add_action('woocommerce_product_set_stock', [$this, 'on_product_set_stock'], 10, 1);
+        add_action('woocommerce_variation_set_stock', [$this, 'on_product_set_stock'], 10, 1);
+
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('admin_bar_menu', [$this, 'maybe_add_toolbar_button'], 80);
         add_action('admin_head', [$this, 'maybe_suppress_notices'], 0);
@@ -75,6 +94,142 @@ final class HP_Products_Manager {
         add_action('save_post_product', [$this, 'flush_metrics_cache'], 10, 1);
         add_action('deleted_post', [$this, 'maybe_flush_deleted_product_cache'], 10, 2);
         add_action('woocommerce_update_product', [$this, 'flush_metrics_cache'], 10, 1);
+    }
+
+    public function maybe_install_tables(): void {
+        global $wpdb;
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $charset = $wpdb->get_charset_collate();
+        $movements = $this->table_movements();
+        $state = $this->table_state();
+        $sql1 = \"CREATE TABLE {$movements} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            product_id BIGINT UNSIGNED NOT NULL,
+            order_id BIGINT UNSIGNED NULL,
+            movement_type VARCHAR(32) NOT NULL,
+            qty INT NOT NULL,
+            qoh_after INT NULL,
+            customer_id BIGINT UNSIGNED NULL,
+            customer_name VARCHAR(191) NULL,
+            source VARCHAR(64) NULL,
+            note TEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY product_id (product_id),
+            KEY created_at (created_at),
+            KEY order_id (order_id)
+        ) {$charset};\";
+        $sql2 = \"CREATE TABLE {$state} (
+            product_id BIGINT UNSIGNED NOT NULL,
+            last_qoh INT NULL,
+            last_order_id_synced BIGINT UNSIGNED NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (product_id)
+        ) {$charset};\";
+        dbDelta($sql1);
+        dbDelta($sql2);
+    }
+
+    private function set_state_qoh(int $product_id, ?int $qoh): void {
+        global $wpdb;
+        $table = $this->table_state();
+        $now = current_time('mysql');
+        $wpdb->query($wpdb->prepare(\"INSERT INTO {$table} (product_id, last_qoh, updated_at) VALUES (%d,%s,%s)
+            ON DUPLICATE KEY UPDATE last_qoh=VALUES(last_qoh), updated_at=VALUES(updated_at)\", $product_id, $qoh, $now));
+    }
+    private function get_state_qoh(int $product_id): ?int {
+        global $wpdb;
+        $table = $this->table_state();
+        $val = $wpdb->get_var($wpdb->prepare(\"SELECT last_qoh FROM {$table} WHERE product_id=%d\", $product_id));
+        return ($val === null) ? null : (int) $val;
+    }
+
+    private function log_movement(int $product_id, string $type, int $qty, array $meta = []): void {
+        global $wpdb;
+        $table = $this->table_movements();
+        $now = current_time('mysql');
+        $order_id = isset($meta['order_id']) ? (int) $meta['order_id'] : null;
+        $qoh_after = isset($meta['qoh_after']) ? (int) $meta['qoh_after'] : null;
+        $customer_id = isset($meta['customer_id']) ? (int) $meta['customer_id'] : null;
+        $customer_name = isset($meta['customer_name']) ? sanitize_text_field($meta['customer_name']) : null;
+        $source = isset($meta['source']) ? sanitize_text_field($meta['source']) : null;
+        $note = isset($meta['note']) ? wp_kses_post($meta['note']) : null;
+        $wpdb->insert($table, [
+            'product_id' => $product_id,
+            'order_id' => $order_id,
+            'movement_type' => $type,
+            'qty' => $qty,
+            'qoh_after' => $qoh_after,
+            'customer_id' => $customer_id,
+            'customer_name' => $customer_name,
+            'source' => $source,
+            'note' => $note,
+            'created_at' => $now,
+        ], ['%d','%d','%s','%d','%d','%d','%s','%s','%s','%s']);
+    }
+
+    public function on_reduce_order_stock($order): void {
+        if (!$order instanceof \\WC_Order) return;
+        foreach ($order->get_items() as $item) {
+            $product = $item->get_product();
+            if (!$product instanceof WC_Product) continue;
+            $product_id = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+            set_transient('hp_pm_ignore_set_stock_' . $product_id, 1, 30);
+            $qty = (int) $item->get_quantity();
+            $qoh = $product->managing_stock() ? (int) $product->get_stock_quantity() : null;
+            $this->log_movement($product_id, 'sale', -abs($qty), [
+                'order_id' => $order->get_id(),
+                'customer_id' => $order->get_customer_id(),
+                'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                'qoh_after' => $qoh,
+                'source' => 'order',
+            ]);
+            if ($qoh !== null) $this->set_state_qoh($product_id, $qoh);
+        }
+    }
+
+    public function on_restore_order_stock($order): void {
+        if (!$order instanceof \\WC_Order) return;
+        foreach ($order->get_items() as $item) {
+            $product = $item->get_product();
+            if (!$product instanceof WC_Product) continue;
+            $product_id = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+            set_transient('hp_pm_ignore_set_stock_' . $product_id, 1, 30);
+            $qty = (int) $item->get_quantity();
+            $qoh = $product->managing_stock() ? (int) $product->get_stock_quantity() : null;
+            $this->log_movement($product_id, 'restore', abs($qty), [
+                'order_id' => $order->get_id(),
+                'customer_id' => $order->get_customer_id(),
+                'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                'qoh_after' => $qoh,
+                'source' => 'order',
+            ]);
+            if ($qoh !== null) $this->set_state_qoh($product_id, $qoh);
+        }
+    }
+
+    public function on_product_set_stock($product): void {
+        if (!$product instanceof WC_Product) return;
+        $product_id = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+        if (get_transient('hp_pm_ignore_set_stock_' . $product_id)) {
+            // Ignore stock events that are the direct effect of order reduce/restore
+            return;
+        }
+        if (!$product->managing_stock()) return;
+        $new_qoh = (int) $product->get_stock_quantity();
+        $last = $this->get_state_qoh($product_id);
+        if ($last === null) {
+            $this->set_state_qoh($product_id, $new_qoh);
+            return;
+        }
+        $delta = $new_qoh - (int) $last;
+        if ($delta === 0) return;
+        $type = $delta > 0 ? 'stock_in' : 'adjustment_out';
+        $this->log_movement($product_id, $type, $delta, [
+            'qoh_after' => $new_qoh,
+            'source' => 'set_stock',
+        ]);
+        $this->set_state_qoh($product_id, $new_qoh);
     }
 
     /**
@@ -600,28 +755,28 @@ final class HP_Products_Manager {
                 </div>
             <?php else : ?>
                 <div class="card" style="max-width: 1200px;">
-                    <h2><?php esc_html_e('Stock Movements (mockup)', 'hp-products-manager'); ?></h2>
-                    <p><?php esc_html_e('This tab will aggregate stock movements from HPOS Orders, ShipStation and manual adjustments. We will cache results per product and provide a Refresh button.', 'hp-products-manager'); ?></p>
-                    <p><button class="button"><?php esc_html_e('Refresh Movements', 'hp-products-manager'); ?></button></p>
-                    <table class="widefat fixed striped" style="margin-top: 8px;">
+                    <h2><?php esc_html_e('ERP: Stock Movements & Sales', 'hp-products-manager'); ?></h2>
+                    <div id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0;">
+                        <div><strong><?php esc_html_e('Total Sales', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-total">--</span></div>
+                        <div><strong><?php esc_html_e('90d', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-90">--</span></div>
+                        <div><strong><?php esc_html_e('30d', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-30">--</span></div>
+                        <div><strong><?php esc_html_e('7d', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-7">--</span></div>
+                        <div style="margin-left:auto;">
+                            <button id="hp-pm-erp-rebuild" class="button"><?php esc_html_e('Rebuild from WC data', 'hp-products-manager'); ?></button>
+                        </div>
+                    </div>
+                    <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
                         <thead>
                         <tr>
                             <th><?php esc_html_e('Date', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('Description', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Order # / Customer', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('QOH After', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
                         </tr>
                         </thead>
-                        <tbody>
-                        <tr>
-                            <td><?php echo esc_html(date_i18n('Y-m-d H:i')); ?></td>
-                            <td><?php esc_html_e('order', 'hp-products-manager'); ?></td>
-                            <td>-1</td>
-                            <td><?php esc_html_e('Shipment for order #000000 (example)', 'hp-products-manager'); ?></td>
-                            <td>HPOS</td>
-                        </tr>
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
             <?php endif; ?>
@@ -694,6 +849,38 @@ final class HP_Products_Manager {
                     'id' => [
                         'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
                     ],
+                ],
+            ]
+        );
+
+        // Movements listing
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/movements',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_get_product_movements'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
+                    'limit' => [],
+                ],
+            ]
+        );
+        // Movements rebuild
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/movements/rebuild',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_product_movements'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
                 ],
             ]
         );
@@ -1251,6 +1438,80 @@ final class HP_Products_Manager {
         return rest_ensure_response(['id' => $id, 'meta' => $filtered]);
     }
 
+    /**
+     * REST: Movements listing + stats
+     */
+    public function rest_get_product_movements(WP_REST_Request $request) {
+        global $wpdb;
+        $id = (int) $request['id'];
+        $limit = min(500, max(1, (int) ($request->get_param('limit') ?: 100)));
+        $table = $this->table_movements();
+        $rows = $wpdb->get_results($wpdb->prepare(\"SELECT id, created_at, movement_type, qty, order_id, customer_name, qoh_after, source, note FROM {$table} WHERE product_id=%d ORDER BY created_at DESC, id DESC LIMIT %d\", $id, $limit), ARRAY_A);
+
+        // Stats (sales out as positive numbers)
+        $now = current_time('mysql');
+        $sum_all = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale'\", $id));
+        $sum_90  = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 90 DAY)\", $id, $now));
+        $sum_30  = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 30 DAY)\", $id, $now));
+        $sum_7   = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 7 DAY)\", $id, $now));
+
+        return rest_ensure_response([
+            'rows' => $rows ?: [],
+            'stats' => [
+                'total_sales' => $sum_all,
+                'sales_90' => $sum_90,
+                'sales_30' => $sum_30,
+                'sales_7' => $sum_7,
+            ],
+        ]);
+    }
+
+    /**
+     * REST: Rebuild movements from orders (simple pass)
+     */
+    public function rest_rebuild_product_movements(WP_REST_Request $request) {
+        global $wpdb;
+        $id = (int) $request['id'];
+        $mov = $this->table_movements();
+        // Clear existing
+        $wpdb->delete($mov, ['product_id' => $id], ['%d']);
+
+        // Collect orders (simple, may be heavy on very large stores)
+        $orders = wc_get_orders([
+            'status' => ['processing','completed','refunded','cancelled'],
+            'limit'  => -1,
+            'orderby'=> 'date',
+            'order'  => 'ASC',
+            'return' => 'objects',
+        ]);
+
+        if (!empty($orders)) {
+            foreach ($orders as $order) {
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    if ($pid !== $id) continue;
+                    $qty = (int) $item->get_quantity();
+                    $customer_name = trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+                    $common = [
+                        'order_id' => $order->get_id(),
+                        'customer_id' => $order->get_customer_id(),
+                        'customer_name' => $customer_name,
+                        'source' => 'rebuild',
+                    ];
+                    $status = $order->get_status();
+                    if ($status === 'refunded' || $status === 'cancelled') {
+                        $this->log_movement($id, 'restore', abs($qty), $common);
+                    } else {
+                        $this->log_movement($id, 'sale', -abs($qty), $common);
+                    }
+                }
+            }
+        }
+
+        return rest_ensure_response(['ok' => true]);
+    }
     /**
      * REST: Apply staged changes to a product
      */

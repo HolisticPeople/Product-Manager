@@ -376,6 +376,47 @@ document.addEventListener('DOMContentLoaded', function () {
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });
+
+  // ERP tab logic
+  (function initErp(){
+    var table = document.getElementById('hp-pm-erp-table');
+    if (!table) return; // Not on ERP tab
+    var tbody = table.querySelector('tbody');
+    function load() {
+      fetch(data.restBase + '/movements?limit=200', { headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(payload){
+          var rows = (payload && payload.rows) || [];
+          tbody.innerHTML = '';
+          rows.forEach(function (m) {
+            var tr = document.createElement('tr');
+            var orderCell = (m.order_id ? ('#' + m.order_id) : '') + (m.customer_name ? (' — ' + m.customer_name) : '');
+            tr.innerHTML = '<td>' + (m.created_at || '') + '</td>' +
+                           '<td>' + (m.movement_type || '') + '</td>' +
+                           '<td>' + (m.qty || 0) + '</td>' +
+                           '<td>' + orderCell + '</td>' +
+                           '<td>' + (m.qoh_after == null ? '' : m.qoh_after) + '</td>' +
+                           '<td>' + (m.source || '') + '</td>';
+            tbody.appendChild(tr);
+          });
+          if (payload && payload.stats) {
+            document.getElementById('hp-pm-erp-total').textContent = payload.stats.total_sales || 0;
+            document.getElementById('hp-pm-erp-90').textContent = payload.stats.sales_90 || 0;
+            document.getElementById('hp-pm-erp-30').textContent = payload.stats.sales_30 || 0;
+            document.getElementById('hp-pm-erp-7').textContent = payload.stats.sales_7 || 0;
+          }
+        });
+    }
+    load();
+    var rebuildBtn = document.getElementById('hp-pm-erp-rebuild');
+    if (rebuildBtn) rebuildBtn.addEventListener('click', function(){
+      rebuildBtn.disabled = true;
+      fetch(data.restBase + '/movements/rebuild', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(){ load(); rebuildBtn.disabled = false; })
+        .catch(function(){ rebuildBtn.disabled = false; });
+    });
+  })();
 });
 
 

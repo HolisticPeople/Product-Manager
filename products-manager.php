@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.4.5
+ * Version: 0.4.6
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -16,6 +16,7 @@ if (!defined('ABSPATH')) {
 }
 
 use WP_Query;
+use WP_Post;
 use WP_REST_Request;
 use WP_REST_Server;
 use WC_Product;
@@ -26,8 +27,11 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.4.5';
+    const VERSION = '0.4.6';
     const HANDLE  = 'hp-products-manager';
+    private const METRICS_CACHE_KEY = 'metrics';
+    private const CACHE_GROUP       = 'hp_products_manager';
+    private const METRICS_TTL       = 300; // 5 minutes
 
     /**
      * Retrieve the singleton instance.
@@ -58,6 +62,9 @@ final class HP_Products_Manager {
         add_action('in_admin_header', [$this, 'maybe_suppress_notices'], 0);
         add_action('admin_menu', [$this, 'register_admin_page'], 30);
         add_filter('admin_body_class', [$this, 'maybe_flag_body_class']);
+        add_action('save_post_product', [$this, 'flush_metrics_cache'], 10, 1);
+        add_action('deleted_post', [$this, 'maybe_flush_deleted_product_cache'], 10, 2);
+        add_action('woocommerce_update_product', [$this, 'flush_metrics_cache'], 10, 1);
     }
 
     /**
@@ -491,15 +498,28 @@ final class HP_Products_Manager {
     }
 
     private function get_metrics_data(): array {
-        $counts = wp_count_posts('product');
+        $cached = wp_cache_get(self::METRICS_CACHE_KEY, self::CACHE_GROUP);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $counts  = wp_count_posts('product');
         $catalog = isset($counts->publish) ? (int) $counts->publish : 0;
 
-        return [
+        $inventory = $this->calculate_inventory_metrics();
+        $hidden    = $this->count_hidden_products();
+
+        $metrics = [
             'catalog'   => $catalog,
-            'low_stock' => null,
-            'hidden'    => $this->count_hidden_products(),
-            'avg_margin'=> null,
+            'low_stock' => $inventory['low_stock'],
+            'hidden'    => $hidden,
+            'avg_margin'=> $inventory['avg_margin'],
         ];
+
+        wp_cache_set(self::METRICS_CACHE_KEY, $metrics, self::CACHE_GROUP, self::METRICS_TTL);
+
+        return $metrics;
     }
 
     private function count_hidden_products(): int {
@@ -532,6 +552,75 @@ final class HP_Products_Manager {
         wp_reset_postdata();
 
         return (int) $query->found_posts;
+    }
+
+    private function calculate_inventory_metrics(): array {
+        $low_stock_count = 0;
+        $margin_sum      = 0.0;
+        $margin_samples  = 0;
+
+        $products = wc_get_products([
+            'limit'  => -1,
+            'status' => ['publish', 'private'],
+            'return' => 'objects',
+        ]);
+
+        if (!empty($products)) {
+            foreach ($products as $product) {
+                if (!$product instanceof WC_Product) {
+                    continue;
+                }
+
+                if ($product->managing_stock()) {
+                    $stock_qty = $product->get_stock_quantity();
+
+                    if ($stock_qty !== null) {
+                        $threshold = $product->get_low_stock_amount();
+
+                        if (($threshold === '' || $threshold === null) && function_exists('wc_get_low_stock_amount')) {
+                            $threshold = wc_get_low_stock_amount($product);
+                        }
+
+                        if ($threshold === '' || $threshold === null) {
+                            $threshold = (int) get_option('woocommerce_notify_low_stock_amount', 2);
+                        }
+
+                        $threshold = max(0, (int) $threshold);
+
+                        if ($stock_qty <= $threshold) {
+                            $low_stock_count++;
+                        }
+                    }
+                }
+
+                $price = $product->get_price('edit');
+                $price = $price !== '' ? (float) $price : null;
+                $cost  = $this->get_product_cost($product->get_id());
+
+                if ($cost !== null && $price !== null && $price > 0) {
+                    $margin = (($price - $cost) / $price) * 100;
+                    $margin_sum += $margin;
+                    $margin_samples++;
+                }
+            }
+        }
+
+        $average_margin = $margin_samples > 0 ? round($margin_sum / $margin_samples, 1) : null;
+
+        return [
+            'low_stock' => $low_stock_count,
+            'avg_margin'=> $average_margin,
+        ];
+    }
+
+    public function flush_metrics_cache($unused = null): void {
+        wp_cache_delete(self::METRICS_CACHE_KEY, self::CACHE_GROUP);
+    }
+
+    public function maybe_flush_deleted_product_cache(int $post_id, WP_Post $post): void {
+        if ($post->post_type === 'product') {
+            $this->flush_metrics_cache();
+        }
     }
 
     private function get_brand_options(): array {

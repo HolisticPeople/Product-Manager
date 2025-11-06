@@ -416,6 +416,15 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function(){ load(); rebuildBtn.disabled = false; })
         .catch(function(){ rebuildBtn.disabled = false; });
     });
+    var rebuildAllBtn = document.getElementById('hp-pm-erp-rebuild-all');
+    if (rebuildAllBtn) rebuildAllBtn.addEventListener('click', function(){
+      rebuildAllBtn.disabled = true;
+      var nsBase = data.restBase.replace(/\\/product\\/\\d+$/, '');
+      fetch(nsBase + '/movements/rebuild-all', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(){ load(); rebuildAllBtn.disabled = false; })
+        .catch(function(){ rebuildAllBtn.disabled = false; });
+    });
   })();
 });
 

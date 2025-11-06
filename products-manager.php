@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.28
+ * Version: 0.5.29
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.28';
+    const VERSION = '0.5.29';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -147,7 +147,7 @@ final class HP_Products_Manager {
     private function log_movement(int $product_id, string $type, int $qty, array $meta = []): void {
         global $wpdb;
         $table = $this->table_movements();
-        $now = current_time('mysql');
+        $now = isset($meta['created_at']) && is_string($meta['created_at']) ? $meta['created_at'] : current_time('mysql');
         $order_id = isset($meta['order_id']) ? (int) $meta['order_id'] : null;
         $qoh_after = isset($meta['qoh_after']) ? (int) $meta['qoh_after'] : null;
         $customer_id = isset($meta['customer_id']) ? (int) $meta['customer_id'] : null;
@@ -170,6 +170,8 @@ final class HP_Products_Manager {
 
     public function on_reduce_order_stock($order): void {
         if (!$order instanceof \\WC_Order) return;
+        $created = $order->get_date_created();
+        $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
         foreach ($order->get_items() as $item) {
             $product = $item->get_product();
             if (!$product instanceof WC_Product) continue;
@@ -183,6 +185,7 @@ final class HP_Products_Manager {
                 'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
                 'qoh_after' => $qoh,
                 'source' => 'order',
+                'created_at' => $created_str,
             ]);
             if ($qoh !== null) $this->set_state_qoh($product_id, $qoh);
         }
@@ -190,6 +193,8 @@ final class HP_Products_Manager {
 
     public function on_restore_order_stock($order): void {
         if (!$order instanceof \\WC_Order) return;
+        $created = $order->get_date_created();
+        $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
         foreach ($order->get_items() as $item) {
             $product = $item->get_product();
             if (!$product instanceof WC_Product) continue;
@@ -203,6 +208,7 @@ final class HP_Products_Manager {
                 'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
                 'qoh_after' => $qoh,
                 'source' => 'order',
+                'created_at' => $created_str,
             ]);
             if ($qoh !== null) $this->set_state_qoh($product_id, $qoh);
         }
@@ -761,8 +767,9 @@ final class HP_Products_Manager {
                         <div><strong><?php esc_html_e('90d', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-90">--</span></div>
                         <div><strong><?php esc_html_e('30d', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-30">--</span></div>
                         <div><strong><?php esc_html_e('7d', 'hp-products-manager'); ?>:</strong> <span id="hp-pm-erp-7">--</span></div>
-                        <div style="margin-left:auto;">
+                        <div style="margin-left:auto; display:flex; gap:8px;">
                             <button id="hp-pm-erp-rebuild" class="button"><?php esc_html_e('Rebuild from WC data', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-rebuild-all" class="button"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
                         </div>
                     </div>
                     <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
@@ -882,6 +889,19 @@ final class HP_Products_Manager {
                 'args' => [
                     'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
                 ],
+            ]
+        );
+
+        // Rebuild all products movements
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_all_movements'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
             ]
         );
     }
@@ -1494,17 +1514,67 @@ final class HP_Products_Manager {
                     if ($pid !== $id) continue;
                     $qty = (int) $item->get_quantity();
                     $customer_name = trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+                    $created = $order->get_date_created();
+                    $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
                     $common = [
                         'order_id' => $order->get_id(),
                         'customer_id' => $order->get_customer_id(),
                         'customer_name' => $customer_name,
                         'source' => 'rebuild',
+                        'created_at' => $created_str,
                     ];
                     $status = $order->get_status();
                     if ($status === 'refunded' || $status === 'cancelled') {
                         $this->log_movement($id, 'restore', abs($qty), $common);
                     } else {
                         $this->log_movement($id, 'sale', -abs($qty), $common);
+                    }
+                }
+            }
+        }
+
+        return rest_ensure_response(['ok' => true]);
+    }
+
+    /**
+     * REST: Rebuild movements for ALL products from orders
+     */
+    public function rest_rebuild_all_movements(WP_REST_Request $request) {
+        global $wpdb;
+        $mov = $this->table_movements();
+        // Clear table
+        $wpdb->query("TRUNCATE {$mov}");
+
+        $orders = wc_get_orders([
+            'status' => ['processing','completed','refunded','cancelled'],
+            'limit'  => -1,
+            'orderby'=> 'date',
+            'order'  => 'ASC',
+            'return' => 'objects',
+        ]);
+
+        if (!empty($orders)) {
+            foreach ($orders as $order) {
+                $created = $order->get_date_created();
+                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    $qty = (int) $item->get_quantity();
+                    $customer_name = trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+                    $common = [
+                        'order_id' => $order->get_id(),
+                        'customer_id' => $order->get_customer_id(),
+                        'customer_name' => $customer_name,
+                        'source' => 'rebuild_all',
+                        'created_at' => $created_str,
+                    ];
+                    $status = $order->get_status();
+                    if ($status === 'refunded' || $status === 'cancelled') {
+                        $this->log_movement($pid, 'restore', abs($qty), $common);
+                    } else {
+                        $this->log_movement($pid, 'sale', -abs($qty), $common);
                     }
                 }
             }

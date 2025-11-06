@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function () {
             field: 'image',
             width: 60,
             hozAlign: 'center',
+            cssClass: 'hp-pm-cell-thumb',
             formatter: function (cell) {
                 var url = cell.getValue();
                 if (url) {

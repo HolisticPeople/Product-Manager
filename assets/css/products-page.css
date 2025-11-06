@@ -143,6 +143,12 @@
     padding: 6px 10px;
 }
 
+/* Reduce vertical spacing specifically for the image column */
+.hp-pm-table .hp-pm-cell-thumb {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
 .hp-pm-thumb {
     width: 32px;
     height: 32px;

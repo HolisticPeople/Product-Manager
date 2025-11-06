@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.5
+ * Version: 0.5.6
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.5';
+    const VERSION = '0.5.6';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -486,6 +486,10 @@ final class HP_Products_Manager {
         $cost  = $this->get_product_cost($product_id);
         $price = $product->get_price('edit');
         $price = $price !== '' ? (float) $price : null;
+        $margin_pct = null;
+        if ($cost !== null && $price !== null && $price > 0) {
+            $margin_pct = round((($price - (float) $cost) / $price) * 100, 1);
+        }
 
         $reserved = isset($this->reserved_quantities_map[$product_id]) ? (int) $this->reserved_quantities_map[$product_id] : 0;
         $available = $stock_qty !== null ? ((int) $stock_qty - $reserved) : null;
@@ -497,6 +501,7 @@ final class HP_Products_Manager {
             'sku'          => $product->get_sku(),
             'cost'         => $cost,
             'price'        => $price,
+            'margin'       => $margin_pct,
             'brand'        => $this->get_product_brand_label($product),
             'stock'        => $stock_qty,
             'stock_reserved' => $reserved,

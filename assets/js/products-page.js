@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function () {
         { title: 'SKU', field: 'sku', width: 140, formatter: textFormatter },
         { title: 'Cost', field: 'cost', width: 110, hozAlign: 'right', formatter: currencyFormatter },
         { title: 'Price', field: 'price', width: 110, hozAlign: 'right', formatter: currencyFormatter },
+        { title: 'Margin', field: 'margin', width: 90, hozAlign: 'right', formatter: marginFormatter },
         { title: 'Brand', field: 'brand', width: 170, formatter: textFormatter },
         { title: 'QOH', field: 'stock', width: 80, hozAlign: 'right', formatter: quantityFormatter },
         { title: 'Reserved', field: 'stock_reserved', width: 90, hozAlign: 'right', formatter: quantityFormatter },
@@ -354,6 +355,19 @@ document.addEventListener('DOMContentLoaded', function () {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
         }
         return String(num);
+    }
+
+    function marginFormatter(cell) {
+        var value = cell.getValue();
+        if (value === null || typeof value === 'undefined') {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+        var num = parseFloat(value);
+        if (Number.isNaN(num)) {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+        var klass = num >= 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low';
+        return '<span class="' + klass + '">' + num.toFixed(1) + '%</span>';
     }
 });
 

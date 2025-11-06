@@ -75,13 +75,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var filterForm = document.getElementById('hp-products-filters');
     var resetButton = document.getElementById('hp-pm-filters-reset');
 
-    if (filterForm) {
-        filterForm.addEventListener('submit', function (event) {
-            event.preventDefault();
-            applyFilters();
-        });
-    }
-
     if (resetButton) {
         resetButton.addEventListener('click', function () {
             if (filterForm) {
@@ -151,6 +144,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 allProducts = Array.isArray(payload.products) ? payload.products : [];
                 table.setData(allProducts);
                 updateMetrics(payload.metrics || {});
+                wireLiveFilters();
             })
             .catch(function (error) {
                 console.error('Products Manager:', error);
@@ -217,6 +211,35 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         table.setData(filtered);
+    }
+
+    function wireLiveFilters() {
+        var search = document.getElementById('hp-pm-filter-search');
+        var brand = document.getElementById('hp-pm-filter-brand');
+        var status = document.getElementById('hp-pm-filter-status');
+        var visibility = document.getElementById('hp-pm-filter-visibility');
+        var qoh = document.getElementById('hp-pm-filter-qoh-gt0');
+        var res = document.getElementById('hp-pm-filter-reserved-gt0');
+        var avail = document.getElementById('hp-pm-filter-available-lt0');
+
+        function debounce(fn, delay) {
+            var t;
+            return function () {
+                var args = arguments;
+                clearTimeout(t);
+                t = setTimeout(function () { fn.apply(null, args); }, delay);
+            };
+        }
+
+        if (search) {
+            search.addEventListener('input', debounce(applyFilters, 200));
+        }
+        if (brand) brand.addEventListener('change', applyFilters);
+        if (status) status.addEventListener('change', applyFilters);
+        if (visibility) visibility.addEventListener('change', applyFilters);
+        if (qoh) qoh.addEventListener('change', applyFilters);
+        if (res) res.addEventListener('change', applyFilters);
+        if (avail) avail.addEventListener('change', applyFilters);
     }
 
     function populateBrands(brands) {

@@ -89,8 +89,10 @@
 }
 
 .hp-pm-stock-range input[type="checkbox"] {
-    min-width: auto;
-    width: auto;
+    min-width: 16px;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
 }
 
 .hp-pm-filter-group input[type="number"] {

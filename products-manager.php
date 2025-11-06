@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.15
+ * Version: 0.5.16
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.15';
+    const VERSION = '0.5.16';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -945,6 +945,21 @@ final class HP_Products_Manager {
         return $parsed !== null ? $parsed : null;
     }
 
+    private function extract_term_slugs($terms): array {
+        if (is_wp_error($terms) || empty($terms)) {
+            return [];
+        }
+        $out = [];
+        foreach ((array) $terms as $t) {
+            if (is_object($t) && isset($t->slug)) {
+                $out[] = $t->slug;
+            } elseif (is_string($t)) {
+                $out[] = sanitize_title($t);
+            }
+        }
+        return $out;
+    }
+
     private function get_metrics_data(): array {
         $cached = wp_cache_get(self::METRICS_CACHE_KEY, self::CACHE_GROUP);
 
@@ -1149,10 +1164,10 @@ final class HP_Products_Manager {
             'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
             'status'     => $product->get_status(),
             'visibility' => $product->get_catalog_visibility(),
-            'brands'     => array_map(function ($t) { return $t->slug; }, (array) $terms),
-            'categories' => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
-            'tags'       => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
-            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); return !empty($t) ? $t[0]->slug : ''; })(),
+            'brands'     => $this->extract_term_slugs($terms),
+            'categories' => $this->extract_term_slugs(wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
+            'tags'       => $this->extract_term_slugs(wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
+            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); $sl=$this->extract_term_slugs($t); return !empty($sl) ? $sl[0] : ''; })(),
             'weight'     => $product->get_weight('edit'),
             'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
@@ -1171,6 +1186,7 @@ final class HP_Products_Manager {
      * REST: Apply staged changes to a product
      */
     public function rest_apply_product_changes(WP_REST_Request $request) {
+        try {
         $id = (int) $request['id'];
         $product = wc_get_product($id);
         if (!$product instanceof WC_Product) {
@@ -1290,10 +1306,10 @@ final class HP_Products_Manager {
             'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
             'status'     => $product->get_status(),
             'visibility' => $product->get_catalog_visibility(),
-            'brands'     => array_map(function ($t) { return $t->slug; }, (array) $terms_brand),
-            'categories' => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
-            'tags'       => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
-            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); return !empty($t) ? $t[0]->slug : ''; })(),
+            'brands'     => $this->extract_term_slugs($terms_brand),
+            'categories' => $this->extract_term_slugs(wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
+            'tags'       => $this->extract_term_slugs(wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
+            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); $sl=$this->extract_term_slugs($t); return !empty($sl) ? $sl[0] : ''; })(),
             'weight'     => $product->get_weight('edit'),
             'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
@@ -1307,6 +1323,10 @@ final class HP_Products_Manager {
             'viewLink'   => get_permalink($id),
         ];
         return rest_ensure_response($snapshot);
+        } catch (\\Throwable $e) {
+            // Surface failure as REST error instead of fatal 500 without message
+            return new \\WP_Error('apply_failed', $e->getMessage(), ['status' => 500]);
+        }
     }
     /**
      * Build a map of reserved quantities per product based on Processing orders.

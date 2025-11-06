@@ -311,7 +311,32 @@ document.addEventListener('DOMContentLoaded', function () {
     if (rm === 'gallery_ids') { currentGallery = (original.gallery_ids || []).slice(); renderGallery(); }
   });
 
-  if (discardBtn) discardBtn.addEventListener('click', function () { writeStaged({}); });
+  if (discardBtn) discardBtn.addEventListener('click', function () {
+    // Clear staged and reload fresh snapshot from server to fully revert UI
+    writeStaged({});
+    fetch(data.restBase, { headers: { 'X-WP-Nonce': data.nonce } })
+      .then(function (r) { return r.json(); })
+      .then(function (payload) {
+        if (!payload || !payload.id) return;
+        original = payload;
+        setValue(nameEl, original.name); setValue(skuEl, original.sku);
+        setValue(priceEl, original.price); setValue(salePriceEl, original.sale_price);
+        setValue(statusEl, original.status); setValue(visibilityEl, original.visibility);
+        brandsTk.set && brandsTk.set(original.brands || []);
+        catsTk.set && catsTk.set(original.categories || []);
+        tagsTk.set && tagsTk.set(original.tags || []);
+        setValue(costEl, original.cost); setValue(weightEl, original.weight);
+        setValue(lengthEl, original.length); setValue(widthEl, original.width);
+        setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
+        currentImageId = original.image_id || null;
+        if (imgEl) imgEl.src = original.image || '';
+        currentGallery = (original.gallery_ids || []).slice();
+        galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; });
+        renderGallery(); imageDirty = false; galleryDirty = false;
+        showNotice('Changes discarded', 'info');
+      })
+      .catch(function(){ /* ignore */ });
+  });
 
   // Inline notice (non-blocking success message)
   var actionsWrap = document.querySelector('.hp-pm-staging-actions');

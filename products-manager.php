@@ -373,6 +373,49 @@ final class HP_Products_Manager {
         $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'general';
         $active_tab = in_array($active_tab, ['general', 'erp'], true) ? $active_tab : 'general';
 
+        // Enqueue product detail assets and bootstrap data for JS
+        $asset_base = plugin_dir_url(__FILE__) . 'assets/';
+        wp_enqueue_style(
+            self::HANDLE . '-product-css',
+            $asset_base . 'css/product-detail.css',
+            [],
+            self::VERSION
+        );
+        wp_enqueue_script(
+            self::HANDLE . '-product-js',
+            $asset_base . 'js/product-detail.js',
+            [],
+            self::VERSION,
+            true
+        );
+        $brands = $this->get_brand_options();
+        wp_localize_script(
+            self::HANDLE . '-product-js',
+            'HPProductDetailData',
+            [
+                'restBase' => rest_url(self::REST_NAMESPACE . '/product/' . $product_id),
+                'nonce'    => wp_create_nonce('wp_rest'),
+                'product'  => [
+                    'id'         => $product->get_id(),
+                    'name'       => $product->get_name(),
+                    'sku'        => $product->get_sku(),
+                    'price'      => ($product->get_price('edit') !== '' ? (float) $product->get_price('edit') : null),
+                    'status'     => $product->get_status(),
+                    'visibility' => $product->get_catalog_visibility(),
+                    'brands'     => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
+                ],
+                'brands'   => $brands,
+                'i18n'     => [
+                    'stagedChanges' => __('Staged Changes', 'hp-products-manager'),
+                    'stageBtn'      => __('Stage Changes', 'hp-products-manager'),
+                    'applyAll'      => __('Apply All', 'hp-products-manager'),
+                    'discardAll'    => __('Discard All', 'hp-products-manager'),
+                    'applied'       => __('Changes applied.', 'hp-products-manager'),
+                    'nothingToApply'=> __('No changes to apply.', 'hp-products-manager'),
+                ],
+            ]
+        );
+
         ?>
         <div class="wrap">
             <h1><?php echo esc_html($title); ?></h1>
@@ -383,39 +426,64 @@ final class HP_Products_Manager {
             </h2>
 
             <?php if ($active_tab === 'general') : ?>
-                <div class="card" style="max-width: 1200px;">
+                <div class="card hp-pm-card" style="max-width: 1200px;">
                     <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
-                    <table class="form-table">
+                    <table class="form-table hp-pm-form">
                         <tr>
                             <th><?php esc_html_e('Name', 'hp-products-manager'); ?></th>
-                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_name()); ?>" disabled></td>
+                            <td><input id="hp-pm-pd-name" type="text" class="regular-text"></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('SKU', 'hp-products-manager'); ?></th>
-                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_sku()); ?>" disabled></td>
+                            <td><input id="hp-pm-pd-sku" type="text" class="regular-text"></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
-                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_price('edit')); ?>" disabled></td>
+                            <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Status', 'hp-products-manager'); ?></th>
-                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_status()); ?>" disabled></td>
+                            <td>
+                                <select id="hp-pm-pd-status">
+                                    <option value="publish">publish</option>
+                                    <option value="draft">draft</option>
+                                    <option value="private">private</option>
+                                    <option value="pending">pending</option>
+                                </select>
+                            </td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Visibility', 'hp-products-manager'); ?></th>
-                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_catalog_visibility()); ?>" disabled></td>
+                            <td>
+                                <select id="hp-pm-pd-visibility">
+                                    <option value="visible"><?php esc_html_e('Catalog & Search', 'hp-products-manager'); ?></option>
+                                    <option value="catalog"><?php esc_html_e('Catalog Only', 'hp-products-manager'); ?></option>
+                                    <option value="search"><?php esc_html_e('Search Only', 'hp-products-manager'); ?></option>
+                                    <option value="hidden"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Brand(s)', 'hp-products-manager'); ?></th>
+                            <td>
+                                <select id="hp-pm-pd-brands" multiple style="min-width: 280px;"></select>
+                            </td>
                         </tr>
                     </table>
 
-                    <hr>
-                    <h2><?php esc_html_e('Staging (mockup)', 'hp-products-manager'); ?></h2>
-                    <p><?php esc_html_e('This section will allow staging field changes and applying them in bulk. For now, it is a visual mockup.', 'hp-products-manager'); ?></p>
-                    <ul style="margin-left: 18px; list-style: disc;">
-                        <li><?php esc_html_e('Stage edits locally per product and per field.', 'hp-products-manager'); ?></li>
-                        <li><?php esc_html_e('Review staged changes.', 'hp-products-manager'); ?></li>
-                        <li><?php esc_html_e('Apply all staged changes in one transaction.', 'hp-products-manager'); ?></li>
-                    </ul>
+                    <div class="hp-pm-staging-actions">
+                        <button id="hp-pm-stage-btn" class="button button-primary"></button>
+                        <button id="hp-pm-apply-btn" class="button" disabled></button>
+                        <button id="hp-pm-discard-btn" class="button-link"></button>
+                    </div>
+
+                    <div class="hp-pm-staged">
+                        <h3 id="hp-pm-staged-title"></h3>
+                        <table class="widefat fixed striped" id="hp-pm-staged-table" style="display:none;">
+                            <thead><tr><th><?php esc_html_e('Field', 'hp-products-manager'); ?></th><th><?php esc_html_e('From', 'hp-products-manager'); ?></th><th><?php esc_html_e('To', 'hp-products-manager'); ?></th><th></th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             <?php else : ?>
                 <div class="card" style="max-width: 1200px;">
@@ -460,6 +528,40 @@ final class HP_Products_Manager {
                 'permission_callback' => function (): bool {
                     return current_user_can('edit_products');
                 },
+            ]
+        );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_get_product_detail'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('edit_products');
+                },
+                'args' => [
+                    'id' => [
+                        'validate_callback' => 'is_numeric',
+                    ],
+                ],
+            ]
+        );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/apply',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_apply_product_changes'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => [
+                        'validate_callback' => 'is_numeric',
+                    ],
+                ],
             ]
         );
     }
@@ -907,6 +1009,83 @@ final class HP_Products_Manager {
         return $options;
     }
 
+    /**
+     * REST: Get single product detail
+     */
+    public function rest_get_product_detail(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $product = wc_get_product($id);
+        if (!$product instanceof WC_Product) {
+            return new \WP_Error('not_found', __('Product not found', 'hp-products-manager'), ['status' => 404]);
+        }
+
+        $terms = wc_get_product_terms($id, 'yith_product_brand', ['fields' => 'all']);
+        return rest_ensure_response([
+            'id'         => $product->get_id(),
+            'name'       => $product->get_name(),
+            'sku'        => $product->get_sku(),
+            'price'      => ($product->get_price('edit') !== '' ? (float) $product->get_price('edit') : null),
+            'status'     => $product->get_status(),
+            'visibility' => $product->get_catalog_visibility(),
+            'brands'     => array_map(function ($t) { return $t->slug; }, (array) $terms),
+        ]);
+    }
+
+    /**
+     * REST: Apply staged changes to a product
+     */
+    public function rest_apply_product_changes(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $product = wc_get_product($id);
+        if (!$product instanceof WC_Product) {
+            return new \WP_Error('not_found', __('Product not found', 'hp-products-manager'), ['status' => 404]);
+        }
+
+        $payload = json_decode($request->get_body(), true);
+        $changes = is_array($payload) && isset($payload['changes']) && is_array($payload['changes']) ? $payload['changes'] : [];
+
+        // Allowed fields only
+        $allowed = ['name', 'sku', 'price', 'status', 'visibility', 'brands'];
+        $apply = array_intersect_key($changes, array_flip($allowed));
+
+        if (empty($apply)) {
+            return rest_ensure_response(['updated' => false, 'product' => []]);
+        }
+
+        if (isset($apply['name'])) {
+            $product->set_name(wp_strip_all_tags((string) $apply['name']));
+        }
+        if (isset($apply['sku'])) {
+            $sku = wc_clean((string) $apply['sku']);
+            $product->set_sku($sku);
+        }
+        if (isset($apply['price'])) {
+            $price = $this->parse_decimal($apply['price']);
+            if ($price !== null) {
+                $product->set_regular_price((string) $price);
+                $product->set_price((string) $price);
+            }
+        }
+        if (isset($apply['status'])) {
+            $status = sanitize_key((string) $apply['status']);
+            $product->set_status($status);
+        }
+        if (isset($apply['visibility'])) {
+            $vis = sanitize_key((string) $apply['visibility']);
+            $product->set_catalog_visibility($vis);
+        }
+        if (isset($apply['brands']) && is_array($apply['brands'])) {
+            $slugs = array_values(array_filter(array_map('sanitize_title', $apply['brands'])));
+            if (taxonomy_exists('yith_product_brand')) {
+                wp_set_object_terms($id, $slugs, 'yith_product_brand', false);
+            }
+        }
+
+        $product->save();
+        $this->flush_metrics_cache();
+
+        return $this->rest_get_product_detail(new WP_REST_Request('GET', '/')); // return fresh snapshot
+    }
     /**
      * Build a map of reserved quantities per product based on Processing orders.
      * If $limit_ids is provided, only those product IDs are considered (useful for response rows).

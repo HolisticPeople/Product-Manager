@@ -634,7 +634,7 @@ final class HP_Products_Manager {
                 <div class="card hp-pm-card" style="max-width: 1200px;">
                     <div class="hp-pm-pd-header">
                         <div class="hp-pm-pd-image">
-                            <img id="hp-pm-pd-image" src="" alt="" class="hp-pm-main-img">
+                            <img id="hp-pm-pd-image" src="<?php echo esc_url($product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : ''); ?>" alt="" class="hp-pm-main-img">
                         </div>
                         <div id="hp-pm-pd-gallery" class="hp-pm-gallery"></div>
                         <div class="hp-pm-pd-links">
@@ -649,11 +649,11 @@ final class HP_Products_Manager {
                         <table class="form-table hp-pm-form">
                         <tr>
                             <th><?php esc_html_e('Name', 'hp-products-manager'); ?></th>
-                            <td><input id="hp-pm-pd-name" type="text" class="regular-text"></td>
+                            <td><input id="hp-pm-pd-name" type="text" class="regular-text" value="<?php echo esc_attr($product->get_name()); ?>"></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('SKU', 'hp-products-manager'); ?></th>
-                            <td><input id="hp-pm-pd-sku" type="text" class="regular-text"></td>
+                            <td><input id="hp-pm-pd-sku" type="text" class="regular-text" value="<?php echo esc_attr($product->get_sku()); ?>"></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Status', 'hp-products-manager'); ?></th>
@@ -709,15 +709,15 @@ final class HP_Products_Manager {
                         <table class="form-table hp-pm-form">
                             <tr>
                                 <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
+                            <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text" value="<?php echo esc_attr($product->get_price('edit')); ?>"></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('Sale Price', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-sale-price" type="number" step="0.01" class="regular-text"></td>
+                            <td><input id="hp-pm-pd-sale-price" type="number" step="0.01" class="regular-text" value="<?php echo esc_attr($product->get_sale_price('edit')); ?>"></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('Cost', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-cost" type="number" step="0.01" class="regular-text"></td>
+                            <td><input id="hp-pm-pd-cost" type="number" step="0.01" class="regular-text" value="<?php echo esc_attr($this->get_strict_cost($product_id)); ?>"></td>
                             </tr>
                         </table>
 
@@ -725,14 +725,14 @@ final class HP_Products_Manager {
                         <table class="form-table hp-pm-form">
                             <tr>
                                 <th><?php esc_html_e('Weight', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-weight" type="number" step="0.01" class="regular-text"></td>
+                            <td><input id="hp-pm-pd-weight" type="number" step="0.01" class="regular-text" value="<?php echo esc_attr($product->get_weight('edit')); ?>"></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('Dimensions (L × W × H)', 'hp-products-manager'); ?></th>
                                 <td>
-                                    <input id="hp-pm-pd-length" type="number" step="0.01" style="width:90px;"> ×
-                                    <input id="hp-pm-pd-width" type="number" step="0.01" style="width:90px;"> ×
-                                    <input id="hp-pm-pd-height" type="number" step="0.01" style="width:90px;">
+                                    <input id="hp-pm-pd-length" type="number" step="0.01" style="width:90px;" value="<?php echo esc_attr(method_exists($product,'get_length')?$product->get_length('edit'):''); ?>"> ×
+                                    <input id="hp-pm-pd-width" type="number" step="0.01" style="width:90px;" value="<?php echo esc_attr(method_exists($product,'get_width')?$product->get_width('edit'):''); ?>"> ×
+                                    <input id="hp-pm-pd-height" type="number" step="0.01" style="width:90px;" value="<?php echo esc_attr(method_exists($product,'get_height')?$product->get_height('edit'):''); ?>">
                                 </td>
                             </tr>
                             <tr>

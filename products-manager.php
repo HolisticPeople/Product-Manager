@@ -314,20 +314,20 @@ final class HP_Products_Manager {
 
             <section class="hp-pm-metrics">
                 <div class="hp-pm-metric">
-                    <span class="hp-pm-metric-label"><?php esc_html_e('Catalog', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value" id="hp-pm-metric-catalog">--</span>
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Total Products', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value" id="hp-pm-metric-total">--</span>
                 </div>
                 <div class="hp-pm-metric">
-                    <span class="hp-pm-metric-label"><?php esc_html_e('Low Stock', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value hp-pm-metric-value--warning" id="hp-pm-metric-low-stock">--</span>
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Enabled', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--success" id="hp-pm-metric-enabled">--</span>
                 </div>
                 <div class="hp-pm-metric">
-                    <span class="hp-pm-metric-label"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value hp-pm-metric-value--muted" id="hp-pm-metric-hidden">--</span>
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Stock Cost', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value" id="hp-pm-metric-stock-cost">--</span>
                 </div>
                 <div class="hp-pm-metric">
-                    <span class="hp-pm-metric-label"><?php esc_html_e('Avg. Margin', 'hp-products-manager'); ?></span>
-                    <span class="hp-pm-metric-value hp-pm-metric-value--success" id="hp-pm-metric-avg-margin">--</span>
+                    <span class="hp-pm-metric-label"><?php esc_html_e('Reserved', 'hp-products-manager'); ?></span>
+                    <span class="hp-pm-metric-value hp-pm-metric-value--muted" id="hp-pm-metric-reserved">--</span>
                 </div>
             </section>
 
@@ -615,17 +615,25 @@ final class HP_Products_Manager {
             return $cached;
         }
 
-        $counts  = wp_count_posts('product');
-        $catalog = isset($counts->publish) ? (int) $counts->publish : 0;
+        $counts   = wp_count_posts('product');
+        $enabled  = isset($counts->publish) ? (int) $counts->publish : 0;
+        $total    = 0;
+        foreach ((array) $counts as $key => $value) {
+            if (is_numeric($value)) {
+                $total += (int) $value;
+            }
+        }
 
-        $inventory = $this->calculate_inventory_metrics();
-        $hidden    = $this->count_hidden_products();
+        $inventory      = $this->calculate_inventory_metrics();
+        $reserved_map   = $this->get_reserved_quantities();
+        $reserved_total = 0;
+        foreach ($reserved_map as $qty) { $reserved_total += (int) $qty; }
 
         $metrics = [
-            'catalog'   => $catalog,
-            'low_stock' => $inventory['low_stock'],
-            'hidden'    => $hidden,
-            'avg_margin'=> $inventory['avg_margin'],
+            'total'      => $total,
+            'enabled'    => $enabled,
+            'stock_cost' => $inventory['stock_cost'],
+            'reserved'   => $reserved_total,
         ];
 
         wp_cache_set(self::METRICS_CACHE_KEY, $metrics, self::CACHE_GROUP, self::METRICS_TTL);
@@ -666,18 +674,13 @@ final class HP_Products_Manager {
     }
 
     private function calculate_inventory_metrics(): array {
-        $low_stock_count = 0;
-        $margin_sum      = 0.0;
-        $margin_samples  = 0;
+        $stock_cost_sum = 0.0;
 
         $products = wc_get_products([
             'limit'  => -1,
-            'status' => ['publish', 'private'],
+            'status' => ['publish', 'private', 'draft', 'pending'],
             'return' => 'objects',
         ]);
-
-        // Reserved quantities across processing orders for all products
-        $reserved_map = $this->get_reserved_quantities();
 
         if (!empty($products)) {
             foreach ($products as $product) {
@@ -685,47 +688,18 @@ final class HP_Products_Manager {
                     continue;
                 }
 
-                if ($product->managing_stock()) {
-                    $stock_qty = $product->get_stock_quantity();
+                $qoh = $product->managing_stock() ? $product->get_stock_quantity() : null;
+                $qoh = $qoh !== null ? (int) $qoh : null;
+                $cost = $this->get_product_cost($product->get_id());
 
-                    if ($stock_qty !== null) {
-                        $threshold = $product->get_low_stock_amount();
-
-                        if (($threshold === '' || $threshold === null) && function_exists('wc_get_low_stock_amount')) {
-                            $threshold = wc_get_low_stock_amount($product);
-                        }
-
-                        if ($threshold === '' || $threshold === null) {
-                            $threshold = (int) get_option('woocommerce_notify_low_stock_amount', 2);
-                        }
-
-                        $threshold = max(0, (int) $threshold);
-
-                        $available = (int) $stock_qty - (int) ($reserved_map[$product->get_id()] ?? 0);
-
-                        if ($available <= $threshold) {
-                            $low_stock_count++;
-                        }
-                    }
-                }
-
-                $price = $product->get_price('edit');
-                $price = $price !== '' ? (float) $price : null;
-                $cost  = $this->get_product_cost($product->get_id());
-
-                if ($cost !== null && $price !== null && $price > 0) {
-                    $margin = (($price - $cost) / $price) * 100;
-                    $margin_sum += $margin;
-                    $margin_samples++;
+                if ($qoh !== null && $cost !== null) {
+                    $stock_cost_sum += ((float) $cost) * (float) $qoh;
                 }
             }
         }
 
-        $average_margin = $margin_samples > 0 ? round($margin_sum / $margin_samples, 1) : null;
-
         return [
-            'low_stock' => $low_stock_count,
-            'avg_margin'=> $average_margin,
+            'stock_cost' => round($stock_cost_sum, 2),
         ];
     }
 

@@ -73,6 +73,26 @@
     min-width: 180px;
 }
 
+/* Keep checkboxes compact and inline with their labels */
+.hp-pm-filter-group input[type="checkbox"] {
+    min-width: auto;
+    width: auto;
+    margin-top: 0;
+}
+
+.hp-pm-stock-range label {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.hp-pm-stock-range input[type="checkbox"] {
+    min-width: auto;
+    width: auto;
+}
+
 .hp-pm-filter-group input[type="number"] {
     width: 90px;
 }

@@ -244,10 +244,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateMetrics(metrics) {
         var mapping = {
-            catalog: 'hp-pm-metric-catalog',
-            low_stock: 'hp-pm-metric-low-stock',
-            hidden: 'hp-pm-metric-hidden',
-            avg_margin: 'hp-pm-metric-avg-margin'
+            total: 'hp-pm-metric-total',
+            enabled: 'hp-pm-metric-enabled',
+            stock_cost: 'hp-pm-metric-stock-cost',
+            reserved: 'hp-pm-metric-reserved'
         };
 
         Object.keys(mapping).forEach(function (key) {
@@ -262,8 +262,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            if (key === 'avg_margin') {
-                element.textContent = value + '%';
+            if (key === 'stock_cost') {
+                try {
+                    var formatter = new Intl.NumberFormat(locale, {
+                        style: 'currency',
+                        currency: currencyCode,
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    element.textContent = formatter.format(parseFloat(value));
+                } catch (e) {
+                    element.textContent = parseFloat(value).toFixed(2);
+                }
                 return;
             }
 

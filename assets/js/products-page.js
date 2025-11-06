@@ -145,6 +145,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 table.setData(allProducts);
                 updateMetrics(payload.metrics || {});
                 wireLiveFilters();
+                updateCount(allProducts.length);
             })
             .catch(function (error) {
                 console.error('Products Manager:', error);
@@ -211,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         table.setData(filtered);
+        updateCount(filtered.length);
     }
 
     function wireLiveFilters() {
@@ -240,6 +242,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (qoh) qoh.addEventListener('change', applyFilters);
         if (res) res.addEventListener('change', applyFilters);
         if (avail) avail.addEventListener('change', applyFilters);
+    }
+
+    function updateCount(count) {
+        var el = document.getElementById('hp-pm-table-count');
+        if (!el) return;
+        el.textContent = 'Showing ' + count + ' products';
     }
 
     function populateBrands(brands) {

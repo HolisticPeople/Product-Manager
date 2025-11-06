@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.4
+ * Version: 0.5.5
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.4';
+    const VERSION = '0.5.5';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -292,14 +292,16 @@ final class HP_Products_Manager {
                 </div>
                 <div class="hp-pm-filter-group">
                     <label>
-                        <?php esc_html_e('Stock Flags', 'hp-products-manager'); ?>
+                        <?php esc_html_e('Stock Filters', 'hp-products-manager'); ?>
                         <div class="hp-pm-stock-range">
                             <label style="display:flex; align-items:center; gap:6px;">
                                 <input id="hp-pm-filter-qoh-gt0" type="checkbox"> <?php esc_html_e('QOH > 0', 'hp-products-manager'); ?>
                             </label>
+                            <span class="hp-pm-sep">|</span>
                             <label style="display:flex; align-items:center; gap:6px;">
                                 <input id="hp-pm-filter-reserved-gt0" type="checkbox"> <?php esc_html_e('Reserved > 0', 'hp-products-manager'); ?>
                             </label>
+                            <span class="hp-pm-sep">|</span>
                             <label style="display:flex; align-items:center; gap:6px;">
                                 <input id="hp-pm-filter-available-lt0" type="checkbox"> <?php esc_html_e('Available < 0', 'hp-products-manager'); ?>
                             </label>
@@ -331,6 +333,7 @@ final class HP_Products_Manager {
             </section>
 
             <section class="hp-pm-table">
+                <div id="hp-pm-table-count" class="hp-pm-table-count">&nbsp;</div>
                 <div id="hp-products-table"></div>
             </section>
         </div>

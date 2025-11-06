@@ -95,6 +95,18 @@
     flex: 0 0 16px;
 }
 
+.hp-pm-sep {
+    color: #787c82;
+    margin: 0 8px;
+    user-select: none;
+}
+
+.hp-pm-table-count {
+    margin: 8px 0;
+    font-size: 12px;
+    color: #787c82;
+}
+
 .hp-pm-filter-group input[type="number"] {
     width: 90px;
 }

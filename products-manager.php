@@ -33,15 +33,7 @@ final class HP_Products_Manager {
     private const CACHE_GROUP       = 'hp_products_manager';
     private const METRICS_TTL       = 300; // 5 minutes
     private const COST_META_KEYS    = [
-        '_purchase_price',
-        '_wc_cog_cost',
-        '_wc_cog_product_cost',
-        '_product_cost',
-        '_production_cost',
-        '_alg_wc_cog_cost',
-        '_alg_wc_cog_cost_price',
-        '_hp_cost',
-        '_cost_price',
+        'product_po_cost',
     ];
 
     /**
@@ -459,7 +451,7 @@ final class HP_Products_Manager {
 
         $taxonomies = (array) apply_filters(
             'hp_products_manager_brand_taxonomies',
-            ['product_brand', 'pa_brand', 'brand']
+            ['yith_product_brand']
         );
 
         foreach ($taxonomies as $taxonomy) {
@@ -733,7 +725,7 @@ final class HP_Products_Manager {
     }
 
     private function get_brand_options(): array {
-        $taxonomies = array_filter(['product_brand', 'pa_brand'], 'taxonomy_exists');
+        $taxonomies = array_filter(['yith_product_brand'], 'taxonomy_exists');
 
         if (empty($taxonomies)) {
             return [];

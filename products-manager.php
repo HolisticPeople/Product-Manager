@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.21
+ * Version: 0.5.22
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.21';
+    const VERSION = '0.5.22';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -685,6 +685,24 @@ final class HP_Products_Manager {
                 ],
             ]
         );
+
+        // Debug endpoint: list cost-related meta for a product (admin only)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/meta',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_get_product_meta_debug'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => [
+                        'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                    ],
+                ],
+            ]
+        );
     }
 
     /**
@@ -947,7 +965,13 @@ final class HP_Products_Manager {
 
     // Strict cost reader for Product Detail page: prefer canonical key, then known COGS keys.
     private function get_strict_cost(int $product_id): ?float {
-        $candidates = ['product_po_cost', '_wc_cog_cost', 'wc_cog_cost', '_alg_wc_cog_cost'];
+        $candidates = [
+            'product_po_cost',
+            // Popular COGS plugins (per-unit cost)
+            '_wc_cog_cost','wc_cog_cost','_alg_wc_cog_cost','pw_cost_of_goods','_purchase_price',
+            // Some installs store computed total; we only use these as a last resort
+            '_cogs_total_value','cogs_total_value','_alg_wc_cog_total_value','wc_cog_total_value','_wc_cog_total_value',
+        ];
         foreach ($candidates as $key) {
             $value = get_post_meta($product_id, $key, true);
             $parsed = $this->parse_decimal_relaxed($value);
@@ -1234,6 +1258,22 @@ final class HP_Products_Manager {
             'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
             'viewLink'   => get_permalink($id),
         ]);
+    }
+
+    /**
+     * REST: Debug - return cost-related meta keys/values for a product
+     */
+    public function rest_get_product_meta_debug(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $all = get_post_meta($id);
+        $filtered = [];
+        foreach ($all as $k => $vals) {
+            if (stripos($k, 'cog') !== false || stripos($k, 'cogs') !== false || stripos($k, 'cost') !== false || stripos($k, 'purchase') !== false) {
+                $v = is_array($vals) ? end($vals) : $vals;
+                $filtered[$k] = $v;
+            }
+        }
+        return rest_ensure_response(['id' => $id, 'meta' => $filtered]);
     }
 
     /**

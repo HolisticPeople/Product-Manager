@@ -636,7 +636,17 @@ final class HP_Products_Manager {
                         <div class="hp-pm-pd-image">
                             <img id="hp-pm-pd-image" src="<?php echo esc_url($product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : ''); ?>" alt="" class="hp-pm-main-img">
                         </div>
-                        <div id="hp-pm-pd-gallery" class="hp-pm-gallery"></div>
+                        <div id="hp-pm-pd-gallery" class="hp-pm-gallery">
+                            <?php
+                            if (method_exists($product, 'get_gallery_image_ids')) {
+                                foreach ($product->get_gallery_image_ids() as $gid) {
+                                    $url = wp_get_attachment_image_url($gid, 'thumbnail');
+                                    echo '<div class=\"hp-pm-thumb\" data-id=\"' . esc_attr($gid) . '\"><img src=\"' . esc_url($url) . '\" alt=\"\"><span class=\"hp-pm-thumb-remove\">×</span></div>';
+                                }
+                            }
+                            ?>
+                            <div class="hp-pm-thumb hp-pm-thumb-add">+</div>
+                        </div>
                         <div class="hp-pm-pd-links">
                             <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
                             <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
@@ -680,7 +690,16 @@ final class HP_Products_Manager {
                         <tr>
                             <th><?php esc_html_e('Brand(s)', 'hp-products-manager'); ?></th>
                             <td>
-                                <div id="hp-pm-pd-brands-tokens" class="hp-pm-tokens"></div>
+                                <div id="hp-pm-pd-brands-tokens" class="hp-pm-tokens">
+                                    <?php
+                                    $brand_terms = wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all']);
+                                    if (!is_wp_error($brand_terms)) {
+                                        foreach ($brand_terms as $t) {
+                                            echo '<span class=\"hp-pm-token\" data-slug=\"' . esc_attr($t->slug) . '\"><span>' . esc_html($t->name) . '</span><span class=\"x\" title=\"Remove\">×</span></span>';
+                                        }
+                                    }
+                                    ?>
+                                </div>
                                 <input id="hp-pm-pd-brands-input" list="hp-pm-brands-list" placeholder="<?php esc_attr_e('Search brand…', 'hp-products-manager'); ?>">
                                 <datalist id="hp-pm-brands-list"></datalist>
                             </td>
@@ -688,7 +707,16 @@ final class HP_Products_Manager {
                         <tr>
                             <th><?php esc_html_e('Categories', 'hp-products-manager'); ?></th>
                             <td>
-                                <div id="hp-pm-pd-categories-tokens" class="hp-pm-tokens"></div>
+                                <div id="hp-pm-pd-categories-tokens" class="hp-pm-tokens">
+                                    <?php
+                                    $cat_terms = wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all']);
+                                    if (!is_wp_error($cat_terms)) {
+                                        foreach ($cat_terms as $t) {
+                                            echo '<span class=\"hp-pm-token\" data-slug=\"' . esc_attr($t->slug) . '\"><span>' . esc_html($t->name) . '</span><span class=\"x\" title=\"Remove\">×</span></span>';
+                                        }
+                                    }
+                                    ?>
+                                </div>
                                 <input id="hp-pm-pd-categories-input" list="hp-pm-cats-list" placeholder="<?php esc_attr_e('Search category…', 'hp-products-manager'); ?>">
                                 <datalist id="hp-pm-cats-list"></datalist>
                             </td>
@@ -696,7 +724,16 @@ final class HP_Products_Manager {
                         <tr>
                             <th><?php esc_html_e('Tags', 'hp-products-manager'); ?></th>
                             <td>
-                                <div id="hp-pm-pd-tags-tokens" class="hp-pm-tokens"></div>
+                                <div id="hp-pm-pd-tags-tokens" class="hp-pm-tokens">
+                                    <?php
+                                    $tag_terms = wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all']);
+                                    if (!is_wp_error($tag_terms)) {
+                                        foreach ($tag_terms as $t) {
+                                            echo '<span class=\"hp-pm-token\" data-slug=\"' . esc_attr($t->slug) . '\"><span>' . esc_html($t->name) . '</span><span class=\"x\" title=\"Remove\">×</span></span>';
+                                        }
+                                    }
+                                    ?>
+                                </div>
                                 <input id="hp-pm-pd-tags-input" list="hp-pm-tags-list" placeholder="<?php esc_attr_e('Search tag…', 'hp-products-manager'); ?>">
                                 <datalist id="hp-pm-tags-list"></datalist>
                             </td>
@@ -737,9 +774,23 @@ final class HP_Products_Manager {
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('Shipping Class', 'hp-products-manager'); ?></th>
-                                <td>
-                                    <select id="hp-pm-pd-ship-class" style="min-width: 280px;"></select>
-                                </td>
+                            <td>
+                                <select id="hp-pm-pd-ship-class" style="min-width: 280px;">
+                                    <?php
+                                    $sc_terms = get_terms(['taxonomy' => 'product_shipping_class', 'hide_empty' => false]);
+                                    $current_sc = (function() use ($product_id) {
+                                        $terms = wc_get_product_terms($product_id, 'product_shipping_class', ['fields' => 'all']);
+                                        return !empty($terms) ? $terms[0]->slug : '';
+                                    })();
+                                    echo '<option value=\"\" ' . selected($current_sc === '', true, false) . '>' . esc_html__('No shipping class', 'hp-products-manager') . '</option>';
+                                    if (!is_wp_error($sc_terms)) {
+                                        foreach ($sc_terms as $t) {
+                                            echo '<option value=\"' . esc_attr($t->slug) . '\" ' . selected($current_sc === $t->slug, true, false) . '>' . esc_html($t->name) . '</option>';
+                                        }
+                                    }
+                                    ?>
+                                </select>
+                            </td>
                             </tr>
                         </table>
                     </section>

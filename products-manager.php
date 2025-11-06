@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.30
+ * Version: 0.5.31
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.30';
+    const VERSION = '0.5.31';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1629,20 +1629,20 @@ final class HP_Products_Manager {
         global $wpdb;
         $mov = $this->table_movements();
         // Reset movements
-        $wpdb->query(\"TRUNCATE {$mov}\");
+        $wpdb->query( "TRUNCATE {$mov}" );
         // Count orders from HPOS table
         $orders_table = $wpdb->prefix . 'wc_orders';
-        $statuses = [\"wc-processing\",\"wc-completed\",\"wc-refunded\",\"wc-cancelled\"];
-        $in = implode(\"','\", array_map('esc_sql', $statuses));
-        $total = (int) $wpdb->get_var(\"SELECT COUNT(*) FROM {$orders_table} WHERE status IN ('{$in}')\");
-        $state = [
+        $statuses = array('wc-processing','wc-completed','wc-refunded','wc-cancelled');
+        $in = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
+        $total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$orders_table} WHERE status IN ($in)" );
+        $state = array(
             'total' => $total,
             'processed' => 0,
             'last_order_id' => 0,
             'batch' => 200,
             'started_at' => current_time('mysql'),
             'status' => 'running',
-        ];
+        );
         $this->set_rebuild_all_state($state);
         return rest_ensure_response($state);
     }
@@ -1653,11 +1653,11 @@ final class HP_Products_Manager {
             return rest_ensure_response(['error' => 'not_running', 'state' => $state]);
         }
         $orders_table = $wpdb->prefix . 'wc_orders';
-        $statuses = [\"wc-processing\",\"wc-completed\",\"wc-refunded\",\"wc-cancelled\"];
-        $in = implode(\"','\", array_map('esc_sql', $statuses));
+        $statuses = array('wc-processing','wc-completed','wc-refunded','wc-cancelled');
+        $in = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
         $batch = max(50, (int) ($state['batch'] ?? 200));
         $last = (int) ($state['last_order_id'] ?? 0);
-        $ids = $wpdb->get_col($wpdb->prepare(\"SELECT id FROM {$orders_table} WHERE status IN ('{$in}') AND id > %d ORDER BY id ASC LIMIT %d\", $last, $batch));
+        $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status IN ({$in}) AND id > %d ORDER BY id ASC LIMIT %d", $last, $batch));
         if (!empty($ids)) {
             foreach ($ids as $oid) {
                 $order = wc_get_order((int) $oid);

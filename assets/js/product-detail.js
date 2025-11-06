@@ -101,6 +101,15 @@ document.addEventListener('DOMContentLoaded', function () {
   var currentGallery = (original.gallery_ids || []).slice();
   var galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; });
   var galleryDirty = false; var imageDirty = false;
+  var dragId = null; var dragSource = null; // 'gallery' or 'main'
+
+  function renderMain() {
+    if (!imgEl) return;
+    var url = '';
+    if (currentImageId && galleryThumbs[currentImageId]) url = galleryThumbs[currentImageId];
+    else if (original.image) url = original.image;
+    imgEl.src = url || '';
+  }
 
   function renderGallery() {
     if (!galleryEl) return;
@@ -140,10 +149,35 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     });
-    var dragId = null;
-    galleryEl.addEventListener('dragstart', function (e){ var p = e.target.closest('.hp-pm-thumb'); if (!p) return; dragId = parseInt(p.dataset.id,10); });
+    galleryEl.addEventListener('dragstart', function (e){ var p = e.target.closest('.hp-pm-thumb'); if (!p) return; dragId = parseInt(p.dataset.id,10); dragSource = 'gallery'; });
     galleryEl.addEventListener('dragover', function (e){ e.preventDefault(); });
-    galleryEl.addEventListener('drop', function (e){ e.preventDefault(); var t = e.target.closest('.hp-pm-thumb'); if (!t || !dragId) return; var tid = parseInt(t.dataset.id,10); if (isNaN(tid)) return; var arr = currentGallery.slice(); var from = arr.indexOf(dragId), to = arr.indexOf(tid); arr.splice(to,0, arr.splice(from,1)[0]); currentGallery = arr; galleryDirty = true; renderGallery(); });
+    galleryEl.addEventListener('drop', function (e){
+      e.preventDefault();
+      var t = e.target.closest('.hp-pm-thumb');
+      // Swap main -> gallery if dragging main onto a thumb
+      if (dragSource === 'main') {
+        if (!t || !currentImageId) { dragSource = null; dragId = null; return; }
+        var tid = parseInt(t.dataset.id,10); if (isNaN(tid)) { dragSource=null; dragId=null; return; }
+        var prevMain = currentImageId;
+        var idx = currentGallery.indexOf(tid);
+        if (idx > -1) {
+          // Remove any existing prevMain to avoid duplicates, then replace target with prevMain
+          var existing = currentGallery.indexOf(prevMain);
+          if (existing > -1) currentGallery.splice(existing, 1);
+          currentGallery.splice(idx, 1, prevMain);
+          currentImageId = tid;
+          imageDirty = true; galleryDirty = true;
+          renderMain(); renderGallery();
+        }
+        dragSource = null; dragId = null; return;
+      }
+      // Reorder within gallery when dragging a thumb onto another thumb
+      if (!t || !dragId) { dragSource = null; dragId = null; return; }
+      var tid = parseInt(t.dataset.id,10); if (isNaN(tid)) { dragSource=null; dragId=null; return; }
+      var arr = currentGallery.slice(); var from = arr.indexOf(dragId), to = arr.indexOf(tid);
+      arr.splice(to,0, arr.splice(from,1)[0]); currentGallery = arr; galleryDirty = true; renderGallery();
+      dragSource = null; dragId = null;
+    });
   }
 
   if (imgEl && typeof wp !== 'undefined' && wp.media) {
@@ -157,6 +191,31 @@ document.addEventListener('DOMContentLoaded', function () {
         if (url) imgEl.src = url; imageDirty = true;
       });
       frame.open();
+    });
+  }
+
+  // Drag/drop between main image and gallery
+  if (imgEl) {
+    imgEl.draggable = true;
+    imgEl.addEventListener('dragstart', function(){ if (!currentImageId) return; dragSource = 'main'; });
+    imgEl.addEventListener('dragover', function(e){ e.preventDefault(); });
+    imgEl.addEventListener('drop', function(e){
+      e.preventDefault();
+      // If dragging a gallery thumb onto main, promote it and demote previous main into gallery
+      if (dragSource === 'gallery' && dragId) {
+        var prevMain = currentImageId;
+        var idx = currentGallery.indexOf(dragId);
+        if (idx > -1) currentGallery.splice(idx, 1);
+        if (prevMain) {
+          var existing = currentGallery.indexOf(prevMain);
+          if (existing > -1) currentGallery.splice(existing, 1);
+          currentGallery.splice(idx > -1 ? idx : 0, 0, prevMain);
+        }
+        currentImageId = dragId;
+        imageDirty = true; galleryDirty = true;
+        renderMain(); renderGallery();
+      }
+      dragSource = null; dragId = null;
     });
   }
 
@@ -244,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (rm === 'width') setValue(widthEl, original.width);
     if (rm === 'height') setValue(heightEl, original.height);
     if (rm === 'shipping_class') setValue(shipClassEl, original.shipping_class || '');
-    if (rm === 'image_id') { if (imgEl) imgEl.src = original.image || ''; }
+    if (rm === 'image_id') { currentImageId = original.image_id || null; if (imgEl) imgEl.src = original.image || ''; imageDirty = false; }
     if (rm === 'gallery_ids') { currentGallery = (original.gallery_ids || []).slice(); renderGallery(); }
   });
 

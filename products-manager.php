@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.7
+ * Version: 0.5.8
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.7';
+    const VERSION = '0.5.8';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -403,8 +403,46 @@ final class HP_Products_Manager {
                     'status'     => $product->get_status(),
                     'visibility' => $product->get_catalog_visibility(),
                     'brands'     => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
+                    'categories' => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all'])),
+                    'tags'       => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all'])),
+                    'shipping_class' => (function() use ($product_id) {
+                        $terms = wc_get_product_terms($product_id, 'product_shipping_class', ['fields' => 'all']);
+                        return !empty($terms) ? $terms[0]->slug : '';
+                    })(),
+                    'weight'     => $product->get_weight('edit'),
+                    'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
+                    'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
+                    'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
+                    'cost'       => $this->get_product_cost($product_id),
+                    'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+                    'editLink'   => admin_url('post.php?post=' . $product_id . '&action=edit'),
+                    'viewLink'   => get_permalink($product_id),
                 ],
                 'brands'   => $brands,
+                'categories' => (function(){
+                    $out = [];
+                    $terms = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => false]);
+                    if (!is_wp_error($terms)) {
+                        foreach ($terms as $t) { $out[] = ['slug' => $t->slug, 'name' => $t->name]; }
+                    }
+                    return $out;
+                })(),
+                'tags' => (function(){
+                    $out = [];
+                    $terms = get_terms(['taxonomy' => 'product_tag', 'hide_empty' => false]);
+                    if (!is_wp_error($terms)) {
+                        foreach ($terms as $t) { $out[] = ['slug' => $t->slug, 'name' => $t->name]; }
+                    }
+                    return $out;
+                })(),
+                'shippingClasses' => (function(){
+                    $out = [['slug' => '', 'name' => __('No shipping class', 'hp-products-manager')]];
+                    $terms = get_terms(['taxonomy' => 'product_shipping_class', 'hide_empty' => false]);
+                    if (!is_wp_error($terms)) {
+                        foreach ($terms as $t) { $out[] = ['slug' => $t->slug, 'name' => $t->name]; }
+                    }
+                    return $out;
+                })(),
                 'i18n'     => [
                     'stagedChanges' => __('Staged Changes', 'hp-products-manager'),
                     'stageBtn'      => __('Stage Changes', 'hp-products-manager'),
@@ -427,8 +465,20 @@ final class HP_Products_Manager {
 
             <?php if ($active_tab === 'general') : ?>
                 <div class="card hp-pm-card" style="max-width: 1200px;">
-                    <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
-                    <table class="form-table hp-pm-form">
+                    <div class="hp-pm-pd-header">
+                        <div class="hp-pm-pd-image">
+                            <img id="hp-pm-pd-image" src="" alt="" style="max-width:120px; height:auto; border:1px solid #dcdcde; border-radius:4px; background:#fff;">
+                        </div>
+                        <div class="hp-pm-pd-links">
+                            <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
+                            <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
+                        </div>
+                    </div>
+
+                    <div class="hp-pm-grid">
+                    <section>
+                        <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
+                        <table class="form-table hp-pm-form">
                         <tr>
                             <th><?php esc_html_e('Name', 'hp-products-manager'); ?></th>
                             <td><input id="hp-pm-pd-name" type="text" class="regular-text"></td>
@@ -469,7 +519,57 @@ final class HP_Products_Manager {
                                 <select id="hp-pm-pd-brands" multiple style="min-width: 280px;"></select>
                             </td>
                         </tr>
-                    </table>
+                        <tr>
+                            <th><?php esc_html_e('Categories', 'hp-products-manager'); ?></th>
+                            <td>
+                                <select id="hp-pm-pd-categories" multiple style="min-width: 280px;"></select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Tags', 'hp-products-manager'); ?></th>
+                            <td>
+                                <select id="hp-pm-pd-tags" multiple style="min-width: 280px;"></select>
+                            </td>
+                        </tr>
+                        </table>
+                    </section>
+
+                    <section>
+                        <h2><?php esc_html_e('Pricing & Cost', 'hp-products-manager'); ?></h2>
+                        <table class="form-table hp-pm-form">
+                            <tr>
+                                <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
+                                <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
+                            </tr>
+                            <tr>
+                                <th><?php esc_html_e('Cost', 'hp-products-manager'); ?></th>
+                                <td><input id="hp-pm-pd-cost" type="number" step="0.01" class="regular-text"></td>
+                            </tr>
+                        </table>
+
+                        <h2><?php esc_html_e('Shipping', 'hp-products-manager'); ?></h2>
+                        <table class="form-table hp-pm-form">
+                            <tr>
+                                <th><?php esc_html_e('Weight', 'hp-products-manager'); ?></th>
+                                <td><input id="hp-pm-pd-weight" type="number" step="0.01" class="regular-text"></td>
+                            </tr>
+                            <tr>
+                                <th><?php esc_html_e('Dimensions (L × W × H)', 'hp-products-manager'); ?></th>
+                                <td>
+                                    <input id="hp-pm-pd-length" type="number" step="0.01" style="width:90px;"> ×
+                                    <input id="hp-pm-pd-width" type="number" step="0.01" style="width:90px;"> ×
+                                    <input id="hp-pm-pd-height" type="number" step="0.01" style="width:90px;">
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php esc_html_e('Shipping Class', 'hp-products-manager'); ?></th>
+                                <td>
+                                    <select id="hp-pm-pd-ship-class" style="min-width: 280px;"></select>
+                                </td>
+                            </tr>
+                        </table>
+                    </section>
+                    </div>
 
                     <div class="hp-pm-staging-actions">
                         <button id="hp-pm-stage-btn" class="button button-primary"></button>
@@ -1028,6 +1128,17 @@ final class HP_Products_Manager {
             'status'     => $product->get_status(),
             'visibility' => $product->get_catalog_visibility(),
             'brands'     => array_map(function ($t) { return $t->slug; }, (array) $terms),
+            'categories' => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
+            'tags'       => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
+            'shipping_class' => (function() use ($id) { $t = wc_get_product_terms($id, 'product_shipping_class', ['fields' => 'all']); return !empty($t) ? $t[0]->slug : ''; })(),
+            'weight'     => $product->get_weight('edit'),
+            'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
+            'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
+            'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
+            'cost'       => $this->get_product_cost($id),
+            'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
+            'viewLink'   => get_permalink($id),
         ]);
     }
 
@@ -1066,6 +1177,28 @@ final class HP_Products_Manager {
                 $product->set_price((string) $price);
             }
         }
+        if (isset($apply['cost'])) {
+            $cost = $this->parse_decimal($apply['cost']);
+            if ($cost !== null) {
+                update_post_meta($id, 'product_po_cost', $cost);
+            }
+        }
+        if (isset($apply['weight'])) {
+            $w = $this->parse_decimal($apply['weight']);
+            $product->set_weight($w !== null ? (string) $w : '');
+        }
+        if (isset($apply['length'])) {
+            $v = $this->parse_decimal($apply['length']);
+            if (method_exists($product, 'set_length')) $product->set_length($v !== null ? (string) $v : '');
+        }
+        if (isset($apply['width'])) {
+            $v = $this->parse_decimal($apply['width']);
+            if (method_exists($product, 'set_width')) $product->set_width($v !== null ? (string) $v : '');
+        }
+        if (isset($apply['height'])) {
+            $v = $this->parse_decimal($apply['height']);
+            if (method_exists($product, 'set_height')) $product->set_height($v !== null ? (string) $v : '');
+        }
         if (isset($apply['status'])) {
             $status = sanitize_key((string) $apply['status']);
             $product->set_status($status);
@@ -1080,11 +1213,23 @@ final class HP_Products_Manager {
                 wp_set_object_terms($id, $slugs, 'yith_product_brand', false);
             }
         }
+        if (isset($apply['categories']) && is_array($apply['categories'])) {
+            $slugs = array_values(array_filter(array_map('sanitize_title', $apply['categories'])));
+            wp_set_object_terms($id, $slugs, 'product_cat', false);
+        }
+        if (isset($apply['tags']) && is_array($apply['tags'])) {
+            $slugs = array_values(array_filter(array_map('sanitize_title', $apply['tags'])));
+            wp_set_object_terms($id, $slugs, 'product_tag', false);
+        }
+        if (isset($apply['shipping_class'])) {
+            $sc = sanitize_title((string) $apply['shipping_class']);
+            wp_set_object_terms($id, $sc ? [$sc] : [], 'product_shipping_class', false);
+        }
 
         $product->save();
         $this->flush_metrics_cache();
 
-        return $this->rest_get_product_detail(new WP_REST_Request('GET', '/')); // return fresh snapshot
+        return $this->rest_get_product_detail(new WP_REST_Request('GET', '/')); // fresh snapshot
     }
     /**
      * Build a map of reserved quantities per product based on Processing orders.

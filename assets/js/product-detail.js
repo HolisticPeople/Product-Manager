@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var nameEl = document.getElementById('hp-pm-pd-name');
   var skuEl = document.getElementById('hp-pm-pd-sku');
   var priceEl = document.getElementById('hp-pm-pd-price');
+  var salePriceEl = document.getElementById('hp-pm-pd-sale-price');
   var statusEl = document.getElementById('hp-pm-pd-status');
   var visibilityEl = document.getElementById('hp-pm-pd-visibility');
   var brandsEl = document.getElementById('hp-pm-pd-brands');
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var heightEl = document.getElementById('hp-pm-pd-height');
   var shipClassEl = document.getElementById('hp-pm-pd-ship-class');
   var imgEl = document.getElementById('hp-pm-pd-image');
+  var galleryEl = document.getElementById('hp-pm-pd-gallery');
   var editLink = document.getElementById('hp-pm-pd-edit');
   var viewLink = document.getElementById('hp-pm-pd-view');
 
@@ -31,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
   setValue(priceEl, original.price);
   setValue(statusEl, original.status);
   setValue(visibilityEl, original.visibility);
+  setValue(salePriceEl, original.sale_price);
   setValue(costEl, original.cost);
   setValue(weightEl, original.weight);
   setValue(lengthEl, original.length);
@@ -74,6 +77,97 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Tokenized pickers for brands/categories/tags (optional UI instead of selects)
+  function setupTokens(prefix, list) {
+    var tokens = document.getElementById('hp-pm-pd-' + prefix + '-tokens');
+    var input = document.getElementById('hp-pm-pd-' + prefix + '-input');
+    var datalist = document.getElementById('hp-pm-' + (prefix === 'categories' ? 'cats' : prefix) + '-list');
+    if (!tokens || !input || !datalist) return { get: function(){ return []; }, set: function(){} };
+
+    // populate datalist
+    datalist.innerHTML = '';
+    (list || []).forEach(function (t) { var o = document.createElement('option'); o.value = t.slug; o.label = t.name; datalist.appendChild(o); });
+
+    function render(arr) {
+      tokens.innerHTML = '';
+      (arr || []).forEach(function (slug) {
+        var label = slug;
+        var f = (list || []).find(function (x){ return x.slug === slug; });
+        if (f) label = f.name;
+        var span = document.createElement('span');
+        span.className = 'hp-pm-token';
+        span.dataset.slug = slug;
+        span.innerHTML = '<span>' + label + '</span><span class="x" title="Remove">×</span>';
+        tokens.appendChild(span);
+      });
+    }
+    function get() { return Array.from(tokens.querySelectorAll('.hp-pm-token')).map(function(n){return n.dataset.slug;}); }
+
+    tokens.addEventListener('click', function (e) {
+      if (e.target && e.target.classList.contains('x')) {
+        var slug = e.target.parentElement.dataset.slug;
+        render(get().filter(function (s){ return s!==slug; }));
+      }
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && input.value.trim() !== '') {
+        e.preventDefault();
+        var cur = get(); var slug = input.value.trim();
+        if (cur.indexOf(slug) === -1) cur.push(slug);
+        render(cur); input.value = '';
+      }
+    });
+
+    return { get: get, set: render };
+  }
+
+  var brandsTk = setupTokens('brands', data.brands || []);
+  var catsTk = setupTokens('categories', data.categories || []);
+  var tagsTk = setupTokens('tags', data.tags || []);
+  if (brandsTk.set) brandsTk.set(original.brands || []);
+  if (catsTk.set) catsTk.set(original.categories || []);
+  if (tagsTk.set) tagsTk.set(original.tags || []);
+
+  // Simple gallery rendering (IDs only); requires WP media for add
+  var currentImageId = original.image_id || null;
+  var currentGallery = (original.gallery_ids || []).slice();
+  function renderGallery() {
+    if (!galleryEl) return;
+    galleryEl.innerHTML = '';
+    currentGallery.forEach(function (id) {
+      var meta = (original.gallery || []).find(function (g){ return g.id == id; });
+      var url = meta ? meta.url : '';
+      var d = document.createElement('div');
+      d.className = 'hp-pm-thumb'; d.draggable = true; d.dataset.id = id;
+      d.innerHTML = '<img src="' + url + '"><span class="hp-pm-thumb-remove">×</span>';
+      galleryEl.appendChild(d);
+    });
+    var plus = document.createElement('div'); plus.className = 'hp-pm-thumb hp-pm-thumb-add'; plus.textContent = '+'; galleryEl.appendChild(plus);
+  }
+  renderGallery();
+  if (galleryEl) {
+    galleryEl.addEventListener('click', function (e) {
+      if (e.target && e.target.classList.contains('hp-pm-thumb-remove')) {
+        var id = parseInt(e.target.parentElement.dataset.id, 10);
+        currentGallery = currentGallery.filter(function (x){ return x !== id; });
+        renderGallery();
+      } else if (e.target && e.target.classList.contains('hp-pm-thumb-add')) {
+        if (typeof wp !== 'undefined' && wp.media) {
+          var frame = wp.media({ multiple: true });
+          frame.on('select', function(){
+            var sel = frame.state().get('selection');
+            sel.each(function(att){ var id = att.get('id'); if (currentGallery.indexOf(id) === -1) currentGallery.push(id); });
+            renderGallery();
+          });
+          frame.open();
+        }
+      }
+    });
+    var dragId = null;
+    galleryEl.addEventListener('dragstart', function (e){ var p = e.target.closest('.hp-pm-thumb'); if (!p) return; dragId = parseInt(p.dataset.id,10); });
+    galleryEl.addEventListener('dragover', function (e){ e.preventDefault(); });
+    galleryEl.addEventListener('drop', function (e){ e.preventDefault(); var t = e.target.closest('.hp-pm-thumb'); if (!t || !dragId) return; var tid = parseInt(t.dataset.id,10); if (isNaN(tid)) return; var arr = currentGallery.slice(); var from = arr.indexOf(dragId), to = arr.indexOf(tid); arr.splice(to,0, arr.splice(from,1)[0]); currentGallery = arr; renderGallery(); });
+  }
   // Staging helpers
   var stageBtn = document.getElementById('hp-pm-stage-btn');
   var applyBtn = document.getElementById('hp-pm-apply-btn');
@@ -102,20 +196,37 @@ document.addEventListener('DOMContentLoaded', function () {
     if (priceEl && priceEl.value !== String(original.price || '')) c.price = priceEl.value;
     if (statusEl && statusEl.value !== original.status) c.status = statusEl.value;
     if (visibilityEl && visibilityEl.value !== original.visibility) c.visibility = visibilityEl.value;
-    if (brandsEl) {
-      var sel = Array.from(brandsEl.selectedOptions).map(function (o) { return o.value; });
+    // prefer tokens if present
+    var tBrands = document.getElementById('hp-pm-pd-brands-tokens');
+    var tCats = document.getElementById('hp-pm-pd-categories-tokens');
+    var tTags = document.getElementById('hp-pm-pd-tags-tokens');
+    function tokensToArray(id){ var el=document.getElementById(id); return el? Array.from(el.querySelectorAll('.hp-pm-token')).map(function(n){return n.dataset.slug;}):[]; }
+    if (tBrands) {
+      var sel = tokensToArray('hp-pm-pd-brands-tokens');
       var orig = Array.isArray(original.brands) ? original.brands : [];
       if (JSON.stringify(sel.slice().sort()) !== JSON.stringify(orig.slice().sort())) c.brands = sel;
+    } else if (brandsEl) {
+      var selB = Array.from(brandsEl.selectedOptions).map(function (o) { return o.value; });
+      var origB = Array.isArray(original.brands) ? original.brands : [];
+      if (JSON.stringify(selB.slice().sort()) !== JSON.stringify(origB.slice().sort())) c.brands = selB;
     }
-    if (catsEl) {
-      var csel = Array.from(catsEl.selectedOptions).map(function (o) { return o.value; });
+    if (tCats) {
+      var csel = tokensToArray('hp-pm-pd-categories-tokens');
       var corig = Array.isArray(original.categories) ? original.categories : [];
       if (JSON.stringify(csel.slice().sort()) !== JSON.stringify(corig.slice().sort())) c.categories = csel;
+    } else if (catsEl) {
+      var csel2 = Array.from(catsEl.selectedOptions).map(function (o) { return o.value; });
+      var corig2 = Array.isArray(original.categories) ? original.categories : [];
+      if (JSON.stringify(csel2.slice().sort()) !== JSON.stringify(corig2.slice().sort())) c.categories = csel2;
     }
-    if (tagsEl) {
-      var tsel = Array.from(tagsEl.selectedOptions).map(function (o) { return o.value; });
+    if (tTags) {
+      var tsel = tokensToArray('hp-pm-pd-tags-tokens');
       var torig = Array.isArray(original.tags) ? original.tags : [];
       if (JSON.stringify(tsel.slice().sort()) !== JSON.stringify(torig.slice().sort())) c.tags = tsel;
+    } else if (tagsEl) {
+      var tsel2 = Array.from(tagsEl.selectedOptions).map(function (o) { return o.value; });
+      var torig2 = Array.isArray(original.tags) ? original.tags : [];
+      if (JSON.stringify(tsel2.slice().sort()) !== JSON.stringify(torig2.slice().sort())) c.tags = tsel2;
     }
     if (costEl && costEl.value !== String(original.cost || '')) c.cost = costEl.value;
     if (weightEl && weightEl.value !== String(original.weight || '')) c.weight = weightEl.value;
@@ -162,9 +273,10 @@ document.addEventListener('DOMContentLoaded', function () {
       case 'price': setValue(priceEl, original.price); break;
       case 'status': setValue(statusEl, original.status); break;
       case 'visibility': setValue(visibilityEl, original.visibility); break;
-      case 'brands': if (brandsEl) Array.from(brandsEl.options).forEach(function (o) { o.selected = (original.brands || []).indexOf(o.value) !== -1; }); break;
-      case 'categories': if (catsEl) Array.from(catsEl.options).forEach(function (o) { o.selected = (original.categories || []).indexOf(o.value) !== -1; }); break;
-      case 'tags': if (tagsEl) Array.from(tagsEl.options).forEach(function (o) { o.selected = (original.tags || []).indexOf(o.value) !== -1; }); break;
+      case 'brands': renderTokens('hp-pm-pd-brands-tokens', original.brands || []); break;
+      case 'categories': renderTokens('hp-pm-pd-categories-tokens', original.categories || []); break;
+      case 'tags': renderTokens('hp-pm-pd-tags-tokens', original.tags || []); break;
+      case 'sale_price': setValue(salePriceEl, original.sale_price); break;
       case 'cost': setValue(costEl, original.cost); break;
       case 'weight': setValue(weightEl, original.weight); break;
       case 'length': setValue(lengthEl, original.length); break;
@@ -205,11 +317,10 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue(priceEl, original.price);
         setValue(statusEl, original.status);
         setValue(visibilityEl, original.visibility);
-        if (brandsEl) {
-          Array.from(brandsEl.options).forEach(function (o) { o.selected = (original.brands || []).indexOf(o.value) !== -1; });
-        }
-        if (catsEl) Array.from(catsEl.options).forEach(function (o) { o.selected = (original.categories || []).indexOf(o.value) !== -1; });
-        if (tagsEl) Array.from(tagsEl.options).forEach(function (o) { o.selected = (original.tags || []).indexOf(o.value) !== -1; });
+        renderTokens('hp-pm-pd-brands-tokens', original.brands || []);
+        renderTokens('hp-pm-pd-categories-tokens', original.categories || []);
+        renderTokens('hp-pm-pd-tags-tokens', original.tags || []);
+        setValue(salePriceEl, original.sale_price);
         setValue(costEl, original.cost);
         setValue(weightEl, original.weight);
         setValue(lengthEl, original.length);

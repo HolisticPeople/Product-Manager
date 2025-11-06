@@ -381,6 +381,8 @@ final class HP_Products_Manager {
             [],
             self::VERSION
         );
+        // Media for image selection
+        if (function_exists('wp_enqueue_media')) { wp_enqueue_media(); }
         wp_enqueue_script(
             self::HANDLE . '-product-js',
             $asset_base . 'js/product-detail.js',
@@ -400,6 +402,7 @@ final class HP_Products_Manager {
                     'name'       => $product->get_name(),
                     'sku'        => $product->get_sku(),
                     'price'      => ($product->get_price('edit') !== '' ? (float) $product->get_price('edit') : null),
+                    'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
                     'status'     => $product->get_status(),
                     'visibility' => $product->get_catalog_visibility(),
                     'brands'     => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
@@ -415,6 +418,9 @@ final class HP_Products_Manager {
                     'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
                     'cost'       => $this->get_product_cost($product_id),
                     'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+                    'image_id'   => $product->get_image_id() ?: null,
+                    'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
+                    'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
                     'editLink'   => admin_url('post.php?post=' . $product_id . '&action=edit'),
                     'viewLink'   => get_permalink($product_id),
                 ],
@@ -467,8 +473,9 @@ final class HP_Products_Manager {
                 <div class="card hp-pm-card" style="max-width: 1200px;">
                     <div class="hp-pm-pd-header">
                         <div class="hp-pm-pd-image">
-                            <img id="hp-pm-pd-image" src="" alt="" style="max-width:120px; height:auto; border:1px solid #dcdcde; border-radius:4px; background:#fff;">
+                            <img id="hp-pm-pd-image" src="" alt="" class="hp-pm-main-img">
                         </div>
+                        <div id="hp-pm-pd-gallery" class="hp-pm-gallery"></div>
                         <div class="hp-pm-pd-links">
                             <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
                             <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
@@ -486,10 +493,6 @@ final class HP_Products_Manager {
                         <tr>
                             <th><?php esc_html_e('SKU', 'hp-products-manager'); ?></th>
                             <td><input id="hp-pm-pd-sku" type="text" class="regular-text"></td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
-                            <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Status', 'hp-products-manager'); ?></th>
@@ -516,19 +519,25 @@ final class HP_Products_Manager {
                         <tr>
                             <th><?php esc_html_e('Brand(s)', 'hp-products-manager'); ?></th>
                             <td>
-                                <select id="hp-pm-pd-brands" multiple style="min-width: 280px;"></select>
+                                <div id="hp-pm-pd-brands-tokens" class="hp-pm-tokens"></div>
+                                <input id="hp-pm-pd-brands-input" list="hp-pm-brands-list" placeholder="<?php esc_attr_e('Search brand…', 'hp-products-manager'); ?>">
+                                <datalist id="hp-pm-brands-list"></datalist>
                             </td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Categories', 'hp-products-manager'); ?></th>
                             <td>
-                                <select id="hp-pm-pd-categories" multiple style="min-width: 280px;"></select>
+                                <div id="hp-pm-pd-categories-tokens" class="hp-pm-tokens"></div>
+                                <input id="hp-pm-pd-categories-input" list="hp-pm-cats-list" placeholder="<?php esc_attr_e('Search category…', 'hp-products-manager'); ?>">
+                                <datalist id="hp-pm-cats-list"></datalist>
                             </td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Tags', 'hp-products-manager'); ?></th>
                             <td>
-                                <select id="hp-pm-pd-tags" multiple style="min-width: 280px;"></select>
+                                <div id="hp-pm-pd-tags-tokens" class="hp-pm-tokens"></div>
+                                <input id="hp-pm-pd-tags-input" list="hp-pm-tags-list" placeholder="<?php esc_attr_e('Search tag…', 'hp-products-manager'); ?>">
+                                <datalist id="hp-pm-tags-list"></datalist>
                             </td>
                         </tr>
                         </table>
@@ -540,6 +549,10 @@ final class HP_Products_Manager {
                             <tr>
                                 <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
                                 <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
+                            </tr>
+                            <tr>
+                                <th><?php esc_html_e('Sale Price', 'hp-products-manager'); ?></th>
+                                <td><input id="hp-pm-pd-sale-price" type="number" step="0.01" class="regular-text"></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('Cost', 'hp-products-manager'); ?></th>
@@ -1125,6 +1138,7 @@ final class HP_Products_Manager {
             'name'       => $product->get_name(),
             'sku'        => $product->get_sku(),
             'price'      => ($product->get_price('edit') !== '' ? (float) $product->get_price('edit') : null),
+            'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
             'status'     => $product->get_status(),
             'visibility' => $product->get_catalog_visibility(),
             'brands'     => array_map(function ($t) { return $t->slug; }, (array) $terms),
@@ -1137,6 +1151,9 @@ final class HP_Products_Manager {
             'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
             'cost'       => $this->get_product_cost($id),
             'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'image_id'   => $product->get_image_id() ?: null,
+            'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
+            'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
             'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
             'viewLink'   => get_permalink($id),
         ]);
@@ -1183,6 +1200,10 @@ final class HP_Products_Manager {
                 update_post_meta($id, 'product_po_cost', $cost);
             }
         }
+        if (isset($apply['sale_price'])) {
+            $sp = $this->parse_decimal($apply['sale_price']);
+            $product->set_sale_price($sp !== null ? (string) $sp : '');
+        }
         if (isset($apply['weight'])) {
             $w = $this->parse_decimal($apply['weight']);
             $product->set_weight($w !== null ? (string) $w : '');
@@ -1224,6 +1245,14 @@ final class HP_Products_Manager {
         if (isset($apply['shipping_class'])) {
             $sc = sanitize_title((string) $apply['shipping_class']);
             wp_set_object_terms($id, $sc ? [$sc] : [], 'product_shipping_class', false);
+        }
+        if (isset($apply['image_id'])) {
+            $img = (int) $apply['image_id'];
+            if ($img > 0) { $product->set_image_id($img); } else { $product->set_image_id(''); }
+        }
+        if (isset($apply['gallery_ids']) && is_array($apply['gallery_ids'])) {
+            $ids = array_map('intval', $apply['gallery_ids']);
+            if (method_exists($product, 'set_gallery_image_ids')) { $product->set_gallery_image_ids($ids); }
         }
 
         $product->save();

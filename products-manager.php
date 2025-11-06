@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.27
+ * Version: 0.5.28
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.27';
+    const VERSION = '0.5.28';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -102,7 +102,7 @@ final class HP_Products_Manager {
         $charset = $wpdb->get_charset_collate();
         $movements = $this->table_movements();
         $state = $this->table_state();
-        $sql1 = \"CREATE TABLE {$movements} (
+        $sql1 = "CREATE TABLE {$movements} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             product_id BIGINT UNSIGNED NOT NULL,
             order_id BIGINT UNSIGNED NULL,
@@ -118,14 +118,14 @@ final class HP_Products_Manager {
             KEY product_id (product_id),
             KEY created_at (created_at),
             KEY order_id (order_id)
-        ) {$charset};\";
-        $sql2 = \"CREATE TABLE {$state} (
+        ) {$charset};";
+        $sql2 = "CREATE TABLE {$state} (
             product_id BIGINT UNSIGNED NOT NULL,
             last_qoh INT NULL,
             last_order_id_synced BIGINT UNSIGNED NULL DEFAULT 0,
             updated_at DATETIME NOT NULL,
             PRIMARY KEY (product_id)
-        ) {$charset};\";
+        ) {$charset};";
         dbDelta($sql1);
         dbDelta($sql2);
     }
@@ -134,13 +134,13 @@ final class HP_Products_Manager {
         global $wpdb;
         $table = $this->table_state();
         $now = current_time('mysql');
-        $wpdb->query($wpdb->prepare(\"INSERT INTO {$table} (product_id, last_qoh, updated_at) VALUES (%d,%s,%s)
-            ON DUPLICATE KEY UPDATE last_qoh=VALUES(last_qoh), updated_at=VALUES(updated_at)\", $product_id, $qoh, $now));
+        $wpdb->query($wpdb->prepare("INSERT INTO {$table} (product_id, last_qoh, updated_at) VALUES (%d,%s,%s)
+            ON DUPLICATE KEY UPDATE last_qoh=VALUES(last_qoh), updated_at=VALUES(updated_at)", $product_id, $qoh, $now));
     }
     private function get_state_qoh(int $product_id): ?int {
         global $wpdb;
         $table = $this->table_state();
-        $val = $wpdb->get_var($wpdb->prepare(\"SELECT last_qoh FROM {$table} WHERE product_id=%d\", $product_id));
+        $val = $wpdb->get_var($wpdb->prepare("SELECT last_qoh FROM {$table} WHERE product_id=%d", $product_id));
         return ($val === null) ? null : (int) $val;
     }
 
@@ -1446,14 +1446,14 @@ final class HP_Products_Manager {
         $id = (int) $request['id'];
         $limit = min(500, max(1, (int) ($request->get_param('limit') ?: 100)));
         $table = $this->table_movements();
-        $rows = $wpdb->get_results($wpdb->prepare(\"SELECT id, created_at, movement_type, qty, order_id, customer_name, qoh_after, source, note FROM {$table} WHERE product_id=%d ORDER BY created_at DESC, id DESC LIMIT %d\", $id, $limit), ARRAY_A);
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT id, created_at, movement_type, qty, order_id, customer_name, qoh_after, source, note FROM {$table} WHERE product_id=%d ORDER BY created_at DESC, id DESC LIMIT %d", $id, $limit), ARRAY_A);
 
         // Stats (sales out as positive numbers)
         $now = current_time('mysql');
-        $sum_all = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale'\", $id));
-        $sum_90  = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 90 DAY)\", $id, $now));
-        $sum_30  = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 30 DAY)\", $id, $now));
-        $sum_7   = (int) $wpdb->get_var($wpdb->prepare(\"SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 7 DAY)\", $id, $now));
+        $sum_all = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale'", $id));
+        $sum_90  = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 90 DAY)", $id, $now));
+        $sum_30  = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 30 DAY)", $id, $now));
+        $sum_7   = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(ABS(qty)),0) FROM {$table} WHERE product_id=%d AND movement_type='sale' AND created_at >= DATE_SUB(%s, INTERVAL 7 DAY)", $id, $now));
 
         return rest_ensure_response([
             'rows' => $rows ?: [],

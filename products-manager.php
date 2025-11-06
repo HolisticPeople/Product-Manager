@@ -169,7 +169,7 @@ final class HP_Products_Manager {
     }
 
     public function on_reduce_order_stock($order): void {
-        if (!$order instanceof \\WC_Order) return;
+        if (!$order instanceof \WC_Order) return;
         $created = $order->get_date_created();
         $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
         foreach ($order->get_items() as $item) {
@@ -192,7 +192,7 @@ final class HP_Products_Manager {
     }
 
     public function on_restore_order_stock($order): void {
-        if (!$order instanceof \\WC_Order) return;
+        if (!$order instanceof \WC_Order) return;
         $created = $order->get_date_created();
         $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
         foreach ($order->get_items() as $item) {

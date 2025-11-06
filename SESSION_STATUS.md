@@ -4,7 +4,7 @@
 
 - **Repo**: `products-manager` (WooCommerce admin plugin that adds a “Products” shortcut and custom product management page).
 - **Branch**: `dev`, remote tracking `origin/dev`.
-- **Version**: Plugin bumped to `0.5.10` (latest push `901e835`).
+- **Version**: Plugin bumped to `0.5.11` (latest push `1cf9f6c`).
 - **Key assets**:
   - Main plugin bootstrap: `products-manager.php`.
   - Toolbar/page JS: `assets/js/admin.js`, `assets/js/products-page.js`.
@@ -35,7 +35,7 @@
 
 ### Deployments & Workflow
 - `dev` branch pushes trigger staging deployment (confirmed working).
-- Recent pushes: `1335672` (metrics cache), `75f25df` (brand/cost improvements & layout tweaks), `48cc7c5` (brand/cost definitive keys), `979a65c` (version bump to 0.4.7), `53dd5bc` (row height tightening), `19e2577` (version bump to 0.4.8), `be1b0de` (Load All + client-side filters, bump 0.4.9), `7592499` (reserved/QOH rows; metrics use available; bump 0.5.0), `d9739cc` (split stock columns; bump 0.5.1), `78a7e69` (add Visibility filter and stock flags; bump 0.5.2), `9dbd9ea` (Stock Cost uses enabled only; reserved clarifies excluding on-hold; bump 0.5.3), `49760ee` (auto-apply filters; remove Apply; fixed checkbox size; bump 0.5.4), `d3bf6c3` (rename Stock Filters, separators, table count; bump 0.5.5), `a2d902a` (add Margin % column; bump 0.5.6), `6404074` (bump version to 0.5.7), `30566b3` (General tab 2-col, image/links, categories/tags/cost/shipping, staged revert; bump 0.5.8), `76fb9a3` (bump version to 0.5.9), `901e835` (bump version to 0.5.10).
+- Recent pushes: `1335672` (metrics cache), `75f25df` (brand/cost improvements & layout tweaks), `48cc7c5` (brand/cost definitive keys), `979a65c` (version bump to 0.4.7), `53dd5bc` (row height tightening), `19e2577` (version bump to 0.4.8), `be1b0de` (Load All + client-side filters, bump 0.4.9), `7592499` (reserved/QOH rows; metrics use available; bump 0.5.0), `d9739cc` (split stock columns; bump 0.5.1), `78a7e69` (add Visibility filter and stock flags; bump 0.5.2), `9dbd9ea` (Stock Cost uses enabled only; reserved clarifies excluding on-hold; bump 0.5.3), `49760ee` (auto-apply filters; remove Apply; fixed checkbox size; bump 0.5.4), `d3bf6c3` (rename Stock Filters, separators, table count; bump 0.5.5), `a2d902a` (add Margin % column; bump 0.5.6), `6404074` (bump version to 0.5.7), `30566b3` (General tab 2-col, image/links, categories/tags/cost/shipping, staged revert; bump 0.5.8), `76fb9a3` (bump version to 0.5.9), `901e835` (bump version to 0.5.10), `1cf9f6c` (bump version to 0.5.11).
 
 ## Outstanding Items / Next Steps
 

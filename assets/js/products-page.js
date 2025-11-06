@@ -38,24 +38,21 @@ document.addEventListener('DOMContentLoaded', function () {
         { title: 'Cost', field: 'cost', width: 110, hozAlign: 'right', formatter: currencyFormatter },
         { title: 'Price', field: 'price', width: 110, hozAlign: 'right', formatter: currencyFormatter },
         { title: 'Brand', field: 'brand', width: 170, formatter: textFormatter },
+        { title: 'QOH', field: 'stock', width: 80, hozAlign: 'right', formatter: quantityFormatter },
+        { title: 'Reserved', field: 'stock_reserved', width: 90, hozAlign: 'right', formatter: quantityFormatter },
         {
-            title: 'Stock',
-            field: 'stock',
-            width: 130,
+            title: 'Available',
+            field: 'stock_available',
+            width: 110,
+            hozAlign: 'right',
             formatter: function (cell) {
-                var data = cell.getRow().getData();
-                var qoh = data.stock;
-                var reserved = data.stock_reserved;
-
-                if (qoh === null || typeof qoh === 'undefined') {
+                var value = cell.getValue();
+                if (value === null || typeof value === 'undefined') {
                     return '<span class="hp-pm-cell-muted">&mdash;</span>';
                 }
-
-                reserved = (reserved === null || typeof reserved === 'undefined') ? 0 : reserved;
-                var available = (typeof qoh === 'number' ? qoh : parseFloat(qoh)) - (typeof reserved === 'number' ? reserved : parseFloat(reserved));
-                var klass = available > 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low';
-
-                return '<span class="' + klass + '">' + reserved + ' / ' + qoh + '</span>';
+                var num = parseFloat(value);
+                var klass = num > 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low';
+                return '<span class="' + klass + '">' + num + '</span>';
             }
         },
         { title: 'Status', field: 'status', width: 130, formatter: textFormatter },
@@ -295,6 +292,18 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) {
             return number.toFixed(2);
         }
+    }
+
+    function quantityFormatter(cell) {
+        var value = cell.getValue();
+        if (value === null || typeof value === 'undefined') {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+        var num = parseFloat(value);
+        if (Number.isNaN(num)) {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+        return String(num);
     }
 });
 

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.0
+ * Version: 0.5.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.0';
+    const VERSION = '0.5.1';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -468,6 +468,7 @@ final class HP_Products_Manager {
         $price = $price !== '' ? (float) $price : null;
 
         $reserved = isset($this->reserved_quantities_map[$product_id]) ? (int) $this->reserved_quantities_map[$product_id] : 0;
+        $available = $stock_qty !== null ? ((int) $stock_qty - $reserved) : null;
 
         return [
             'id'           => $product_id,
@@ -479,6 +480,7 @@ final class HP_Products_Manager {
             'brand'        => $this->get_product_brand_label($product),
             'stock'        => $stock_qty,
             'stock_reserved' => $reserved,
+            'stock_available'=> $available,
             'stock_detail' => $stock_status,
             'status'       => $product->get_status() === 'publish' ? __('Enabled', 'hp-products-manager') : __('Disabled', 'hp-products-manager'),
             'visibility'   => $this->map_visibility_label($product->get_catalog_visibility()),

@@ -250,6 +250,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (discardBtn) discardBtn.addEventListener('click', function () { writeStaged({}); });
 
+  // Inline notice (non-blocking success message)
+  var actionsWrap = document.querySelector('.hp-pm-staging-actions');
+  var noticeEl = document.createElement('div');
+  noticeEl.id = 'hp-pm-notice';
+  noticeEl.style.cssText = 'margin-top:8px; display:none; padding:6px 10px; border-radius:4px; background:#e7f7eb; color:#14532d; border:1px solid #c7eed8;';
+  if (actionsWrap && actionsWrap.parentNode) { actionsWrap.parentNode.insertBefore(noticeEl, actionsWrap.nextSibling); }
+  function showNotice(msg, type) {
+    if (!noticeEl) return;
+    noticeEl.textContent = msg || '';
+    noticeEl.style.display = msg ? '' : 'none';
+    if (msg) setTimeout(function(){ noticeEl.style.display = 'none'; }, 2500);
+  }
+
   if (applyBtn) applyBtn.addEventListener('click', function () {
     var staged = readStaged(); if (Object.keys(staged).length === 0) { alert(data.i18n.nothingToApply); return; }
     fetch(data.restBase + '/apply', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': data.nonce }, body: JSON.stringify({ changes: staged }) })
@@ -271,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue(costEl, original.cost); setValue(weightEl, original.weight); setValue(lengthEl, original.length); setValue(widthEl, original.width); setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
         if (imgEl) imgEl.src = original.image || ''; currentImageId = original.image_id || null; currentGallery = (original.gallery_ids || []).slice(); galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; }); renderGallery(); imageDirty=false; galleryDirty=false;
       }
-      writeStaged({}); alert(data.i18n.applied);
+      writeStaged({}); showNotice(data.i18n.applied, 'success');
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });

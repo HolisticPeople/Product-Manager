@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.19
+ * Version: 0.5.20
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.19';
+    const VERSION = '0.5.20';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -943,7 +943,7 @@ final class HP_Products_Manager {
     // Strict cost reader for Product Detail page: do not scan; use canonical key only.
     private function get_strict_cost(int $product_id): ?float {
         $value = get_post_meta($product_id, 'product_po_cost', true);
-        $parsed = $this->parse_decimal($value);
+        $parsed = $this->parse_decimal_relaxed($value);
         return $parsed !== null ? $parsed : null;
     }
 
@@ -966,6 +966,32 @@ final class HP_Products_Manager {
         $t = wc_get_product_terms($product_id, 'product_shipping_class', ['fields' => 'all']);
         $sl = $this->extract_term_slugs($t);
         return !empty($sl) ? $sl[0] : '';
+    }
+
+    // More tolerant parsing for legacy values (e.g., '$12.34' or '12,34')
+    private function parse_decimal_relaxed($value): ?float {
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+        if ($value === '' || $value === null) {
+            return null;
+        }
+        // Try WooCommerce helper first
+        if (function_exists('wc_format_decimal')) {
+            $formatted = wc_format_decimal($value);
+            if ($formatted !== '' && $formatted !== null) {
+                return (float) $formatted;
+            }
+        }
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+        // Strip all but digits, dot and sign
+        $filtered = preg_replace('/[^0-9.\\-]/', '', (string) $value);
+        if ($filtered === '' || $filtered === '.' || $filtered === '-') {
+            return null;
+        }
+        return (float) $filtered;
     }
 
     private function get_metrics_data(): array {

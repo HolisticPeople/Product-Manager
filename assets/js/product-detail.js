@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var original = JSON.parse(JSON.stringify(data.product));
   var productId = original.id;
   var storageKey = 'hp_pm_staged_' + productId;
+  // Do not persist staged changes across refreshes
+  try { localStorage.removeItem(storageKey); } catch (e) {}
 
   // Bind fields
   var nameEl = document.getElementById('hp-pm-pd-name');

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.22
+ * Version: 0.5.23
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,20 +27,14 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.22';
+    const VERSION = '0.5.23';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
     private const CACHE_GROUP       = 'hp_products_manager';
     private const METRICS_TTL       = 60; // 1 minute for fresher stats
-    private const COST_META_KEYS    = [
-        // Prefer canonical purchase-order cost first
-        'product_po_cost',
-        // Common Cost of Goods plugins
-        '_wc_cog_cost',
-        'wc_cog_cost',
-        '_alg_wc_cog_cost',
-    ];
+    // Definitive cost meta key (locked)
+    private const COST_META_KEY     = '_cogs_total_value';
 
     /**
      * Cached map of reserved quantities per product for this request.
@@ -948,47 +942,28 @@ final class HP_Products_Manager {
     }
 
     private function get_product_cost(int $product_id): ?float {
-        $meta_keys = (array) apply_filters('hp_products_manager_cost_meta_keys', self::COST_META_KEYS);
-
-        foreach ($meta_keys as $key) {
-            $value = get_post_meta($product_id, $key, true);
-
-            $parsed = $this->parse_decimal($value);
-
-            if ($parsed !== null) {
-                return $parsed;
-            }
-        }
-
-        return null;
+        $key = apply_filters('hp_products_manager_cost_meta_key', self::COST_META_KEY);
+        $value = get_post_meta($product_id, $key, true);
+        $parsed = $this->parse_decimal_relaxed($value);
+        return $parsed !== null ? $parsed : null;
     }
 
-    // Strict cost reader for Product Detail page: prefer canonical key, then known COGS keys.
+    // Strict cost reader for Product Detail page: definitive meta only.
     private function get_strict_cost(int $product_id): ?float {
-        $candidates = [
-            'product_po_cost',
-            // Popular COGS plugins (per-unit cost)
-            '_wc_cog_cost','wc_cog_cost','_alg_wc_cog_cost','pw_cost_of_goods','_purchase_price',
-            // Some installs store computed total; we only use these as a last resort
-            '_cogs_total_value','cogs_total_value','_alg_wc_cog_total_value','wc_cog_total_value','_wc_cog_total_value',
-        ];
-        foreach ($candidates as $key) {
-            $value = get_post_meta($product_id, $key, true);
-            $parsed = $this->parse_decimal_relaxed($value);
-            if ($parsed !== null) {
-                return $parsed;
-            }
-        }
-        return null;
+        $value = get_post_meta($product_id, self::COST_META_KEY, true);
+        $parsed = $this->parse_decimal_relaxed($value);
+        return $parsed !== null ? $parsed : null;
     }
 
     // Update cost in canonical meta and popular Cost-of-Goods keys for compatibility
     private function update_cost_meta(int $product_id, float $cost): void {
-        update_post_meta($product_id, 'product_po_cost', $cost);
-        // If any of these exist (or the site expects them), keep in sync
+        // Write to the definitive key
+        update_post_meta($product_id, self::COST_META_KEY, $cost);
+        // Optional: keep common COGS keys in sync for compatibility
         update_post_meta($product_id, '_wc_cog_cost', $cost);
         update_post_meta($product_id, 'wc_cog_cost', $cost);
         update_post_meta($product_id, '_alg_wc_cog_cost', $cost);
+        update_post_meta($product_id, 'product_po_cost', $cost);
     }
 
     private function extract_term_slugs($terms): array {

@@ -797,9 +797,9 @@ final class HP_Products_Manager {
                     </div>
 
                     <div class="hp-pm-staging-actions">
-                        <button id="hp-pm-stage-btn" class="button button-primary"></button>
-                        <button id="hp-pm-apply-btn" class="button" disabled></button>
-                        <button id="hp-pm-discard-btn" class="button"></button>
+                        <button id="hp-pm-stage-btn" class="button button-primary"><?php esc_html_e('Stage Changes', 'hp-products-manager'); ?></button>
+                        <button id="hp-pm-apply-btn" class="button" disabled><?php esc_html_e('Apply All', 'hp-products-manager'); ?></button>
+                        <button id="hp-pm-discard-btn" class="button"><?php esc_html_e('Discard All', 'hp-products-manager'); ?></button>
                     </div>
 
                     <div class="hp-pm-staged">

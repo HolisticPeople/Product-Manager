@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.13
+ * Version: 0.5.14
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.13';
+    const VERSION = '0.5.14';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1260,12 +1260,21 @@ final class HP_Products_Manager {
             wp_set_object_terms($id, $sc ? [$sc] : [], 'product_shipping_class', false);
         }
         if (isset($apply['image_id'])) {
-            $img = (int) $apply['image_id'];
+            // Accept string or int; normalize
+            $img = is_array($apply['image_id']) ? reset($apply['image_id']) : $apply['image_id'];
+            $img = (int) $img;
             if ($img > 0) { $product->set_image_id($img); } else { $product->set_image_id(''); }
         }
-        if (isset($apply['gallery_ids']) && is_array($apply['gallery_ids'])) {
-            $ids = array_map('intval', $apply['gallery_ids']);
+        if (isset($apply['gallery_ids'])) {
+            $ids_in = $apply['gallery_ids'];
+            if (is_string($ids_in)) {
+                $ids_in = preg_split('/[,\s]+/', $ids_in, -1, PREG_SPLIT_NO_EMPTY);
+            }
+            if (!is_array($ids_in)) { $ids_in = []; }
+            $ids = array_values(array_unique(array_filter(array_map('intval', $ids_in))));
             if (method_exists($product, 'set_gallery_image_ids')) { $product->set_gallery_image_ids($ids); }
+            // Ensure legacy meta is consistent as some installs still read this directly
+            update_post_meta($id, '_product_image_gallery', implode(',', $ids));
         }
 
         $product->save();

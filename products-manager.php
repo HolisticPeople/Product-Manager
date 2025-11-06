@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.1
+ * Version: 0.5.2
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.1';
+    const VERSION = '0.5.2';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -279,12 +279,30 @@ final class HP_Products_Manager {
                     </label>
                 </div>
                 <div class="hp-pm-filter-group">
-                    <label for="hp-pm-filter-stock-min">
-                        <?php esc_html_e('Stock Range', 'hp-products-manager'); ?>
+                    <label for="hp-pm-filter-visibility">
+                        <?php esc_html_e('Visibility', 'hp-products-manager'); ?>
+                        <select id="hp-pm-filter-visibility">
+                            <option value=""><?php esc_html_e('Any visibility', 'hp-products-manager'); ?></option>
+                            <option value="visible"><?php esc_html_e('Catalog & Search', 'hp-products-manager'); ?></option>
+                            <option value="catalog"><?php esc_html_e('Catalog Only', 'hp-products-manager'); ?></option>
+                            <option value="search"><?php esc_html_e('Search Only', 'hp-products-manager'); ?></option>
+                            <option value="hidden"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></option>
+                        </select>
+                    </label>
+                </div>
+                <div class="hp-pm-filter-group">
+                    <label>
+                        <?php esc_html_e('Stock Flags', 'hp-products-manager'); ?>
                         <div class="hp-pm-stock-range">
-                            <input id="hp-pm-filter-stock-min" type="number" min="0" placeholder="0">
-                            <span>&ndash;</span>
-                            <input id="hp-pm-filter-stock-max" type="number" min="0" placeholder="999">
+                            <label style="display:flex; align-items:center; gap:6px;">
+                                <input id="hp-pm-filter-qoh-gt0" type="checkbox"> <?php esc_html_e('QOH > 0', 'hp-products-manager'); ?>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:6px;">
+                                <input id="hp-pm-filter-reserved-gt0" type="checkbox"> <?php esc_html_e('Reserved > 0', 'hp-products-manager'); ?>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:6px;">
+                                <input id="hp-pm-filter-available-lt0" type="checkbox"> <?php esc_html_e('Available < 0', 'hp-products-manager'); ?>
+                            </label>
                         </div>
                     </label>
                 </div>
@@ -484,6 +502,7 @@ final class HP_Products_Manager {
             'stock_detail' => $stock_status,
             'status'       => $product->get_status() === 'publish' ? __('Enabled', 'hp-products-manager') : __('Disabled', 'hp-products-manager'),
             'visibility'   => $this->map_visibility_label($product->get_catalog_visibility()),
+            'visibility_code' => $product->get_catalog_visibility(),
         ];
     }
 

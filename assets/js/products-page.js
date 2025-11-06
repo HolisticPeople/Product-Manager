@@ -98,8 +98,10 @@ document.addEventListener('DOMContentLoaded', function () {
         var search = document.getElementById('hp-pm-filter-search');
         var brand = document.getElementById('hp-pm-filter-brand');
         var status = document.getElementById('hp-pm-filter-status');
-        var stockMin = document.getElementById('hp-pm-filter-stock-min');
-        var stockMax = document.getElementById('hp-pm-filter-stock-max');
+        var visibility = document.getElementById('hp-pm-filter-visibility');
+        var qohGt0 = document.getElementById('hp-pm-filter-qoh-gt0');
+        var reservedGt0 = document.getElementById('hp-pm-filter-reserved-gt0');
+        var availableLt0 = document.getElementById('hp-pm-filter-available-lt0');
 
         if (search && search.value.trim() !== '') {
             filters.search = search.value.trim();
@@ -115,13 +117,13 @@ document.addEventListener('DOMContentLoaded', function () {
             filters.status = status.value;
         }
 
-        if (stockMin && stockMin.value !== '') {
-            filters.stock_min = stockMin.value;
+        if (visibility && visibility.value) {
+            filters.visibility = visibility.value;
         }
 
-        if (stockMax && stockMax.value !== '') {
-            filters.stock_max = stockMax.value;
-        }
+        if (qohGt0 && qohGt0.checked) filters.qoh_gt0 = true;
+        if (reservedGt0 && reservedGt0.checked) filters.res_gt0 = true;
+        if (availableLt0 && availableLt0.checked) filters.avail_lt0 = true;
 
         return filters;
     }
@@ -171,8 +173,10 @@ document.addEventListener('DOMContentLoaded', function () {
         var searchValue = (filters.search || '').toLowerCase();
         var brandName = filters.brand_slug ? (slugToName[filters.brand_slug] || '').toLowerCase() : '';
         var statusValue = filters.status || '';
-        var stockMin = filters.stock_min !== undefined ? parseFloat(filters.stock_min) : null;
-        var stockMax = filters.stock_max !== undefined ? parseFloat(filters.stock_max) : null;
+        var visibilityCode = filters.visibility || '';
+        var qohFlag = !!filters.qoh_gt0;
+        var resFlag = !!filters.res_gt0;
+        var availFlag = !!filters.avail_lt0;
 
         var filtered = allProducts.filter(function (row) {
             // Search in name or SKU
@@ -199,10 +203,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (statusValue === 'disabled' && rowStatus !== 'disabled') return false;
             }
 
-            // Stock range
-            var stock = row.stock;
-            if (stockMin !== null && stock !== null && stock < stockMin) return false;
-            if (stockMax !== null && stock !== null && stock > stockMax) return false;
+            // Visibility
+            if (visibilityCode) {
+                if ((row.visibility_code || '').toLowerCase() !== visibilityCode) return false;
+            }
+
+            // Stock flags
+            if (qohFlag && !(row.stock > 0)) return false;
+            if (resFlag && !(row.stock_reserved > 0)) return false;
+            if (availFlag && !(row.stock_available < 0)) return false;
 
             return true;
         });

@@ -701,7 +701,14 @@ final class HP_Products_Manager {
                                     ?>
                                 </div>
                                 <input id="hp-pm-pd-brands-input" list="hp-pm-brands-list" placeholder="<?php esc_attr_e('Search brand…', 'hp-products-manager'); ?>">
-                                <datalist id="hp-pm-brands-list"></datalist>
+                                <datalist id="hp-pm-brands-list">
+                                    <?php
+                                    $all_brands = $this->get_brand_options();
+                                    foreach ($all_brands as $opt) {
+                                        echo '<option value="' . esc_attr($opt['slug']) . '" label="' . esc_attr($opt['name']) . '"></option>';
+                                    }
+                                    ?>
+                                </datalist>
                             </td>
                         </tr>
                         <tr>
@@ -718,7 +725,16 @@ final class HP_Products_Manager {
                                     ?>
                                 </div>
                                 <input id="hp-pm-pd-categories-input" list="hp-pm-cats-list" placeholder="<?php esc_attr_e('Search category…', 'hp-products-manager'); ?>">
-                                <datalist id="hp-pm-cats-list"></datalist>
+                                <datalist id="hp-pm-cats-list">
+                                    <?php
+                                    $all_cats = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => false]);
+                                    if (!is_wp_error($all_cats)) {
+                                        foreach ($all_cats as $t) {
+                                            echo '<option value="' . esc_attr($t->slug) . '" label="' . esc_attr($t->name) . '"></option>';
+                                        }
+                                    }
+                                    ?>
+                                </datalist>
                             </td>
                         </tr>
                         <tr>
@@ -735,7 +751,16 @@ final class HP_Products_Manager {
                                     ?>
                                 </div>
                                 <input id="hp-pm-pd-tags-input" list="hp-pm-tags-list" placeholder="<?php esc_attr_e('Search tag…', 'hp-products-manager'); ?>">
-                                <datalist id="hp-pm-tags-list"></datalist>
+                                <datalist id="hp-pm-tags-list">
+                                    <?php
+                                    $all_tags = get_terms(['taxonomy' => 'product_tag', 'hide_empty' => false]);
+                                    if (!is_wp_error($all_tags)) {
+                                        foreach ($all_tags as $t) {
+                                            echo '<option value="' . esc_attr($t->slug) . '" label="' . esc_attr($t->name) . '"></option>';
+                                        }
+                                    }
+                                    ?>
+                                </datalist>
                             </td>
                         </tr>
                         </table>

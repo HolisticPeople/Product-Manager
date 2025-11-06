@@ -43,14 +43,13 @@ document.addEventListener('DOMContentLoaded', function () {
             width: 130,
             formatter: function (cell) {
                 var value = cell.getValue();
-                var detail = cell.getRow().getData().stock_detail || '';
                 var klass = value > 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low';
 
                 if (value === null || typeof value === 'undefined') {
-                    return '<span class="hp-pm-cell-muted">&mdash;</span><div class="hp-pm-stock-detail">' + detail + '</div>';
+                    return '<span class="hp-pm-cell-muted">&mdash;</span>';
                 }
 
-                return '<span class="' + klass + '">' + value + '</span><div class="hp-pm-stock-detail">' + detail + '</div>';
+                return '<span class="' + klass + '">' + value + '</span>';
             }
         },
         { title: 'Status', field: 'status', width: 130, formatter: textFormatter },

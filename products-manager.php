@@ -32,6 +32,17 @@ final class HP_Products_Manager {
     private const METRICS_CACHE_KEY = 'metrics';
     private const CACHE_GROUP       = 'hp_products_manager';
     private const METRICS_TTL       = 300; // 5 minutes
+    private const COST_META_KEYS    = [
+        '_purchase_price',
+        '_wc_cog_cost',
+        '_wc_cog_product_cost',
+        '_product_cost',
+        '_production_cost',
+        '_alg_wc_cog_cost',
+        '_alg_wc_cog_cost_price',
+        '_hp_cost',
+        '_cost_price',
+    ];
 
     /**
      * Retrieve the singleton instance.
@@ -434,7 +445,7 @@ final class HP_Products_Manager {
             'sku'          => $product->get_sku(),
             'cost'         => $cost,
             'price'        => $price,
-            'brand'        => $this->get_product_brand_label($product_id),
+            'brand'        => $this->get_product_brand_label($product),
             'stock'        => $stock_qty,
             'stock_detail' => $stock_status,
             'status'       => $product->get_status() === 'publish' ? __('Enabled', 'hp-products-manager') : __('Disabled', 'hp-products-manager'),
@@ -442,10 +453,16 @@ final class HP_Products_Manager {
         ];
     }
 
-    private function get_product_brand_label(int $product_id): string {
+    private function get_product_brand_label(WC_Product $product): string {
+        $product_id = $product->get_id();
         $names = [];
 
-        foreach (['product_brand', 'pa_brand'] as $taxonomy) {
+        $taxonomies = (array) apply_filters(
+            'hp_products_manager_brand_taxonomies',
+            ['product_brand', 'pa_brand', 'brand']
+        );
+
+        foreach ($taxonomies as $taxonomy) {
             if (!taxonomy_exists($taxonomy)) {
                 continue;
             }
@@ -458,6 +475,45 @@ final class HP_Products_Manager {
 
             foreach ($terms as $term) {
                 $names[$term->name] = true;
+            }
+        }
+
+        if (!empty($names)) {
+            return implode(', ', array_keys($names));
+        }
+
+        $attribute_targets = array_map(
+            [$this, 'normalise_attribute_key'],
+            (array) apply_filters('hp_products_manager_brand_attribute_keys', ['brand'])
+        );
+
+        if (!empty($attribute_targets)) {
+            foreach ($product->get_attributes() as $attribute) {
+                $attribute_key = $this->normalise_attribute_key($attribute->get_name());
+
+                if (!in_array($attribute_key, $attribute_targets, true)) {
+                    continue;
+                }
+
+                if ($attribute->is_taxonomy()) {
+                    $term_names = wc_get_product_terms($product_id, $attribute->get_name(), ['fields' => 'names']);
+
+                    foreach ($term_names as $name) {
+                        if ($name !== '') {
+                            $names[$name] = true;
+                        }
+                    }
+
+                    continue;
+                }
+
+                foreach ($attribute->get_options() as $option) {
+                    $option = is_string($option) ? trim(wp_strip_all_tags($option)) : $option;
+
+                    if ($option !== '') {
+                        $names[(string) $option] = true;
+                    }
+                }
             }
         }
 
@@ -484,13 +540,15 @@ final class HP_Products_Manager {
     }
 
     private function get_product_cost(int $product_id): ?float {
-        $meta_keys = ['_purchase_price', '_wc_cog_cost', '_wc_cog_product_cost', '_product_cost'];
+        $meta_keys = (array) apply_filters('hp_products_manager_cost_meta_keys', self::COST_META_KEYS);
 
         foreach ($meta_keys as $key) {
             $value = get_post_meta($product_id, $key, true);
 
-            if ($value !== '' && $value !== null) {
-                return (float) $value;
+            $parsed = $this->parse_decimal($value);
+
+            if ($parsed !== null) {
+                return $parsed;
             }
         }
 
@@ -621,6 +679,57 @@ final class HP_Products_Manager {
         if ($post->post_type === 'product') {
             $this->flush_metrics_cache();
         }
+    }
+
+    private function normalise_attribute_key(string $key): string {
+        $key = strtolower($key);
+
+        if (strpos($key, 'pa_') === 0) {
+            $key = substr($key, 3);
+        }
+
+        return sanitize_title($key);
+    }
+
+    private function parse_decimal($value): ?float {
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+
+        if ($value === '' || $value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+
+            if ($value === '') {
+                return null;
+            }
+        }
+
+        if (function_exists('wc_format_decimal')) {
+            $formatted = wc_format_decimal($value);
+
+            if ($formatted === '' || $formatted === null) {
+                return null;
+            }
+
+            return (float) $formatted;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $filtered = preg_replace('/[^0-9.\-]/', '', (string) $value);
+
+        if ($filtered === '' || $filtered === '.' || $filtered === '-'
+        ) {
+            return null;
+        }
+
+        return (float) $filtered;
     }
 
     private function get_brand_options(): array {

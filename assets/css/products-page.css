@@ -139,12 +139,18 @@
     background: #fbfbfc;
 }
 
+.hp-pm-table .tabulator-cell {
+    padding: 6px 10px;
+}
+
 .hp-pm-thumb {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     border-radius: 4px;
     border: 1px solid #dcdcde;
     object-fit: cover;
+    display: block;
+    margin: 0 auto;
 }
 
 .hp-pm-thumb--placeholder {
@@ -155,6 +161,12 @@
         #e1e5ea 10px,
         #e1e5ea 20px
     );
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid #dcdcde;
+    display: block;
+    margin: 0 auto;
 }
 
 .hp-pm-stock-detail {

@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     populateBrands(config.brands || []);
     updateMetrics(config.metrics || {});
-    loadProducts({});
+    loadAllOnce();
 
     var filterForm = document.getElementById('hp-products-filters');
     var resetButton = document.getElementById('hp-pm-filters-reset');
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (filterForm) {
         filterForm.addEventListener('submit', function (event) {
             event.preventDefault();
-            loadProducts(collectFilters());
+            applyFilters();
         });
     }
 
@@ -85,9 +85,11 @@ document.addEventListener('DOMContentLoaded', function () {
             if (filterForm) {
                 filterForm.reset();
             }
-            loadProducts({});
+            applyFilters();
         });
     }
+
+    var allProducts = [];
 
     function collectFilters() {
         var filters = {};
@@ -122,16 +124,9 @@ document.addEventListener('DOMContentLoaded', function () {
         return filters;
     }
 
-    function loadProducts(query) {
-        query = query || {};
+    function loadAllOnce() {
         var url = new URL(config.restUrl);
-        url.searchParams.set('per_page', config.perPage || 50);
-
-        Object.keys(query).forEach(function (key) {
-            if (query[key] !== '' && query[key] !== null && typeof query[key] !== 'undefined') {
-                url.searchParams.set(key, query[key]);
-            }
-        });
+        url.searchParams.set('per_page', 'all');
 
         table.clearData();
 
@@ -149,13 +144,68 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(function (payload) {
-                table.setData(payload.products || []);
+                allProducts = Array.isArray(payload.products) ? payload.products : [];
+                table.setData(allProducts);
                 updateMetrics(payload.metrics || {});
             })
             .catch(function (error) {
                 console.error('Products Manager:', error);
+                allProducts = [];
                 table.replaceData([]);
             });
+    }
+
+    function applyFilters() {
+        var filters = collectFilters();
+
+        // Map brand slug to name for comparison
+        var slugToName = {};
+        (config.brands || []).forEach(function (term) {
+            if (term && term.slug) {
+                slugToName[term.slug] = term.name || term.slug;
+            }
+        });
+
+        var searchValue = (filters.search || '').toLowerCase();
+        var brandName = filters.brand_slug ? (slugToName[filters.brand_slug] || '').toLowerCase() : '';
+        var statusValue = filters.status || '';
+        var stockMin = filters.stock_min !== undefined ? parseFloat(filters.stock_min) : null;
+        var stockMax = filters.stock_max !== undefined ? parseFloat(filters.stock_max) : null;
+
+        var filtered = allProducts.filter(function (row) {
+            // Search in name or SKU
+            if (searchValue) {
+                var name = (row.name || '').toLowerCase();
+                var sku = (row.sku || '').toLowerCase();
+                if (name.indexOf(searchValue) === -1 && sku.indexOf(searchValue) === -1) {
+                    return false;
+                }
+            }
+
+            // Brand contains selected term name
+            if (brandName) {
+                var brand = (row.brand || '').toLowerCase();
+                if (brand.indexOf(brandName) === -1) {
+                    return false;
+                }
+            }
+
+            // Status match
+            if (statusValue) {
+                var rowStatus = (row.status || '').toLowerCase();
+                if (statusValue === 'enabled' && rowStatus !== 'enabled') return false;
+                if (statusValue === 'disabled' && rowStatus !== 'disabled') return false;
+            }
+
+            // Stock range
+            var stock = row.stock;
+            if (stockMin !== null && stock !== null && stock < stockMin) return false;
+            if (stockMax !== null && stock !== null && stock > stockMax) return false;
+
+            return true;
+        });
+
+        table.setData(filtered);
     }
 
     function populateBrands(brands) {

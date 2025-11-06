@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.4.8
+ * Version: 0.4.9
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,8 +27,9 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.4.8';
+    const VERSION = '0.4.9';
     const HANDLE  = 'hp-products-manager';
+    private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
     private const CACHE_GROUP       = 'hp_products_manager';
     private const METRICS_TTL       = 300; // 5 minutes
@@ -334,8 +335,11 @@ final class HP_Products_Manager {
      * REST callback returning product rows.
      */
     public function rest_get_products(WP_REST_Request $request) {
+        $t0       = microtime(true);
         $page     = max(1, (int) $request->get_param('page'));
-        $per_page = min(200, max(1, (int) $request->get_param('per_page') ?: 50));
+        $per_page_param = $request->get_param('per_page');
+        $per_page = min(200, max(1, (int) $per_page_param ?: 50));
+        $request_all = (is_string($per_page_param) && strtolower($per_page_param) === 'all') || (string) $per_page_param === '-1';
         $search   = sanitize_text_field((string) $request->get_param('search'));
         $status   = sanitize_key((string) $request->get_param('status'));
         $brand_tax = sanitize_key((string) $request->get_param('brand_tax'));
@@ -356,6 +360,18 @@ final class HP_Products_Manager {
             'order'          => 'DESC',
             'suppress_filters' => false,
         ];
+
+        // If client requests all products, decide whether to honor or fall back
+        if ($request_all) {
+            $counts = wp_count_posts('product');
+            $total  = (int) ($counts->publish ?? 0) + (int) ($counts->draft ?? 0) + (int) ($counts->pending ?? 0) + (int) ($counts->private ?? 0);
+
+            if ($total > 0 && $total <= self::ALL_LOAD_THRESHOLD) {
+                $args['posts_per_page'] = -1; // load all
+                $args['paged'] = 1;
+                $args['no_found_rows'] = true; // optimization when loading all
+            }
+        }
 
         if ($search !== '') {
             $args['s'] = $search;
@@ -378,6 +394,14 @@ final class HP_Products_Manager {
         }
 
         $query = new WP_Query($args);
+
+        // Prime caches for faster meta/term access
+        if (!empty($query->posts)) {
+            update_meta_cache('post', $query->posts);
+            if (function_exists('update_object_term_cache')) {
+                update_object_term_cache($query->posts, ['yith_product_brand', 'product_visibility']);
+            }
+        }
 
         $rows = [];
 
@@ -403,15 +427,20 @@ final class HP_Products_Manager {
 
         wp_reset_postdata();
 
+        $build_ms = (int) round((microtime(true) - $t0) * 1000);
+
         return rest_ensure_response([
             'products'   => $rows,
             'pagination' => [
                 'page'        => $page,
-                'per_page'    => $per_page,
+                'per_page'    => $args['posts_per_page'] === -1 ? 'all' : $per_page,
                 'total'       => (int) $query->found_posts,
                 'total_pages' => (int) max(1, $query->max_num_pages),
             ],
             'metrics'    => $this->get_metrics_data(),
+            'timing'     => [
+                'build_ms' => $build_ms,
+            ],
         ]);
     }
 

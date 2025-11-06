@@ -4,7 +4,7 @@
 
 - **Repo**: `products-manager` (WooCommerce admin plugin that adds a “Products” shortcut and custom product management page).
 - **Branch**: `dev`, remote tracking `origin/dev`.
-- **Version**: Plugin bumped to `0.4.6` (latest push `48cc7c5`).
+- **Version**: Plugin bumped to `0.4.7` (latest push `979a65c`).
 - **Key assets**:
   - Main plugin bootstrap: `products-manager.php`.
   - Toolbar/page JS: `assets/js/admin.js`, `assets/js/products-page.js`.
@@ -35,13 +35,13 @@
 
 ### Deployments & Workflow
 - `dev` branch pushes trigger staging deployment (confirmed working).
-- Recent pushes: `1335672` (metrics cache), `75f25df` (brand/cost improvements & layout tweaks).
+- Recent pushes: `1335672` (metrics cache), `75f25df` (brand/cost improvements & layout tweaks), `48cc7c5` (brand/cost definitive keys), `979a65c` (version bump to 0.4.7).
 
 ## Outstanding Items / Next Steps
 
 1. **Verify Staging Data Sources**
    - Completed: Staging DB shows brand taxonomy `yith_product_brand` and cost stored in meta key `product_po_cost` (ACF reference key `_product_po_cost`).
-   - Plugin updated to use these definitive sources only (commit `48cc7c5`).
+- Plugin updated to use these definitive sources only (commit `48cc7c5`).
 
 2. **Front-end Polishing**
    - Ensure CSS changes propagate (confirm no caching overrides).

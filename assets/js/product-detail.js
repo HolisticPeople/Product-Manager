@@ -159,6 +159,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!t || !currentImageId) { dragSource = null; dragId = null; return; }
         var tid = parseInt(t.dataset.id,10); if (isNaN(tid)) { dragSource=null; dragId=null; return; }
         var prevMain = currentImageId;
+        // Ensure we have a thumb URL for the previous main before demoting it
+        if (!galleryThumbs[prevMain]) { galleryThumbs[prevMain] = (imgEl && imgEl.src) ? imgEl.src : (original.image || ''); }
         var idx = currentGallery.indexOf(tid);
         if (idx > -1) {
           // Remove any existing prevMain to avoid duplicates, then replace target with prevMain
@@ -204,6 +206,8 @@ document.addEventListener('DOMContentLoaded', function () {
       // If dragging a gallery thumb onto main, promote it and demote previous main into gallery
       if (dragSource === 'gallery' && dragId) {
         var prevMain = currentImageId;
+        // Ensure we have a thumb URL for the previous main before demoting it
+        if (prevMain && !galleryThumbs[prevMain]) { galleryThumbs[prevMain] = (imgEl && imgEl.src) ? imgEl.src : (original.image || ''); }
         var idx = currentGallery.indexOf(dragId);
         if (idx > -1) currentGallery.splice(idx, 1);
         if (prevMain) {

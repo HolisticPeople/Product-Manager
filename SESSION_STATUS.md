@@ -4,7 +4,7 @@
 
 - **Repo**: `products-manager` (WooCommerce admin plugin that adds a “Products” shortcut and custom product management page).
 - **Branch**: `dev`, remote tracking `origin/dev`.
-- **Version**: Plugin bumped to `0.4.9` (latest push `be1b0de`).
+- **Version**: Plugin bumped to `0.5.0` (latest push `be1b0de`).
 - **Key assets**:
   - Main plugin bootstrap: `products-manager.php`.
   - Toolbar/page JS: `assets/js/admin.js`, `assets/js/products-page.js`.

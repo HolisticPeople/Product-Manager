@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.4.9
+ * Version: 0.5.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,15 +27,21 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.4.9';
+    const VERSION = '0.5.0';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
     private const CACHE_GROUP       = 'hp_products_manager';
-    private const METRICS_TTL       = 300; // 5 minutes
+    private const METRICS_TTL       = 60; // 1 minute for fresher stats
     private const COST_META_KEYS    = [
         'product_po_cost',
     ];
+
+    /**
+     * Cached map of reserved quantities per product for this request.
+     * @var array<int,int>
+     */
+    private $reserved_quantities_map = [];
 
     /**
      * Retrieve the singleton instance.
@@ -401,6 +407,8 @@ final class HP_Products_Manager {
             if (function_exists('update_object_term_cache')) {
                 update_object_term_cache($query->posts, ['yith_product_brand', 'product_visibility']);
             }
+            // Compute reserved quantities for the set we are about to render
+            $this->reserved_quantities_map = $this->get_reserved_quantities($query->posts);
         }
 
         $rows = [];
@@ -459,6 +467,8 @@ final class HP_Products_Manager {
         $price = $product->get_price('edit');
         $price = $price !== '' ? (float) $price : null;
 
+        $reserved = isset($this->reserved_quantities_map[$product_id]) ? (int) $this->reserved_quantities_map[$product_id] : 0;
+
         return [
             'id'           => $product_id,
             'image'        => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
@@ -468,6 +478,7 @@ final class HP_Products_Manager {
             'price'        => $price,
             'brand'        => $this->get_product_brand_label($product),
             'stock'        => $stock_qty,
+            'stock_reserved' => $reserved,
             'stock_detail' => $stock_status,
             'status'       => $product->get_status() === 'publish' ? __('Enabled', 'hp-products-manager') : __('Disabled', 'hp-products-manager'),
             'visibility'   => $this->map_visibility_label($product->get_catalog_visibility()),
@@ -644,6 +655,9 @@ final class HP_Products_Manager {
             'return' => 'objects',
         ]);
 
+        // Reserved quantities across processing orders for all products
+        $reserved_map = $this->get_reserved_quantities();
+
         if (!empty($products)) {
             foreach ($products as $product) {
                 if (!$product instanceof WC_Product) {
@@ -666,7 +680,9 @@ final class HP_Products_Manager {
 
                         $threshold = max(0, (int) $threshold);
 
-                        if ($stock_qty <= $threshold) {
+                        $available = (int) $stock_qty - (int) ($reserved_map[$product->get_id()] ?? 0);
+
+                        if ($available <= $threshold) {
                             $low_stock_count++;
                         }
                     }
@@ -780,6 +796,61 @@ final class HP_Products_Manager {
         }
 
         return $options;
+    }
+
+    /**
+     * Build a map of reserved quantities per product based on Processing orders.
+     * If $limit_ids is provided, only those product IDs are considered (useful for response rows).
+     *
+     * @param array<int>|null $limit_ids
+     * @return array<int,int>
+     */
+    private function get_reserved_quantities(array $limit_ids = null): array {
+        $map = [];
+
+        $orders = wc_get_orders([
+            'status' => ['processing'],
+            'limit'  => -1,
+            'orderby'=> 'date',
+            'order'  => 'DESC',
+            'return' => 'objects',
+        ]);
+
+        $limit_lookup = null;
+        if (is_array($limit_ids) && !empty($limit_ids)) {
+            $limit_lookup = array_fill_keys(array_map('intval', $limit_ids), true);
+        }
+
+        if (!empty($orders)) {
+            foreach ($orders as $order) {
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+
+                    if (!$product instanceof WC_Product) {
+                        continue;
+                    }
+
+                    $product_id = $product->get_id();
+
+                    // Map variations to parent product so the table (which lists parents) reflects total reserved
+                    if ($product->is_type('variation')) {
+                        $parent_id = $product->get_parent_id();
+                        if ($parent_id) {
+                            $product_id = $parent_id;
+                        }
+                    }
+
+                    if ($limit_lookup !== null && !isset($limit_lookup[$product_id])) {
+                        continue;
+                    }
+
+                    $qty = (int) $item->get_quantity();
+                    $map[$product_id] = isset($map[$product_id]) ? $map[$product_id] + $qty : $qty;
+                }
+            }
+        }
+
+        return $map;
     }
 }
 

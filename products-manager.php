@@ -71,6 +71,7 @@ final class HP_Products_Manager {
         add_action('admin_head', [$this, 'maybe_suppress_notices'], 0);
         add_action('in_admin_header', [$this, 'maybe_suppress_notices'], 0);
         add_action('admin_menu', [$this, 'register_admin_page'], 30);
+        add_action('admin_menu', [$this, 'register_product_detail_page'], 30);
         add_filter('admin_body_class', [$this, 'maybe_flag_body_class']);
         add_action('save_post_product', [$this, 'flush_metrics_cache'], 10, 1);
         add_action('deleted_post', [$this, 'maybe_flush_deleted_product_cache'], 10, 2);
@@ -149,6 +150,7 @@ final class HP_Products_Manager {
                 'locale'  => get_locale(),
                 'brands'  => $this->get_brand_options(),
                 'metrics' => $this->get_metrics_data(),
+                'productUrlBase' => admin_url('admin.php?page=hp-products-manager-product&product_id='),
                 'i18n'    => [
                     'loading'   => __('Loading products...', 'hp-products-manager'),
                     'loadError' => __('Unable to load products. Please try again.', 'hp-products-manager'),
@@ -225,6 +227,21 @@ final class HP_Products_Manager {
             'hp-products-manager',
             [$this, 'render_products_page'],
             30
+        );
+    }
+
+    /**
+     * Register the single product detail page (hidden entry-only page).
+     */
+    public function register_product_detail_page(): void {
+        add_submenu_page(
+            'woocommerce',
+            __('PM Product', 'hp-products-manager'),
+            __('PM Product', 'hp-products-manager'),
+            'manage_woocommerce',
+            'hp-products-manager-product',
+            [$this, 'render_product_detail_page'],
+            31
         );
     }
 
@@ -340,6 +357,96 @@ final class HP_Products_Manager {
         <?php
     }
 
+    /**
+     * Render the product detail mockup page with tabs and staging placeholder.
+     */
+    public function render_product_detail_page(): void {
+        $product_id = isset($_GET['product_id']) ? (int) $_GET['product_id'] : 0;
+        $product = $product_id ? wc_get_product($product_id) : null;
+
+        if (!$product instanceof WC_Product) {
+            echo '<div class="wrap"><h1>' . esc_html__('PM Product', 'hp-products-manager') . '</h1><p>' . esc_html__('Invalid or missing product.', 'hp-products-manager') . '</p></div>';
+            return;
+        }
+
+        $title = sprintf(__('Product: %s', 'hp-products-manager'), $product->get_name());
+        $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'general';
+        $active_tab = in_array($active_tab, ['general', 'erp'], true) ? $active_tab : 'general';
+
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html($title); ?></h1>
+
+            <h2 class="nav-tab-wrapper">
+                <a href="<?php echo esc_url(add_query_arg(['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'general'], admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('General', 'hp-products-manager'); ?></a>
+                <a href="<?php echo esc_url(add_query_arg(['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'erp'], admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'erp' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('ERP', 'hp-products-manager'); ?></a>
+            </h2>
+
+            <?php if ($active_tab === 'general') : ?>
+                <div class="card" style="max-width: 1200px;">
+                    <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
+                    <table class="form-table">
+                        <tr>
+                            <th><?php esc_html_e('Name', 'hp-products-manager'); ?></th>
+                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_name()); ?>" disabled></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('SKU', 'hp-products-manager'); ?></th>
+                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_sku()); ?>" disabled></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
+                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_price('edit')); ?>" disabled></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Status', 'hp-products-manager'); ?></th>
+                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_status()); ?>" disabled></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Visibility', 'hp-products-manager'); ?></th>
+                            <td><input type="text" class="regular-text" value="<?php echo esc_attr($product->get_catalog_visibility()); ?>" disabled></td>
+                        </tr>
+                    </table>
+
+                    <hr>
+                    <h2><?php esc_html_e('Staging (mockup)', 'hp-products-manager'); ?></h2>
+                    <p><?php esc_html_e('This section will allow staging field changes and applying them in bulk. For now, it is a visual mockup.', 'hp-products-manager'); ?></p>
+                    <ul style="margin-left: 18px; list-style: disc;">
+                        <li><?php esc_html_e('Stage edits locally per product and per field.', 'hp-products-manager'); ?></li>
+                        <li><?php esc_html_e('Review staged changes.', 'hp-products-manager'); ?></li>
+                        <li><?php esc_html_e('Apply all staged changes in one transaction.', 'hp-products-manager'); ?></li>
+                    </ul>
+                </div>
+            <?php else : ?>
+                <div class="card" style="max-width: 1200px;">
+                    <h2><?php esc_html_e('Stock Movements (mockup)', 'hp-products-manager'); ?></h2>
+                    <p><?php esc_html_e('This tab will aggregate stock movements from HPOS Orders, ShipStation and manual adjustments. We will cache results per product and provide a Refresh button.', 'hp-products-manager'); ?></p>
+                    <p><button class="button"><?php esc_html_e('Refresh Movements', 'hp-products-manager'); ?></button></p>
+                    <table class="widefat fixed striped" style="margin-top: 8px;">
+                        <thead>
+                        <tr>
+                            <th><?php esc_html_e('Date', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Description', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td><?php echo esc_html(date_i18n('Y-m-d H:i')); ?></td>
+                            <td><?php esc_html_e('order', 'hp-products-manager'); ?></td>
+                            <td>-1</td>
+                            <td><?php esc_html_e('Shipment for order #000000 (example)', 'hp-products-manager'); ?></td>
+                            <td>HPOS</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
     /**
      * Register REST routes.
      */

@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             headerSort: false
         },
-        { title: 'Name', field: 'name', minWidth: 250, formatter: 'textarea' },
+        { title: 'Name', field: 'name', minWidth: 250, formatter: nameLinkFormatter },
         { title: 'SKU', field: 'sku', width: 140, formatter: textFormatter },
         { title: 'Cost', field: 'cost', width: 110, hozAlign: 'right', formatter: currencyFormatter },
         { title: 'Price', field: 'price', width: 110, hozAlign: 'right', formatter: currencyFormatter },
@@ -319,6 +319,19 @@ document.addEventListener('DOMContentLoaded', function () {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
         }
         return value;
+    }
+
+    function nameLinkFormatter(cell) {
+        var value = cell.getValue();
+        var data = cell.getRow().getData();
+        if (!value) {
+            return '<span class="hp-pm-cell-muted">&mdash;</span>';
+        }
+        if (!data || !data.id || !config.productUrlBase) {
+            return value;
+        }
+        var href = config.productUrlBase + encodeURIComponent(data.id);
+        return '<a href="' + href + '">' + value + '</a>';
     }
 
     function currencyFormatter(cell) {

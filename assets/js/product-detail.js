@@ -420,10 +420,40 @@ document.addEventListener('DOMContentLoaded', function () {
     if (rebuildAllBtn) rebuildAllBtn.addEventListener('click', function(){
       rebuildAllBtn.disabled = true;
       var nsBase = data.restBase.replace(/\\/product\\/\\d+$/, '');
-      fetch(nsBase + '/movements/rebuild-all', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+      // Create progress bar
+      var stats = document.getElementById('hp-pm-erp-stats');
+      var progWrap = document.getElementById('hp-pm-erp-progress');
+      if (!progWrap) {
+        progWrap = document.createElement('div');
+        progWrap.id = 'hp-pm-erp-progress';
+        progWrap.style.cssText = 'flex:1; margin-left:12px; display:flex; align-items:center; gap:8px;';
+        var bar = document.createElement('div');
+        bar.id = 'hp-pm-erp-progress-bar';
+        bar.style.cssText = 'width:200px; height:8px; background:#eee; border:1px solid #ccc; position:relative;';
+        var fill = document.createElement('div'); fill.style.cssText = 'height:100%; width:0; background:#2271b1;'; fill.id='hp-pm-erp-progress-fill';
+        bar.appendChild(fill);
+        var label = document.createElement('span'); label.id='hp-pm-erp-progress-label'; label.textContent='0%';
+        progWrap.appendChild(bar); progWrap.appendChild(label);
+        if (stats) stats.appendChild(progWrap);
+      }
+      var fillEl = document.getElementById('hp-pm-erp-progress-fill');
+      var labelEl = document.getElementById('hp-pm-erp-progress-label');
+      function setProg(done, total){ var pct = total>0? Math.floor(done*100/total):0; if (fillEl) fillEl.style.width = pct + '%'; if (labelEl) labelEl.textContent = (done + '/' + total + ' (' + pct + '%)'); }
+      // Start
+      fetch(nsBase + '/movements/rebuild-all/start', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
         .then(function(r){ return r.json(); })
-        .then(function(){ load(); rebuildAllBtn.disabled = false; })
+        .then(function(state){ setProg(state.processed||0, state.total||0); stepLoop(); })
         .catch(function(){ rebuildAllBtn.disabled = false; });
+      function stepLoop(){
+        fetch(nsBase + '/movements/rebuild-all/step', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+          .then(function(r){ return r.json(); })
+          .then(function(state){
+            setProg(state.processed||0, state.total||0);
+            if (state.status === 'done' || (state.processed>=state.total)) { rebuildAllBtn.disabled = false; load(); return; }
+            setTimeout(stepLoop, 200);
+          })
+          .catch(function(){ rebuildAllBtn.disabled = false; });
+      }
     });
   })();
 });

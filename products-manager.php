@@ -904,6 +904,40 @@ final class HP_Products_Manager {
                 },
             ]
         );
+        // Rebuild ALL - start/step/status for progress
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/start',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_all_start'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/step',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_all_step'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/status',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_rebuild_all_status'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
     }
 
     /**
@@ -1581,6 +1615,87 @@ final class HP_Products_Manager {
         }
 
         return rest_ensure_response(['ok' => true]);
+    }
+
+    // --- Rebuild ALL with progress ---
+    private function get_rebuild_all_state(): array {
+        $state = get_option('hp_pm_rebuild_all_state', []);
+        return is_array($state) ? $state : [];
+    }
+    private function set_rebuild_all_state(array $state): void {
+        update_option('hp_pm_rebuild_all_state', $state, false);
+    }
+    public function rest_rebuild_all_start(WP_REST_Request $request) {
+        global $wpdb;
+        $mov = $this->table_movements();
+        // Reset movements
+        $wpdb->query(\"TRUNCATE {$mov}\");
+        // Count orders from HPOS table
+        $orders_table = $wpdb->prefix . 'wc_orders';
+        $statuses = [\"wc-processing\",\"wc-completed\",\"wc-refunded\",\"wc-cancelled\"];
+        $in = implode(\"','\", array_map('esc_sql', $statuses));
+        $total = (int) $wpdb->get_var(\"SELECT COUNT(*) FROM {$orders_table} WHERE status IN ('{$in}')\");
+        $state = [
+            'total' => $total,
+            'processed' => 0,
+            'last_order_id' => 0,
+            'batch' => 200,
+            'started_at' => current_time('mysql'),
+            'status' => 'running',
+        ];
+        $this->set_rebuild_all_state($state);
+        return rest_ensure_response($state);
+    }
+    public function rest_rebuild_all_step(WP_REST_Request $request) {
+        global $wpdb;
+        $state = $this->get_rebuild_all_state();
+        if (empty($state) || ($state['status'] ?? '') !== 'running') {
+            return rest_ensure_response(['error' => 'not_running', 'state' => $state]);
+        }
+        $orders_table = $wpdb->prefix . 'wc_orders';
+        $statuses = [\"wc-processing\",\"wc-completed\",\"wc-refunded\",\"wc-cancelled\"];
+        $in = implode(\"','\", array_map('esc_sql', $statuses));
+        $batch = max(50, (int) ($state['batch'] ?? 200));
+        $last = (int) ($state['last_order_id'] ?? 0);
+        $ids = $wpdb->get_col($wpdb->prepare(\"SELECT id FROM {$orders_table} WHERE status IN ('{$in}') AND id > %d ORDER BY id ASC LIMIT %d\", $last, $batch));
+        if (!empty($ids)) {
+            foreach ($ids as $oid) {
+                $order = wc_get_order((int) $oid);
+                if (!$order) continue;
+                $created = $order->get_date_created();
+                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    $qty = (int) $item->get_quantity();
+                    $customer_name = trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+                    $common = [
+                        'order_id' => $order->get_id(),
+                        'customer_id' => $order->get_customer_id(),
+                        'customer_name' => $customer_name,
+                        'source' => 'rebuild_all',
+                        'created_at' => $created_str,
+                    ];
+                    $status = $order->get_status();
+                    if ($status === 'refunded' || $status === 'cancelled') {
+                        $this->log_movement($pid, 'restore', abs($qty), $common);
+                    } else {
+                        $this->log_movement($pid, 'sale', -abs($qty), $common);
+                    }
+                }
+                $state['last_order_id'] = (int) $oid;
+                $state['processed'] = (int) $state['processed'] + 1;
+            }
+        }
+        if (empty($ids) || $state['processed'] >= (int) $state['total']) {
+            $state['status'] = 'done';
+        }
+        $this->set_rebuild_all_state($state);
+        return rest_ensure_response($state);
+    }
+    public function rest_rebuild_all_status(WP_REST_Request $request) {
+        return rest_ensure_response($this->get_rebuild_all_state());
     }
     /**
      * REST: Apply staged changes to a product

@@ -641,7 +641,7 @@ final class HP_Products_Manager {
                             if (method_exists($product, 'get_gallery_image_ids')) {
                                 foreach ($product->get_gallery_image_ids() as $gid) {
                                     $url = wp_get_attachment_image_url($gid, 'thumbnail');
-                                    echo '<div class=\"hp-pm-thumb\" data-id=\"' . esc_attr($gid) . '\"><img src=\"' . esc_url($url) . '\" alt=\"\"><span class=\"hp-pm-thumb-remove\">×</span></div>';
+                                    echo '<div class="hp-pm-thumb" data-id="' . esc_attr($gid) . '"><img src="' . esc_url($url) . '" alt=""><span class="hp-pm-thumb-remove">×</span></div>';
                                 }
                             }
                             ?>
@@ -695,7 +695,7 @@ final class HP_Products_Manager {
                                     $brand_terms = wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all']);
                                     if (!is_wp_error($brand_terms)) {
                                         foreach ($brand_terms as $t) {
-                                            echo '<span class=\"hp-pm-token\" data-slug=\"' . esc_attr($t->slug) . '\"><span>' . esc_html($t->name) . '</span><span class=\"x\" title=\"Remove\">×</span></span>';
+                                            echo '<span class="hp-pm-token" data-slug="' . esc_attr($t->slug) . '"><span>' . esc_html($t->name) . '</span><span class="x" title="Remove">×</span></span>';
                                         }
                                     }
                                     ?>
@@ -712,7 +712,7 @@ final class HP_Products_Manager {
                                     $cat_terms = wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all']);
                                     if (!is_wp_error($cat_terms)) {
                                         foreach ($cat_terms as $t) {
-                                            echo '<span class=\"hp-pm-token\" data-slug=\"' . esc_attr($t->slug) . '\"><span>' . esc_html($t->name) . '</span><span class=\"x\" title=\"Remove\">×</span></span>';
+                                            echo '<span class="hp-pm-token" data-slug="' . esc_attr($t->slug) . '"><span>' . esc_html($t->name) . '</span><span class="x" title="Remove">×</span></span>';
                                         }
                                     }
                                     ?>
@@ -729,7 +729,7 @@ final class HP_Products_Manager {
                                     $tag_terms = wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all']);
                                     if (!is_wp_error($tag_terms)) {
                                         foreach ($tag_terms as $t) {
-                                            echo '<span class=\"hp-pm-token\" data-slug=\"' . esc_attr($t->slug) . '\"><span>' . esc_html($t->name) . '</span><span class=\"x\" title=\"Remove\">×</span></span>';
+                                            echo '<span class="hp-pm-token" data-slug="' . esc_attr($t->slug) . '"><span>' . esc_html($t->name) . '</span><span class="x" title="Remove">×</span></span>';
                                         }
                                     }
                                     ?>
@@ -782,10 +782,10 @@ final class HP_Products_Manager {
                                         $terms = wc_get_product_terms($product_id, 'product_shipping_class', ['fields' => 'all']);
                                         return !empty($terms) ? $terms[0]->slug : '';
                                     })();
-                                    echo '<option value=\"\" ' . selected($current_sc === '', true, false) . '>' . esc_html__('No shipping class', 'hp-products-manager') . '</option>';
+                                    echo '<option value="" ' . selected($current_sc === '', true, false) . '>' . esc_html__('No shipping class', 'hp-products-manager') . '</option>';
                                     if (!is_wp_error($sc_terms)) {
                                         foreach ($sc_terms as $t) {
-                                            echo '<option value=\"' . esc_attr($t->slug) . '\" ' . selected($current_sc === $t->slug, true, false) . '>' . esc_html($t->name) . '</option>';
+                                            echo '<option value="' . esc_attr($t->slug) . '" ' . selected($current_sc === $t->slug, true, false) . '>' . esc_html($t->name) . '</option>';
                                         }
                                     }
                                     ?>

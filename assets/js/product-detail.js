@@ -376,6 +376,38 @@ document.addEventListener('DOMContentLoaded', function () {
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });
+
+  // --- ERP Debug buttons (visible only when ?hp_pm_debug=1) ---
+  var dbgBase = data.restBase.replace(/\/product\/\d+$/, '');
+  function postDebug(payload){
+    return fetch(dbgBase + '/erp/debug', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': data.nonce },
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); });
+  }
+  var btnSet = document.getElementById('hp-pm-debug-setstock');
+  var btnReduce = document.getElementById('hp-pm-debug-reduce');
+  var btnRestore = document.getElementById('hp-pm-debug-restore');
+  var btnShow = document.getElementById('hp-pm-debug-showlogs');
+  if (btnSet) btnSet.addEventListener('click', function(){
+    var q = prompt('QOH to log (set_stock)?', '0'); var qoh = parseInt(q,10); if (isNaN(qoh)) qoh = 0;
+    postDebug({ action:'set_stock', product_id: productId, qoh: qoh }).then(function(res){ showNotice('Logged set_stock', 'info'); console.log(res); });
+  });
+  if (btnReduce) btnReduce.addEventListener('click', function(){
+    var q = prompt('Qty to reduce?', '1'); var qty = parseInt(q,10); if (isNaN(qty) || qty <= 0) qty = 1;
+    postDebug({ action:'reduce', product_id: productId, qty: qty }).then(function(res){ showNotice('Logged reduce_order_stock', 'info'); console.log(res); });
+  });
+  if (btnRestore) btnRestore.addEventListener('click', function(){
+    var q = prompt('Qty to restore?', '1'); var qty = parseInt(q,10); if (isNaN(qty) || qty <= 0) qty = 1;
+    postDebug({ action:'restore', product_id: productId, qty: qty }).then(function(res){ showNotice('Logged restore_order_stock', 'info'); console.log(res); });
+  });
+  if (btnShow) btnShow.addEventListener('click', function(){
+    fetch(dbgBase + '/erp/logs?limit=25', { headers: { 'X-WP-Nonce': data.nonce } })
+      .then(function(r){ return r.json(); })
+      .then(function(res){ console.log('logs:', res); showNotice('Fetched ' + (res && res.count || 0) + ' logs (see console).', 'info'); })
+      .catch(function(){ /* ignore */ });
+  });
 });
 
 

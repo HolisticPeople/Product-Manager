@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.40
+ * Version: 0.5.41
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.40';
+    const VERSION = '0.5.41';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -603,6 +603,19 @@ final class HP_Products_Manager {
                         <button id="hp-pm-discard-btn" class="button"></button>
                     </div>
 
+                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
+                    <div class="hp-pm-debug card" style="margin-top:10px; padding:10px; border:1px dashed #ccd0d4;">
+                        <strong><?php esc_html_e('ERP Debug', 'hp-products-manager'); ?></strong>
+                        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                            <button id="hp-pm-debug-setstock" class="button"><?php esc_html_e('Log set_stock', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-debug-reduce" class="button"><?php esc_html_e('Log reduce_order_stock', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-debug-restore" class="button"><?php esc_html_e('Log restore_order_stock', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-debug-showlogs" class="button"><?php esc_html_e('Show recent logs', 'hp-products-manager'); ?></button>
+                        </div>
+                        <p style="margin-top:6px; color:#666;"><?php esc_html_e('Temporary debug panel. Remove ?hp_pm_debug=1 from the URL to hide.', 'hp-products-manager'); ?></p>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="hp-pm-staged">
                         <h3 id="hp-pm-staged-title"></h3>
                         <table class="widefat fixed striped" id="hp-pm-staged-table" style="display:none;">
@@ -748,6 +761,19 @@ final class HP_Products_Manager {
             [
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'rest_erp_install_schema'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
+
+        // ERP debug: log synthetic events for testing
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/erp/debug',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_erp_debug'],
                 'permission_callback' => function (): bool {
                     return current_user_can('manage_woocommerce');
                 },
@@ -1299,6 +1325,65 @@ final class HP_Products_Manager {
         $have_mov = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $movements)) === $movements;
         $have_state = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $state)) === $state;
         return rest_ensure_response(['ok' => (bool) ($have_mov && $have_state), 'tables' => ['movements' => $have_mov, 'state' => $have_state]]);
+    }
+
+    /**
+     * REST: Debug logging - synthesize events on demand (admin only)
+     */
+    public function rest_erp_debug(WP_REST_Request $request) {
+        $action = sanitize_key((string) $request->get_param('action'));
+        $product_id = (int) ($request->get_param('product_id') ?: 0);
+        $qty = (int) ($request->get_param('qty') ?: 1);
+        $qoh = $request->get_param('qoh');
+        $qoh = is_numeric($qoh) ? (int) $qoh : null;
+
+        if ($product_id > 0) {
+            $product = wc_get_product($product_id);
+            if ($product instanceof \WC_Product) {
+                $sku = (string) $product->get_sku();
+            } else {
+                $sku = '';
+            }
+        } else {
+            $sku = '';
+        }
+
+        switch ($action) {
+            case 'set_stock':
+                if ($qoh === null && isset($product) && $product instanceof \WC_Product && $product->managing_stock()) {
+                    $qoh = (int) $product->get_stock_quantity();
+                }
+                $this->erp_log_event('product_set_stock', [
+                    'product_id' => $product_id,
+                    'qoh' => ($qoh === null ? 0 : (int) $qoh),
+                    'source' => 'debug',
+                ]);
+                break;
+            case 'reduce':
+                $this->erp_log_event('reduce_order_stock', [
+                    'order_id' => 0,
+                    'status' => 'processing',
+                    'customer_id' => 0,
+                    'customer_name' => 'Debug Customer',
+                    'items' => [ [ 'product_id' => $product_id, 'qty' => -abs((int)$qty), 'sku' => $sku ] ],
+                    'source' => 'debug',
+                ]);
+                break;
+            case 'restore':
+                $this->erp_log_event('restore_order_stock', [
+                    'order_id' => 0,
+                    'status' => 'refunded',
+                    'customer_id' => 0,
+                    'customer_name' => 'Debug Customer',
+                    'items' => [ [ 'product_id' => $product_id, 'qty' => abs((int)$qty), 'sku' => $sku ] ],
+                    'source' => 'debug',
+                ]);
+                break;
+            default:
+                return new \WP_Error('bad_request', __('Unknown debug action', 'hp-products-manager'), ['status' => 400]);
+        }
+
+        return rest_ensure_response(['ok' => true, 'action' => $action, 'product_id' => $product_id, 'qty' => (int)$qty]);
     }
 
     // Hook: log product stock set (minimal)

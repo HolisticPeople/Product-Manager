@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.54
+ * Version: 0.5.55
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.54';
+    const VERSION = '0.5.55';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -657,6 +657,11 @@ final class HP_Products_Manager {
                     <h2><?php esc_html_e('Sales History', 'hp-products-manager'); ?></h2>
                     <div style="margin:12px 0 4px 0;">
                         <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:6px; margin:0 0 10px;">
+                        <button type="button" class="button button-small hp-pm-erp-range" data-days="7">7d</button>
+                        <button type="button" class="button button-small hp-pm-erp-range" data-days="30">30d</button>
+                        <button type="button" class="button button-small hp-pm-erp-range" data-days="90">90d</button>
                     </div>
                     <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>

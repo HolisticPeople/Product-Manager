@@ -416,46 +416,44 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!table) return;
     // Sales chart (last 90 days)
     var salesCanvas = document.getElementById('hp-pm-erp-sales-chart');
-    if (salesCanvas && window.Chart) {
-      var urlDaily = dbgBase + '/product/' + encodeURIComponent(productId) + '/sales/daily?days=90';
+    var salesChart = null;
+    function renderSales(days){
+      if (!(salesCanvas && window.Chart)) return;
+      var urlDaily = dbgBase + '/product/' + encodeURIComponent(productId) + '/sales/daily?days=' + encodeURIComponent(days || 90);
       fetch(urlDaily, { headers: { 'X-WP-Nonce': data.nonce } })
         .then(function(r){ return r.json(); })
         .then(function(series){
-          try {
-            var labels = (series && series.labels) || [];
-            var values = (series && series.values) || [];
-            var points = labels.map(function(d, i){ return { x: d, y: values[i] || 0 }; });
+          var labels = (series && series.labels) || [];
+          var values = (series && series.values) || [];
+          var points = labels.map(function(d, i){ return { x: d, y: values[i] || 0 }; });
+          if (!salesChart) {
             var ctx = salesCanvas.getContext('2d');
-            new Chart(ctx, {
+            salesChart = new Chart(ctx, {
               type: 'bar',
-              data: {
-                datasets: [{
-                  label: 'Sales (qty)',
-                  data: points,
-                  parsing: { xAxisKey: 'x', yAxisKey: 'y' },
-                  backgroundColor: 'rgba(0, 124, 186, 0.5)',
-                  borderColor: 'rgba(0, 124, 186, 1)',
-                  borderWidth: 1,
-                }]
-              },
+              data: { datasets: [{ label: 'Sales (qty)', data: points, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, backgroundColor: 'rgba(0, 124, 186, 0.5)', borderColor: 'rgba(0, 124, 186, 1)', borderWidth: 1 }] },
               options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                  x: {
-                    type: 'time',
-                    time: { unit: 'day', stepSize: 1, tooltipFormat: 'PP' },
-                    ticks: { source: 'auto', autoSkip: true, maxRotation: 0, major: { enabled: true } }
-                  },
-                  y: { beginAtZero: true, precision: 0 }
+                  x: { type: 'time', time: { unit: 'day', stepSize: 1, tooltipFormat: 'PP' }, ticks: { source: 'auto', autoSkip: true, maxRotation: 0 } },
+                  y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
                 },
                 plugins: { legend: { display: false } }
               }
             });
-          } catch (e) { /* ignore chart failure */ }
+          } else {
+            salesChart.data.datasets[0].data = points;
+            salesChart.update();
+          }
         })
         .catch(function(){ /* ignore */ });
     }
+    // Initial render 90d
+    renderSales(90);
+    // Range selector buttons
+    Array.prototype.forEach.call(document.querySelectorAll('.hp-pm-erp-range'), function(btn){
+      btn.addEventListener('click', function(){ var d = parseInt(btn.getAttribute('data-days'),10) || 90; renderSales(d); });
+    });
     var tbody = table.querySelector('tbody');
     var statsTotal = document.getElementById('hp-pm-erp-total');
     var stats90 = document.getElementById('hp-pm-erp-90');

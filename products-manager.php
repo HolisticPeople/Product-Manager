@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.35
+ * Version: 0.5.36
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.35';
+    const VERSION = '0.5.36';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -35,6 +35,8 @@ final class HP_Products_Manager {
     private const METRICS_TTL       = 60; // 1 minute for fresher stats
     // Definitive cost meta key (locked)
     private const COST_META_KEY     = '_cogs_total_value';
+    // ERP feature flag (incremental rollout)
+    private const ERP_ENABLED       = false;
 
     /**
      * Cached map of reserved quantities per product for this request.
@@ -697,6 +699,19 @@ final class HP_Products_Manager {
                 ],
             ]
         );
+
+        // ERP minimal: manual install of event log table (feature-flag protected)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/erp/install-log',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_erp_install_log'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
     }
 
     /**
@@ -1126,6 +1141,37 @@ final class HP_Products_Manager {
         }
 
         return sanitize_title($key);
+    }
+
+    // --- ERP (minimal) helpers ---
+    private function table_event_log(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'hp_pm_event_log';
+    }
+
+    /**
+     * REST: Create/ensure the event log table exists (manual action).
+     */
+    public function rest_erp_install_log(WP_REST_Request $request) {
+        if (self::ERP_ENABLED !== false && !current_user_can('manage_woocommerce')) {
+            return new \WP_Error('forbidden', __('Not allowed', 'hp-products-manager'), ['status' => 403]);
+        }
+        global $wpdb;
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $charset = $wpdb->get_charset_collate();
+        $elog = $this->table_event_log();
+        $sql = "CREATE TABLE {$elog} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            event VARCHAR(64) NOT NULL,
+            payload LONGTEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY event (event),
+            KEY created_at (created_at)
+        ) {$charset};";
+        dbDelta($sql);
+        $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $elog)) === $elog;
+        return rest_ensure_response(['ok' => (bool) $exists, 'table' => $elog]);
     }
 
     private function parse_decimal($value): ?float {

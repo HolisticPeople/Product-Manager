@@ -479,7 +479,9 @@ document.addEventListener('DOMContentLoaded', function () {
                            '<td>' + (m.movement_type || '') + '</td>' +
                            '<td>' + (m.qty == null ? '' : m.qty) + '</td>' +
                            '<td>' + orderCell + '</td>' +
-                           '<td>' + (m.qoh_after == null ? '' : m.qoh_after) + '</td>' +
+                           '<td>' + (m.computed_qoh_after == null ? '' : m.computed_qoh_after) + '</td>' +
+                           '<td>' + (m.wc_qoh == null ? '' : m.wc_qoh) + '</td>' +
+                           '<td>' + (m.qoh_diff == null ? '' : m.qoh_diff) + '</td>' +
                            '<td>' + (m.source || '') + '</td>';
             tbody.appendChild(tr);
           });
@@ -489,6 +491,10 @@ document.addEventListener('DOMContentLoaded', function () {
           if (stats90) stats90.textContent = payload.stats.sales_90 || 0;
           if (stats30) stats30.textContent = payload.stats.sales_30 || 0;
           if (stats7) stats7.textContent = payload.stats.sales_7 || 0;
+          var diffBox = document.getElementById('hp-pm-erp-qoh-diff');
+          if (diffBox && payload.stats && typeof payload.stats.qoh_diff !== 'undefined') {
+            diffBox.textContent = payload.stats.qoh_diff;
+          }
         }
     }
 

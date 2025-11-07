@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.58
+ * Version: 0.5.59
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.58';
+    const VERSION = '0.5.59';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -690,6 +690,7 @@ final class HP_Products_Manager {
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('QOH', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Reserved', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-reserved">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Available', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-available">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Δ vs WC', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh-diff">--</span></div>
                     </section>
                     <h2 style="margin-top:14px;"><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
                     <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
@@ -699,7 +700,9 @@ final class HP_Products_Manager {
                             <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Order / Customer', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('QOH After', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('QOH After (computed)', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('WC QOH', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Δ', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
                         </tr>
                         </thead>
@@ -1714,6 +1717,25 @@ final class HP_Products_Manager {
             return strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
         });
 
+        // Enrich with computed QOH/diff based on current WC stock
+        $product = wc_get_product($id);
+        $wc_qoh = 0;
+        if ($product instanceof \WC_Product) {
+            $q = $product->get_stock_quantity();
+            $wc_qoh = $q !== null ? (int) $q : 0;
+        }
+        $rolling = (int) $wc_qoh;
+        foreach ($movements as &$m) {
+            if ((string) ($m['movement_type'] ?? '') === 'set_stock' && $m['qoh_after'] !== null) {
+                $rolling = (int) $m['qoh_after'];
+            }
+            $m['computed_qoh_after'] = (int) $rolling;
+            $m['wc_qoh'] = (int) $wc_qoh;
+            $m['qoh_diff'] = (int) ($rolling - $wc_qoh);
+            $rolling = (int) ($rolling - (int) ($m['qty'] ?? 0));
+        }
+        unset($m);
+
         return rest_ensure_response([
             'rows' => $movements,
             'stats' => [
@@ -1721,6 +1743,9 @@ final class HP_Products_Manager {
                 'sales_90' => (int) $win90,
                 'sales_30' => (int) $win30,
                 'sales_7' => (int) $win7,
+                'computed_qoh' => (int) (!empty($movements) ? $movements[0]['computed_qoh_after'] : $wc_qoh),
+                'wc_qoh' => (int) $wc_qoh,
+                'qoh_diff' => (int) ((!empty($movements) ? $movements[0]['computed_qoh_after'] : $wc_qoh) - $wc_qoh),
             ],
         ]);
     }
@@ -1739,8 +1764,16 @@ final class HP_Products_Manager {
         $rows = $wpdb->get_results($wpdb->prepare("SELECT created_at, movement_type, qty, order_id, customer_name, qoh_after, source FROM {$mov} WHERE product_id=%d ORDER BY created_at DESC, id DESC LIMIT %d", $id, $limit), ARRAY_A);
         $sales_total = 0; $now = current_time('timestamp');
         $win90 = 0; $win30 = 0; $win7 = 0;
+        $product = wc_get_product($id);
+        $wc_qoh = 0;
+        if ($product instanceof \WC_Product) {
+            $q = $product->get_stock_quantity();
+            $wc_qoh = $q !== null ? (int) $q : 0;
+        }
+        // Compute rolling QOH-after (computed) starting from current WC QOH and walking backwards
+        $rolling = (int) $wc_qoh;
         if (!empty($rows)) {
-            foreach ($rows as $r) {
+            foreach ($rows as $idx => &$r) {
                 if ((string) ($r['movement_type'] ?? '') === 'sale') {
                     $abs = abs((int) ($r['qty'] ?? 0));
                     $sales_total += $abs;
@@ -1749,7 +1782,20 @@ final class HP_Products_Manager {
                     if ($ts && ($now - $ts) <= 30 * DAY_IN_SECONDS) $win30 += $abs;
                     if ($ts && ($now - $ts) <= 7 * DAY_IN_SECONDS) $win7 += $abs;
                 }
+                // If there is an explicit qoh_after from a set_stock, reset rolling
+                if ((string) ($r['movement_type'] ?? '') === 'set_stock' && $r['qoh_after'] !== null) {
+                    $rolling = (int) $r['qoh_after'];
+                }
+                $r['computed_qoh_after'] = (int) $rolling;
+                $r['wc_qoh'] = (int) $wc_qoh;
+                $r['qoh_diff'] = (int) ($rolling - $wc_qoh);
+                // Walk backwards: undo this movement to get the state immediately after the previous (older) movement
+                $rolling = (int) ($rolling - (int) ($r['qty'] ?? 0));
             }
+            unset($r);
+        }
+        if (!empty($rows)) {
+            // no-op; sales totals were computed above
         }
         return rest_ensure_response([
             'rows' => $rows ?: [],
@@ -1758,6 +1804,9 @@ final class HP_Products_Manager {
                 'sales_90' => (int) $win90,
                 'sales_30' => (int) $win30,
                 'sales_7' => (int) $win7,
+                'computed_qoh' => (int) (!empty($rows) ? $rows[0]['computed_qoh_after'] : $wc_qoh),
+                'wc_qoh' => (int) $wc_qoh,
+                'qoh_diff' => (int) ((!empty($rows) ? $rows[0]['computed_qoh_after'] : $wc_qoh) - $wc_qoh),
             ],
         ]);
     }

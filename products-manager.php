@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.38
+ * Version: 0.5.39
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.38';
+    const VERSION = '0.5.39';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -739,6 +739,19 @@ final class HP_Products_Manager {
                 ],
             ]
         );
+
+        // ERP minimal: manual install of core ERP schema (movements/state)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/erp/install-schema',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_erp_install_schema'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
     }
 
     /**
@@ -1175,6 +1188,14 @@ final class HP_Products_Manager {
         global $wpdb;
         return $wpdb->prefix . 'hp_pm_event_log';
     }
+    private function table_movements(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'hp_pm_movements';
+    }
+    private function table_state(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'hp_pm_state';
+    }
 
     private function erp_log_event(string $event, array $payload = []): void {
         global $wpdb;
@@ -1237,6 +1258,46 @@ final class HP_Products_Manager {
             'rows' => is_array($rows) ? $rows : [],
             'count' => is_array($rows) ? count($rows) : 0,
         ]);
+    }
+
+    /**
+     * REST: Create movements/state schema (manual install). Stops short of enabling hooks.
+     */
+    public function rest_erp_install_schema(WP_REST_Request $request) {
+        global $wpdb;
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $charset = $wpdb->get_charset_collate();
+        $movements = $this->table_movements();
+        $state = $this->table_state();
+        $sql1 = "CREATE TABLE {$movements} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            product_id BIGINT UNSIGNED NOT NULL,
+            order_id BIGINT UNSIGNED NULL,
+            movement_type VARCHAR(32) NOT NULL,
+            qty INT NOT NULL,
+            qoh_after INT NULL,
+            customer_id BIGINT UNSIGNED NULL,
+            customer_name VARCHAR(191) NULL,
+            source VARCHAR(64) NULL,
+            note TEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY product_id (product_id),
+            KEY created_at (created_at),
+            KEY order_id (order_id)
+        ) {$charset};";
+        $sql2 = "CREATE TABLE {$state} (
+            product_id BIGINT UNSIGNED NOT NULL,
+            last_qoh INT NULL,
+            last_order_id_synced BIGINT UNSIGNED NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (product_id)
+        ) {$charset};";
+        dbDelta($sql1);
+        dbDelta($sql2);
+        $have_mov = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $movements)) === $movements;
+        $have_state = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $state)) === $state;
+        return rest_ensure_response(['ok' => (bool) ($have_mov && $have_state), 'tables' => ['movements' => $have_mov, 'state' => $have_state]]);
     }
 
     // Hook: log product stock set (minimal)

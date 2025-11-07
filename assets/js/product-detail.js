@@ -522,6 +522,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var progressWrap = document.getElementById('hp-pm-erp-rebuild-progress');
     var progressFill = document.getElementById('hp-pm-erp-rebuild-progress-fill');
     var progressLabel = document.getElementById('hp-pm-erp-rebuild-progress-label');
+    var abortBtn = document.getElementById('hp-pm-erp-rebuild-abort');
     function setProg(done, total){
       var pct = total>0? Math.floor(done*100/total):0;
       if (progressFill) progressFill.style.width = pct + '%';
@@ -529,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (rebuildAllBtn) rebuildAllBtn.addEventListener('click', function(){
       var base = dbgBase;
-      rebuildAllBtn.disabled = true; if (progressWrap) progressWrap.style.display = '';
+      rebuildAllBtn.disabled = true; if (progressWrap) progressWrap.style.display = ''; if (abortBtn) abortBtn.style.display = '';
       fetch(base + '/movements/rebuild-all/start', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
         .then(function(r){ return r.json(); })
         .then(function(st){ setProg(st.processed||0, st.total||0); step(); })
@@ -539,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function () {
           .then(function(r){ return r.json(); })
           .then(function(st){
             setProg(st.processed||0, st.total||0);
-            if (st.status === 'done' || st.status === 'aborted' || (st.processed>=st.total)) { rebuildAllBtn.disabled = false; loadFromDb(); return; }
+            if (st.status === 'done' || st.status === 'aborted' || (st.processed>=st.total)) { rebuildAllBtn.disabled = false; if (progressWrap) progressWrap.style.display='none'; if (abortBtn) abortBtn.style.display='none'; loadFromDb(); return; }
             setTimeout(step, 200);
           })
           .catch(function(){ rebuildAllBtn.disabled = false; });
@@ -552,11 +553,10 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
     // Abort rebuild-all
-    var abortBtn = document.getElementById('hp-pm-erp-rebuild-abort');
     if (abortBtn) abortBtn.addEventListener('click', function(){
       fetch(dbgBase + '/movements/rebuild-all/abort', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
         .then(function(r){ return r.json(); })
-        .then(function(){ if (progressWrap) progressWrap.style.display='none'; })
+        .then(function(){ if (progressWrap) progressWrap.style.display='none'; if (abortBtn) abortBtn.style.display='none'; })
         .catch(function(){ /* ignore */ });
     });
     // Rebuild 90d for this product

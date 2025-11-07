@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.57
+ * Version: 0.5.58
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.57';
+    const VERSION = '0.5.58';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -664,11 +664,24 @@ final class HP_Products_Manager {
                     <div style="margin:12px 0 4px 0;">
                         <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
                     </div>
-                    <div style="display:flex; justify-content:flex-end; gap:6px; margin:0 0 10px;">
-                        <button type="button" class="button button-small hp-pm-erp-range" data-days="7">7d</button>
-                        <button type="button" class="button button-small hp-pm-erp-range" data-days="30">30d</button>
-                        <button type="button" class="button button-small hp-pm-erp-range" data-days="90">90d</button>
+                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
+                    <div class="hp-pm-erp-toolbar" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 10px;">
+                        <div class="hp-pm-erp-actions" style="display:flex; gap:8px; align-items:center;">
+                            <button id="hp-pm-erp-rebuild-product" class="button button-small"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-rebuild-all" class="button button-small"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-rebuild-abort" class="button button-small" style="display:none;"><?php esc_html_e('Abort', 'hp-products-manager'); ?></button>
+                            <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 220px; height: 24px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
+                                <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
+                            </div>
+                            <span id="hp-pm-erp-rebuild-progress-label" style="display:none;"></span>
+                        </div>
+                        <div class="hp-pm-erp-ranges" style="display:flex; gap:6px;">
+                            <button type="button" class="button button-small hp-pm-erp-range" data-days="7">7d</button>
+                            <button type="button" class="button button-small hp-pm-erp-range" data-days="30">30d</button>
+                            <button type="button" class="button button-small hp-pm-erp-range" data-days="90">90d</button>
+                        </div>
                     </div>
+                    <?php endif; ?>
                     <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
@@ -677,18 +690,6 @@ final class HP_Products_Manager {
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('QOH', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Reserved', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-reserved">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Available', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-available">--</span></div>
-                        <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
-                        <div style="margin-left:auto; display:flex; gap:8px;">
-                            <button id="hp-pm-erp-persist" class="button"><?php esc_html_e('Persist from logs', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-erp-rebuild-product" class="button"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-erp-rebuild-all" class="button"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-erp-rebuild-abort" class="button"><?php esc_html_e('Abort', 'hp-products-manager'); ?></button>
-                            <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 200px; height: 20px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
-                                <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
-                            </div>
-                            <span id="hp-pm-erp-rebuild-progress-label" style="display:none;"></span>
-                        </div>
-                        <?php endif; ?>
                     </section>
                     <h2 style="margin-top:14px;"><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
                     <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">

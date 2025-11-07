@@ -414,6 +414,43 @@ document.addEventListener('DOMContentLoaded', function () {
   (function initErpLogs(){
     var table = document.getElementById('hp-pm-erp-table');
     if (!table) return;
+    // Sales chart (last 90 days)
+    var salesCanvas = document.getElementById('hp-pm-erp-sales-chart');
+    if (salesCanvas && window.Chart) {
+      var urlDaily = dbgBase + '/product/' + encodeURIComponent(productId) + '/sales/daily?days=90';
+      fetch(urlDaily, { headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(series){
+          try {
+            var labels = (series && series.labels) || [];
+            var values = (series && series.values) || [];
+            var ctx = salesCanvas.getContext('2d');
+            new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Sales (qty)',
+                  data: values,
+                  backgroundColor: 'rgba(0, 124, 186, 0.5)',
+                  borderColor: 'rgba(0, 124, 186, 1)',
+                  borderWidth: 1,
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  x: { ticks: { autoSkip: true, maxTicksLimit: 14 } },
+                  y: { beginAtZero: true, precision: 0 }
+                },
+                plugins: { legend: { display: false } }
+              }
+            });
+          } catch (e) { /* ignore chart failure */ }
+        })
+        .catch(function(){ /* ignore */ });
+    }
     var tbody = table.querySelector('tbody');
     var statsTotal = document.getElementById('hp-pm-erp-total');
     var stats90 = document.getElementById('hp-pm-erp-90');

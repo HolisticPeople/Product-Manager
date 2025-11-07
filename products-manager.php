@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.51
+ * Version: 0.5.52
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.51';
+    const VERSION = '0.5.52';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -395,6 +395,14 @@ final class HP_Products_Manager {
 
         // Enqueue product detail assets and bootstrap data for JS
         $asset_base = plugin_dir_url(__FILE__) . 'assets/';
+        // Chart.js for sales graph
+        wp_enqueue_script(
+            'chartjs',
+            'https://cdn.jsdelivr.net/npm/chart.js',
+            [],
+            '4.4.1',
+            true
+        );
         wp_enqueue_style(
             self::HANDLE . '-product-css',
             $asset_base . 'css/product-detail.css',
@@ -406,7 +414,7 @@ final class HP_Products_Manager {
         wp_enqueue_script(
             self::HANDLE . '-product-js',
             $asset_base . 'js/product-detail.js',
-            [],
+            ['chartjs'],
             self::VERSION,
             true
         );
@@ -639,6 +647,9 @@ final class HP_Products_Manager {
             <?php else : ?>
                 <div class="card" style="max-width: 1200px;">
                     <h2><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
+                    <div style="margin:12px 0;">
+                        <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
+                    </div>
                     <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
@@ -702,6 +713,24 @@ final class HP_Products_Manager {
                     'id' => [
                         // WP passes (value, request, param) to validators; wrap native to avoid arg mismatch
                         'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                    ],
+                ],
+            ]
+        );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/sales/daily',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_get_product_sales_daily'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('edit_products');
+                },
+                'args' => [
+                    'days' => [
+                        'validate_callback' => function ($value): bool { return is_numeric($value); },
+                        'required' => false,
                     ],
                 ],
             ]
@@ -1694,15 +1723,17 @@ final class HP_Products_Manager {
         $mov = $this->table_movements();
         // Reset movements
         $wpdb->query("TRUNCATE {$mov}");
-        // Count shop orders (exclude refunds) with Woo statuses to match step() filtering
+        // Count shop orders (exclude refunds) with Woo statuses in last 90d to match step() filtering
         $orders_table = $wpdb->prefix . 'wc_orders';
-        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$orders_table} WHERE status LIKE %s AND type = %s", 'wc-%', 'shop_order'));
+        $from_gmt = gmdate('Y-m-d H:i:s', time() - 90 * DAY_IN_SECONDS);
+        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$orders_table} WHERE status LIKE %s AND type = %s AND date_created_gmt >= %s", 'wc-%', 'shop_order', $from_gmt));
         $state = array(
             'total' => $total,
             'processed' => 0,
             'last_order_id' => 0,
             'batch' => 200,
             'started_at' => current_time('mysql'),
+            'from_gmt' => $from_gmt,
             'status' => 'running',
         );
         $this->set_rebuild_all_state($state);
@@ -1718,8 +1749,9 @@ final class HP_Products_Manager {
             $orders_table = $wpdb->prefix . 'wc_orders';
             $batch = max(50, (int) ($state['batch'] ?? 200));
             $last = (int) ($state['last_order_id'] ?? 0);
-            // Only shop orders (exclude refunds) and Woo statuses
-            $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status LIKE %s AND type = %s AND id > %d ORDER BY id ASC LIMIT %d", 'wc-%', 'shop_order', $last, $batch));
+            $from_gmt = isset($state['from_gmt']) ? $state['from_gmt'] : gmdate('Y-m-d H:i:s', time() - 90 * DAY_IN_SECONDS);
+            // Only shop orders (exclude refunds) and Woo statuses within last 90d
+            $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status LIKE %s AND type = %s AND date_created_gmt >= %s AND id > %d ORDER BY id ASC LIMIT %d", 'wc-%', 'shop_order', $from_gmt, $last, $batch));
             if (!empty($ids)) {
                 foreach ($ids as $oid) {
                     $order = wc_get_order((int) $oid);

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.50
+ * Version: 0.5.51
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.50';
+    const VERSION = '0.5.51';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1694,9 +1694,9 @@ final class HP_Products_Manager {
         $mov = $this->table_movements();
         // Reset movements
         $wpdb->query("TRUNCATE {$mov}");
-        // Count orders from HPOS table (all Woo statuses) to match step() filtering
+        // Count shop orders (exclude refunds) with Woo statuses to match step() filtering
         $orders_table = $wpdb->prefix . 'wc_orders';
-        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$orders_table} WHERE status LIKE %s", 'wc-%'));
+        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$orders_table} WHERE status LIKE %s AND type = %s", 'wc-%', 'shop_order'));
         $state = array(
             'total' => $total,
             'processed' => 0,
@@ -1709,60 +1709,65 @@ final class HP_Products_Manager {
         return rest_ensure_response($state);
     }
     public function rest_rebuild_all_step(WP_REST_Request $request) {
-        global $wpdb;
-        $state = $this->get_rebuild_all_state();
-        if (empty($state) || ($state['status'] ?? '') !== 'running') {
-            return rest_ensure_response($state);
-        }
-        $orders_table = $wpdb->prefix . 'wc_orders';
-        $batch = max(50, (int) ($state['batch'] ?? 200));
-        $last = (int) ($state['last_order_id'] ?? 0);
-        $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status LIKE %s AND id > %d ORDER BY id ASC LIMIT %d", 'wc-%', $last, $batch));
-        if (!empty($ids)) {
-            foreach ($ids as $oid) {
-                $order = wc_get_order((int) $oid);
-                if (!$order) continue;
-                $created = $order->get_date_created();
-                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
-                $by_product = [];
-                foreach ($order->get_items() as $item) {
-                    $product = $item->get_product();
-                    if (!$product instanceof \WC_Product) continue;
-                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
-                    $qty = (int) $item->get_quantity();
-                    $by_product[$pid] = isset($by_product[$pid]) ? ($by_product[$pid] + $qty) : $qty;
-                }
-                $status = $order->get_status();
-                if ($status === 'refunded' || $status === 'cancelled') {
-                    $type = 'restore';
-                } elseif ($order->is_paid()) {
-                    $type = 'sale';
-                } else {
-                    // Skip unpaid/unfulfilled orders to avoid false positives
-                    $type = '';
-                }
-                foreach ($by_product as $pid => $qty_sum) {
-                    if ($type === '') { continue; }
-                    $this->write_movement_row([
-                        'product_id' => (int) $pid,
-                        'order_id' => $order->get_id(),
-                        'movement_type' => $type,
-                        'qty' => ($type === 'sale' ? -abs((int) $qty_sum) : abs((int) $qty_sum)),
-                        'qoh_after' => null,
-                        'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
-                        'source' => 'rebuild_all',
-                        'created_at' => $created_str,
-                    ]);
-                }
-                $state['last_order_id'] = (int) $oid;
-                $state['processed'] = (int) $state['processed'] + 1;
+        try {
+            global $wpdb;
+            $state = $this->get_rebuild_all_state();
+            if (empty($state) || ($state['status'] ?? '') !== 'running') {
+                return rest_ensure_response($state);
             }
+            $orders_table = $wpdb->prefix . 'wc_orders';
+            $batch = max(50, (int) ($state['batch'] ?? 200));
+            $last = (int) ($state['last_order_id'] ?? 0);
+            // Only shop orders (exclude refunds) and Woo statuses
+            $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status LIKE %s AND type = %s AND id > %d ORDER BY id ASC LIMIT %d", 'wc-%', 'shop_order', $last, $batch));
+            if (!empty($ids)) {
+                foreach ($ids as $oid) {
+                    $order = wc_get_order((int) $oid);
+                    if (!$order || (method_exists($order, 'get_type') && $order->get_type() !== 'shop_order')) { continue; }
+                    $created = $order->get_date_created();
+                    $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                    $by_product = [];
+                    foreach ($order->get_items('line_item') as $item) {
+                        $product = $item->get_product();
+                        if (!$product instanceof \WC_Product) continue;
+                        $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                        $qty = (int) $item->get_quantity();
+                        $by_product[$pid] = isset($by_product[$pid]) ? ($by_product[$pid] + $qty) : $qty;
+                    }
+                    $status = $order->get_status();
+                    if ($status === 'refunded' || $status === 'cancelled') {
+                        $type = 'restore';
+                    } elseif (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing','completed'], true)) {
+                        $type = 'sale';
+                    } else {
+                        $type = '';
+                    }
+                    foreach ($by_product as $pid => $qty_sum) {
+                        if ($type === '') { continue; }
+                        $this->write_movement_row([
+                            'product_id' => (int) $pid,
+                            'order_id' => $order->get_id(),
+                            'movement_type' => $type,
+                            'qty' => ($type === 'sale' ? -abs((int) $qty_sum) : abs((int) $qty_sum)),
+                            'qoh_after' => null,
+                            'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                            'source' => 'rebuild_all',
+                            'created_at' => $created_str,
+                        ]);
+                    }
+                    $state['last_order_id'] = (int) $oid;
+                    $state['processed'] = (int) $state['processed'] + 1;
+                }
+            }
+            if (empty($ids) || $state['processed'] >= (int) $state['total']) {
+                $state['status'] = 'done';
+            }
+            $this->set_rebuild_all_state($state);
+            return rest_ensure_response($state);
+        } catch (\Throwable $e) {
+            error_log('[HP PM] rebuild-all step error: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+            return new \WP_Error('rebuild_step_failed', $e->getMessage(), ['status' => 500]);
         }
-        if (empty($ids) || $state['processed'] >= (int) $state['total']) {
-            $state['status'] = 'done';
-        }
-        $this->set_rebuild_all_state($state);
-        return rest_ensure_response($state);
     }
     public function rest_rebuild_all_status(WP_REST_Request $request) {
         return rest_ensure_response($this->get_rebuild_all_state());

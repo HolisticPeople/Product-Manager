@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.37
+ * Version: 0.5.38
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.37';
+    const VERSION = '0.5.38';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -37,6 +37,11 @@ final class HP_Products_Manager {
     private const COST_META_KEY     = '_cogs_total_value';
     // ERP feature flag (incremental rollout)
     private const ERP_ENABLED       = false;
+
+    private function is_erp_enabled(): bool {
+        // Allow enabling via filter without editing plugin
+        return (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
+    }
 
     /**
      * Cached map of reserved quantities per product for this request.
@@ -77,6 +82,11 @@ final class HP_Products_Manager {
         add_action('save_post_product', [$this, 'flush_metrics_cache'], 10, 1);
         add_action('deleted_post', [$this, 'maybe_flush_deleted_product_cache'], 10, 2);
         add_action('woocommerce_update_product', [$this, 'flush_metrics_cache'], 10, 1);
+
+        // ERP minimal: register a single logging hook behind a feature flag
+        if ($this->is_erp_enabled()) {
+            add_action('woocommerce_product_set_stock', [$this, 'erp_on_product_set_stock'], 10, 1);
+        }
     }
 
     /**
@@ -1166,6 +1176,22 @@ final class HP_Products_Manager {
         return $wpdb->prefix . 'hp_pm_event_log';
     }
 
+    private function erp_log_event(string $event, array $payload = []): void {
+        global $wpdb;
+        $table = $this->table_event_log();
+        // Bail if table does not exist
+        $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+        if (!$exists) {
+            return;
+        }
+        $json = function_exists('wp_json_encode') ? wp_json_encode($payload) : json_encode($payload);
+        $wpdb->insert($table, [
+            'event' => sanitize_key($event),
+            'payload' => $json,
+            'created_at' => current_time('mysql'),
+        ], ['%s','%s','%s']);
+    }
+
     /**
      * REST: Create/ensure the event log table exists (manual action).
      */
@@ -1210,6 +1236,20 @@ final class HP_Products_Manager {
         return rest_ensure_response([
             'rows' => is_array($rows) ? $rows : [],
             'count' => is_array($rows) ? count($rows) : 0,
+        ]);
+    }
+
+    // Hook: log product stock set (minimal)
+    public function erp_on_product_set_stock($product): void {
+        if (!$this->is_erp_enabled()) return;
+        if (!$product instanceof \WC_Product) return;
+        if (!$product->managing_stock()) return;
+        $product_id = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+        $new_qoh = (int) $product->get_stock_quantity();
+        $this->erp_log_event('product_set_stock', [
+            'product_id' => $product_id,
+            'qoh' => $new_qoh,
+            'source' => 'hook',
         ]);
     }
 

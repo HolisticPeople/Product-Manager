@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.49
+ * Version: 0.5.50
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.49';
+    const VERSION = '0.5.50';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -486,12 +486,9 @@ final class HP_Products_Manager {
             <p class="hp-pm-version"><?php printf(esc_html__('Version %s', 'hp-products-manager'), esc_html(self::VERSION)); ?></p>
 
             <h2 class="nav-tab-wrapper">
-                <?php $hp_pm_debug_qs = isset($_GET['hp_pm_debug']) ? 1 : 0; ?>
                 <?php
                     $args_general = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'general'];
-                    if ($hp_pm_debug_qs) { $args_general['hp_pm_debug'] = '1'; }
                     $args_erp = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'erp'];
-                    if ($hp_pm_debug_qs) { $args_erp['hp_pm_debug'] = '1'; }
                 ?>
                 <a href="<?php echo esc_url(add_query_arg($args_general, admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('General', 'hp-products-manager'); ?></a>
                 <a href="<?php echo esc_url(add_query_arg($args_erp, admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'erp' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('ERP', 'hp-products-manager'); ?></a>
@@ -618,7 +615,7 @@ final class HP_Products_Manager {
                         <button id="hp-pm-discard-btn" class="button"></button>
                     </div>
 
-                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
+                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
                     <div class="hp-pm-debug card" style="margin-top:10px; padding:10px; border:1px dashed #ccd0d4;">
                         <strong><?php esc_html_e('ERP Debug', 'hp-products-manager'); ?></strong>
                         <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
@@ -627,7 +624,7 @@ final class HP_Products_Manager {
                             <button id="hp-pm-debug-restore" class="button"><?php esc_html_e('Log restore_order_stock', 'hp-products-manager'); ?></button>
                             <button id="hp-pm-debug-showlogs" class="button"><?php esc_html_e('Show recent logs', 'hp-products-manager'); ?></button>
                         </div>
-                        <p style="margin-top:6px; color:#666;"><?php esc_html_e('Temporary debug panel. Remove ?hp_pm_debug=1 from the URL to hide.', 'hp-products-manager'); ?></p>
+                        <p style="margin-top:6px; color:#666;">&nbsp;</p>
                     </div>
                     <?php endif; ?>
 
@@ -647,7 +644,7 @@ final class HP_Products_Manager {
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('30d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-30">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('7d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-7">--</span></div>
-                        <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
+                        <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
                         <div style="margin-left:auto; display:flex; gap:8px;">
                             <button id="hp-pm-erp-persist" class="button"><?php esc_html_e('Persist from logs', 'hp-products-manager'); ?></button>
                             <button id="hp-pm-erp-rebuild-all" class="button"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
@@ -1697,11 +1694,9 @@ final class HP_Products_Manager {
         $mov = $this->table_movements();
         // Reset movements
         $wpdb->query("TRUNCATE {$mov}");
-        // Count orders from HPOS table
+        // Count orders from HPOS table (all Woo statuses) to match step() filtering
         $orders_table = $wpdb->prefix . 'wc_orders';
-        $statuses = array('wc-processing','wc-completed','wc-refunded','wc-cancelled');
-        $in = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$orders_table} WHERE status IN ($in)");
+        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$orders_table} WHERE status LIKE %s", 'wc-%'));
         $state = array(
             'total' => $total,
             'processed' => 0,

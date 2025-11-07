@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.52
+ * Version: 0.5.53
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.52';
+    const VERSION = '0.5.53';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -403,6 +403,14 @@ final class HP_Products_Manager {
             '4.4.1',
             true
         );
+        // Time scale adapter for date axes
+        wp_enqueue_script(
+            'chartjs-adapter-date-fns',
+            'https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns',
+            ['chartjs'],
+            '3.0.0',
+            true
+        );
         wp_enqueue_style(
             self::HANDLE . '-product-css',
             $asset_base . 'css/product-detail.css',
@@ -646,8 +654,8 @@ final class HP_Products_Manager {
                 </div>
             <?php else : ?>
                 <div class="card" style="max-width: 1200px;">
-                    <h2><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
-                    <div style="margin:12px 0;">
+                    <h2><?php esc_html_e('Sales History', 'hp-products-manager'); ?></h2>
+                    <div style="margin:12px 0 4px 0;">
                         <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
                     </div>
                     <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
@@ -666,6 +674,7 @@ final class HP_Products_Manager {
                         </div>
                         <?php endif; ?>
                     </section>
+                    <h2 style="margin-top:14px;"><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
                     <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
                         <thead>
                         <tr>

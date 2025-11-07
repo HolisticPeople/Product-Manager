@@ -424,14 +424,15 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             var labels = (series && series.labels) || [];
             var values = (series && series.values) || [];
+            var points = labels.map(function(d, i){ return { x: d, y: values[i] || 0 }; });
             var ctx = salesCanvas.getContext('2d');
             new Chart(ctx, {
               type: 'bar',
               data: {
-                labels: labels,
                 datasets: [{
                   label: 'Sales (qty)',
-                  data: values,
+                  data: points,
+                  parsing: { xAxisKey: 'x', yAxisKey: 'y' },
                   backgroundColor: 'rgba(0, 124, 186, 0.5)',
                   borderColor: 'rgba(0, 124, 186, 1)',
                   borderWidth: 1,
@@ -441,7 +442,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                  x: { ticks: { autoSkip: true, maxTicksLimit: 14 } },
+                  x: {
+                    type: 'time',
+                    time: { unit: 'month', tooltipFormat: 'PP' },
+                    ticks: { source: 'auto', major: { enabled: true } }
+                  },
                   y: { beginAtZero: true, precision: 0 }
                 },
                 plugins: { legend: { display: false } }

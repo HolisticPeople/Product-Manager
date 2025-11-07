@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.55';
+    const VERSION = '0.5.56';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -460,6 +460,12 @@ final class HP_Products_Manager {
                     'editLink'   => admin_url('post.php?post=' . $product_id . '&action=edit'),
                     'viewLink'   => get_permalink($product_id),
                 ],
+                'erp' => (function() use ($product_id, $product) {
+                    $qoh = (int) ($product->get_stock_quantity() !== null ? $product->get_stock_quantity() : 0);
+                    $map = $this->get_reserved_quantities([$product_id]);
+                    $reserved = isset($map[$product_id]) ? (int) $map[$product_id] : 0;
+                    return ['qoh' => $qoh, 'reserved' => $reserved, 'available' => ($qoh - $reserved)];
+                })(),
                 'brands'   => $brands,
                 'categories' => (function(){
                     $out = [];
@@ -668,10 +674,15 @@ final class HP_Products_Manager {
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('30d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-30">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('7d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-7">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('QOH', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Reserved', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-reserved">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Available', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-available">--</span></div>
                         <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
                         <div style="margin-left:auto; display:flex; gap:8px;">
                             <button id="hp-pm-erp-persist" class="button"><?php esc_html_e('Persist from logs', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-rebuild-product" class="button"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
                             <button id="hp-pm-erp-rebuild-all" class="button"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-rebuild-abort" class="button"><?php esc_html_e('Abort', 'hp-products-manager'); ?></button>
                             <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 200px; height: 20px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
                                 <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
                             </div>
@@ -909,6 +920,33 @@ final class HP_Products_Manager {
                 'permission_callback' => function (): bool {
                     return current_user_can('manage_woocommerce');
                 },
+            ]
+        );
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/abort',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_all_abort'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\d+)/movements/rebuild',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_product_movements'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => [
+                        'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                    ],
+                ],
             ]
         );
 
@@ -1855,6 +1893,15 @@ final class HP_Products_Manager {
         return rest_ensure_response($this->get_rebuild_all_state());
     }
 
+    public function rest_rebuild_all_abort(WP_REST_Request $request) {
+        $state = $this->get_rebuild_all_state();
+        if (!empty($state)) {
+            $state['status'] = 'aborted';
+            $this->set_rebuild_all_state($state);
+        }
+        return rest_ensure_response($state);
+    }
+
     /**
      * REST: Persist movements for a product by replaying its event-log rows
      */
@@ -1885,6 +1932,64 @@ final class HP_Products_Manager {
             } catch (\Throwable $e) { /* ignore individual failures */ }
         }
         return rest_ensure_response(['ok' => true, 'written' => count($rows)]);
+    }
+
+    /**
+     * REST: Rebuild last 90 days of movements for a single product
+     */
+    public function rest_rebuild_product_movements(WP_REST_Request $request) {
+        if (!$this->is_erp_persist_enabled()) {
+            return new \WP_Error('forbidden', __('Persistence disabled', 'hp-products-manager'), ['status' => 403]);
+        }
+        global $wpdb;
+        $id = (int) $request['id'];
+        if ($id <= 0) return new \WP_Error('bad_request', __('Invalid product id', 'hp-products-manager'), ['status' => 400]);
+        if (!$this->movements_table_exists()) return new \WP_Error('missing_table', __('Movements table missing', 'hp-products-manager'), ['status' => 500]);
+        $orders_table = $wpdb->prefix . 'wc_orders';
+        $from_gmt = gmdate('Y-m-d H:i:s', time() - 90 * DAY_IN_SECONDS);
+        $cut_local = date('Y-m-d H:i:s', current_time('timestamp') - 90 * DAY_IN_SECONDS);
+        // Clear current window for the product
+        $wpdb->query($wpdb->prepare("DELETE FROM {$this->table_movements()} WHERE product_id=%d AND created_at >= %s", $id, $cut_local));
+        // Fetch candidate orders
+        $oids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status LIKE %s AND type = %s AND date_created_gmt >= %s ORDER BY id ASC", 'wc-%', 'shop_order', $from_gmt));
+        $written = 0;
+        if (!empty($oids)) {
+            foreach ($oids as $oid) {
+                $order = wc_get_order((int) $oid);
+                if (!$order || (method_exists($order, 'get_type') && $order->get_type() !== 'shop_order')) { continue; }
+                $created = $order->get_date_created();
+                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                $qty_sum = 0;
+                foreach ($order->get_items('line_item') as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof \WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    if ((int) $pid !== $id) continue;
+                    $qty_sum += (int) $item->get_quantity();
+                }
+                if ($qty_sum === 0) continue;
+                $status = $order->get_status();
+                if ($status === 'refunded' || $status === 'cancelled') {
+                    $type = 'restore';
+                } elseif (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing','completed'], true)) {
+                    $type = 'sale';
+                } else {
+                    continue;
+                }
+                $this->write_movement_row([
+                    'product_id' => $id,
+                    'order_id' => $order->get_id(),
+                    'movement_type' => $type,
+                    'qty' => ($type === 'sale' ? -abs((int) $qty_sum) : abs((int) $qty_sum)),
+                    'qoh_after' => null,
+                    'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                    'source' => 'rebuild_product',
+                    'created_at' => $created_str,
+                ]);
+                $written++;
+            }
+        }
+        return rest_ensure_response(['ok' => true, 'written' => (int) $written]);
     }
 
     // Hook: log product stock set (minimal)

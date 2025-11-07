@@ -450,6 +450,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     // Initial render 90d
     renderSales(90);
+    // Prefill ERP stock metrics from localized data
+    var qohSpan = document.getElementById('hp-pm-erp-qoh');
+    var resSpan = document.getElementById('hp-pm-erp-reserved');
+    var availSpan = document.getElementById('hp-pm-erp-available');
+    if (data.erp) {
+      if (qohSpan) qohSpan.textContent = (data.erp.qoh != null ? data.erp.qoh : '--');
+      if (resSpan) resSpan.textContent = (data.erp.reserved != null ? data.erp.reserved : '--');
+      if (availSpan) availSpan.textContent = (data.erp.available != null ? data.erp.available : '--');
+    }
     // Range selector buttons
     Array.prototype.forEach.call(document.querySelectorAll('.hp-pm-erp-range'), function(btn){
       btn.addEventListener('click', function(){ var d = parseInt(btn.getAttribute('data-days'),10) || 90; renderSales(d); });
@@ -530,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function () {
           .then(function(r){ return r.json(); })
           .then(function(st){
             setProg(st.processed||0, st.total||0);
-            if (st.status === 'done' || (st.processed>=st.total)) { rebuildAllBtn.disabled = false; loadFromDb(); return; }
+            if (st.status === 'done' || st.status === 'aborted' || (st.processed>=st.total)) { rebuildAllBtn.disabled = false; loadFromDb(); return; }
             setTimeout(step, 200);
           })
           .catch(function(){ rebuildAllBtn.disabled = false; });
@@ -541,6 +550,26 @@ document.addEventListener('DOMContentLoaded', function () {
           .then(function(r){ return r.json(); })
           .then(render);
       }
+    });
+    // Abort rebuild-all
+    var abortBtn = document.getElementById('hp-pm-erp-rebuild-abort');
+    if (abortBtn) abortBtn.addEventListener('click', function(){
+      fetch(dbgBase + '/movements/rebuild-all/abort', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(){ if (progressWrap) progressWrap.style.display='none'; })
+        .catch(function(){ /* ignore */ });
+    });
+    // Rebuild 90d for this product
+    var rebuildProductBtn = document.getElementById('hp-pm-erp-rebuild-product');
+    if (rebuildProductBtn) rebuildProductBtn.addEventListener('click', function(){
+      rebuildProductBtn.disabled = true;
+      var url = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements/rebuild';
+      fetch(url, { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(){ rebuildProductBtn.disabled = false; var urlDb2 = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements?limit=200'; return fetch(urlDb2, { headers: { 'X-WP-Nonce': data.nonce } }); })
+        .then(function(r){ return r ? r.json() : null; })
+        .then(function(payload){ if (payload) render(payload); })
+        .catch(function(){ rebuildProductBtn.disabled = false; });
     });
   })();
 });

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.47
+ * Version: 0.5.48
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.47';
+    const VERSION = '0.5.48';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -650,6 +650,11 @@ final class HP_Products_Manager {
                         <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
                         <div style="margin-left:auto; display:flex; gap:8px;">
                             <button id="hp-pm-erp-persist" class="button"><?php esc_html_e('Persist from logs', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-rebuild-all" class="button"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
+                            <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 200px; height: 20px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
+                                <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
+                            </div>
+                            <span id="hp-pm-erp-rebuild-progress-label" style="display:none;"></span>
                         </div>
                         <?php endif; ?>
                     </section>
@@ -829,6 +834,41 @@ final class HP_Products_Manager {
                     'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
                     'limit' => [],
                 ],
+            ]
+        );
+
+        // Rebuild ALL from WC orders with progress (admin-only)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/start',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_all_start'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/step',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_rebuild_all_step'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+            ]
+        );
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/movements/rebuild-all/status',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_rebuild_all_status'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
             ]
         );
 
@@ -1641,6 +1681,86 @@ final class HP_Products_Manager {
                 'sales_7' => (int) $win7,
             ],
         ]);
+    }
+
+    // --- Rebuild ALL with progress ---
+    private function get_rebuild_all_state(): array {
+        $state = get_option('hp_pm_rebuild_all_state', []);
+        return is_array($state) ? $state : [];
+    }
+    private function set_rebuild_all_state(array $state): void {
+        update_option('hp_pm_rebuild_all_state', $state, false);
+    }
+
+    public function rest_rebuild_all_start(WP_REST_Request $request) {
+        global $wpdb;
+        $mov = $this->table_movements();
+        // Reset movements
+        $wpdb->query("TRUNCATE {$mov}");
+        // Count orders from HPOS table
+        $orders_table = $wpdb->prefix . 'wc_orders';
+        $statuses = array('wc-processing','wc-completed','wc-refunded','wc-cancelled');
+        $in = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
+        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$orders_table} WHERE status IN ($in)");
+        $state = array(
+            'total' => $total,
+            'processed' => 0,
+            'last_order_id' => 0,
+            'batch' => 200,
+            'started_at' => current_time('mysql'),
+            'status' => 'running',
+        );
+        $this->set_rebuild_all_state($state);
+        return rest_ensure_response($state);
+    }
+    public function rest_rebuild_all_step(WP_REST_Request $request) {
+        global $wpdb;
+        $state = $this->get_rebuild_all_state();
+        if (empty($state) || ($state['status'] ?? '') !== 'running') {
+            return rest_ensure_response($state);
+        }
+        $orders_table = $wpdb->prefix . 'wc_orders';
+        $statuses = array('wc-processing','wc-completed','wc-refunded','wc-cancelled');
+        $in = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
+        $batch = max(50, (int) ($state['batch'] ?? 200));
+        $last = (int) ($state['last_order_id'] ?? 0);
+        $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status IN ({$in}) AND id > %d ORDER BY id ASC LIMIT %d", $last, $batch));
+        if (!empty($ids)) {
+            foreach ($ids as $oid) {
+                $order = wc_get_order((int) $oid);
+                if (!$order) continue;
+                $created = $order->get_date_created();
+                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof \WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    $qty = (int) $item->get_quantity();
+                    $status = $order->get_status();
+                    $type = ($status === 'refunded' || $status === 'cancelled') ? 'restore' : 'sale';
+                    $this->write_movement_row([
+                        'product_id' => $pid,
+                        'order_id' => $order->get_id(),
+                        'movement_type' => $type,
+                        'qty' => ($type === 'sale' ? -abs($qty) : abs($qty)),
+                        'qoh_after' => null,
+                        'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                        'source' => 'rebuild_all',
+                        'created_at' => $created_str,
+                    ]);
+                }
+                $state['last_order_id'] = (int) $oid;
+                $state['processed'] = (int) $state['processed'] + 1;
+            }
+        }
+        if (empty($ids) || $state['processed'] >= (int) $state['total']) {
+            $state['status'] = 'done';
+        }
+        $this->set_rebuild_all_state($state);
+        return rest_ensure_response($state);
+    }
+    public function rest_rebuild_all_status(WP_REST_Request $request) {
+        return rest_ensure_response($this->get_rebuild_all_state());
     }
 
     /**

@@ -468,6 +468,40 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function(res){ console.log('persist:', res); showNotice('Persisted ' + (res && res.written || 0) + ' rows', 'info'); })
         .catch(function(){ /* ignore */ });
     });
+
+    var rebuildAllBtn = document.getElementById('hp-pm-erp-rebuild-all');
+    var progressWrap = document.getElementById('hp-pm-erp-rebuild-progress');
+    var progressFill = document.getElementById('hp-pm-erp-rebuild-progress-fill');
+    var progressLabel = document.getElementById('hp-pm-erp-rebuild-progress-label');
+    function setProg(done, total){
+      var pct = total>0? Math.floor(done*100/total):0;
+      if (progressFill) progressFill.style.width = pct + '%';
+      if (progressLabel) progressLabel.textContent = (done + '/' + total + ' (' + pct + '%)');
+    }
+    if (rebuildAllBtn) rebuildAllBtn.addEventListener('click', function(){
+      var base = dbgBase;
+      rebuildAllBtn.disabled = true; if (progressWrap) progressWrap.style.display = '';
+      fetch(base + '/movements/rebuild-all/start', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(st){ setProg(st.processed||0, st.total||0); step(); })
+        .catch(function(){ rebuildAllBtn.disabled = false; });
+      function step(){
+        fetch(base + '/movements/rebuild-all/step', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+          .then(function(r){ return r.json(); })
+          .then(function(st){
+            setProg(st.processed||0, st.total||0);
+            if (st.status === 'done' || (st.processed>=st.total)) { rebuildAllBtn.disabled = false; loadFromDb(); return; }
+            setTimeout(step, 200);
+          })
+          .catch(function(){ rebuildAllBtn.disabled = false; });
+      }
+      function loadFromDb(){
+        var urlDb2 = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements?limit=200';
+        fetch(urlDb2, { headers: { 'X-WP-Nonce': data.nonce } })
+          .then(function(r){ return r.json(); })
+          .then(render);
+      }
+    });
   })();
 });
 

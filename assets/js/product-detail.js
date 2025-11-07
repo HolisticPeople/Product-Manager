@@ -419,10 +419,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var stats90 = document.getElementById('hp-pm-erp-90');
     var stats30 = document.getElementById('hp-pm-erp-30');
     var stats7 = document.getElementById('hp-pm-erp-7');
-    var url = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements/logs?limit=200';
-    fetch(url, { headers: { 'X-WP-Nonce': data.nonce } })
-      .then(function(r){ return r.json(); })
-      .then(function(payload){
+    function render(payload){
         var rows = (payload && payload.rows) || [];
         if (tbody) {
           tbody.innerHTML = '';
@@ -443,6 +440,21 @@ document.addEventListener('DOMContentLoaded', function () {
           if (stats90) stats90.textContent = payload.stats.sales_90 || 0;
           if (stats30) stats30.textContent = payload.stats.sales_30 || 0;
           if (stats7) stats7.textContent = payload.stats.sales_7 || 0;
+        }
+    }
+
+    // Try DB movements first, then fall back to logs if empty
+    var urlDb = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements?limit=200';
+    fetch(urlDb, { headers: { 'X-WP-Nonce': data.nonce } })
+      .then(function(r){ return r.json(); })
+      .then(function(payload){
+        if (payload && payload.rows && payload.rows.length) { render(payload); }
+        else {
+          var urlLogs = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements/logs?limit=200';
+          fetch(urlLogs, { headers: { 'X-WP-Nonce': data.nonce } })
+            .then(function(r){ return r.json(); })
+            .then(render)
+            .catch(function(){ /* ignore */ });
         }
       })
       .catch(function(){ /* ignore */ });

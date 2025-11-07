@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.45
+ * Version: 0.5.46
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.45';
+    const VERSION = '0.5.46';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -815,6 +815,23 @@ final class HP_Products_Manager {
             ]
         );
 
+        // Movements from DB (preferred when available)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/movements',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_product_movements_db'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
+                    'limit' => [],
+                ],
+            ]
+        );
+
         // Persist from logs into movements (manual, debug/safe)
         register_rest_route(
             self::REST_NAMESPACE,
@@ -1580,6 +1597,43 @@ final class HP_Products_Manager {
 
         return rest_ensure_response([
             'rows' => $movements,
+            'stats' => [
+                'total_sales' => (int) $sales_total,
+                'sales_90' => (int) $win90,
+                'sales_30' => (int) $win30,
+                'sales_7' => (int) $win7,
+            ],
+        ]);
+    }
+
+    /**
+     * REST: Read movements for a product from DB table.
+     */
+    public function rest_product_movements_db(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $limit = min(500, max(1, (int) ($request->get_param('limit') ?: 200)));
+        global $wpdb;
+        $mov = $this->table_movements();
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $mov)) !== $mov) {
+            return rest_ensure_response(['rows' => [], 'stats' => ['total_sales' => 0, 'sales_90' => 0, 'sales_30' => 0, 'sales_7' => 0]]);
+        }
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT created_at, movement_type, qty, order_id, customer_name, qoh_after, source FROM {$mov} WHERE product_id=%d ORDER BY created_at DESC, id DESC LIMIT %d", $id, $limit), ARRAY_A);
+        $sales_total = 0; $now = current_time('timestamp');
+        $win90 = 0; $win30 = 0; $win7 = 0;
+        if (!empty($rows)) {
+            foreach ($rows as $r) {
+                if ((string) ($r['movement_type'] ?? '') === 'sale') {
+                    $abs = abs((int) ($r['qty'] ?? 0));
+                    $sales_total += $abs;
+                    $ts = strtotime((string) ($r['created_at'] ?? ''));
+                    if ($ts && ($now - $ts) <= 90 * DAY_IN_SECONDS) $win90 += $abs;
+                    if ($ts && ($now - $ts) <= 30 * DAY_IN_SECONDS) $win30 += $abs;
+                    if ($ts && ($now - $ts) <= 7 * DAY_IN_SECONDS) $win7 += $abs;
+                }
+            }
+        }
+        return rest_ensure_response([
+            'rows' => $rows ?: [],
             'stats' => [
                 'total_sales' => (int) $sales_total,
                 'sales_90' => (int) $win90,

@@ -87,6 +87,8 @@ final class HP_Products_Manager {
         add_action('save_post_product', [$this, 'flush_metrics_cache'], 10, 1);
         add_action('deleted_post', [$this, 'maybe_flush_deleted_product_cache'], 10, 2);
         add_action('woocommerce_update_product', [$this, 'flush_metrics_cache'], 10, 1);
+        // First risky step: automatically ensure tables exist on admin load (dbDelta is idempotent)
+        add_action('admin_init', [$this, 'maybe_install_tables']);
 
         // ERP minimal: register a single logging hook behind a feature flag
         if ($this->is_erp_enabled()) {
@@ -484,8 +486,15 @@ final class HP_Products_Manager {
             <p class="hp-pm-version"><?php printf(esc_html__('Version %s', 'hp-products-manager'), esc_html(self::VERSION)); ?></p>
 
             <h2 class="nav-tab-wrapper">
-                <a href="<?php echo esc_url(add_query_arg(['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'general'], admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('General', 'hp-products-manager'); ?></a>
-                <a href="<?php echo esc_url(add_query_arg(['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'erp'], admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'erp' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('ERP', 'hp-products-manager'); ?></a>
+                <?php $hp_pm_debug_qs = isset($_GET['hp_pm_debug']) ? 1 : 0; ?>
+                <?php
+                    $args_general = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'general'];
+                    if ($hp_pm_debug_qs) { $args_general['hp_pm_debug'] = '1'; }
+                    $args_erp = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'erp'];
+                    if ($hp_pm_debug_qs) { $args_erp['hp_pm_debug'] = '1'; }
+                ?>
+                <a href="<?php echo esc_url(add_query_arg($args_general, admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('General', 'hp-products-manager'); ?></a>
+                <a href="<?php echo esc_url(add_query_arg($args_erp, admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'erp' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('ERP', 'hp-products-manager'); ?></a>
             </h2>
 
             <?php if ($active_tab === 'general') : ?>
@@ -1270,6 +1279,53 @@ final class HP_Products_Manager {
         global $wpdb;
         $table = $this->table_movements();
         return $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+    }
+
+    public function maybe_install_tables(): void {
+        // Create/upgrade ERP tables if missing
+        if (!current_user_can('manage_woocommerce')) return;
+        global $wpdb;
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $charset = $wpdb->get_charset_collate();
+        $movements = $this->table_movements();
+        $state = $this->table_state();
+        $elog = $this->table_event_log();
+        $sqlLog = "CREATE TABLE {$elog} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            event VARCHAR(64) NOT NULL,
+            payload LONGTEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY event (event),
+            KEY created_at (created_at)
+        ) {$charset};";
+        $sqlMov = "CREATE TABLE {$movements} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            product_id BIGINT UNSIGNED NOT NULL,
+            order_id BIGINT UNSIGNED NULL,
+            movement_type VARCHAR(32) NOT NULL,
+            qty INT NOT NULL,
+            qoh_after INT NULL,
+            customer_id BIGINT UNSIGNED NULL,
+            customer_name VARCHAR(191) NULL,
+            source VARCHAR(64) NULL,
+            note TEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY product_id (product_id),
+            KEY created_at (created_at),
+            KEY order_id (order_id)
+        ) {$charset};";
+        $sqlState = "CREATE TABLE {$state} (
+            product_id BIGINT UNSIGNED NOT NULL,
+            last_qoh INT NULL,
+            last_order_id_synced BIGINT UNSIGNED NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (product_id)
+        ) {$charset};";
+        dbDelta($sqlLog);
+        dbDelta($sqlMov);
+        dbDelta($sqlState);
     }
 
     private function erp_log_event(string $event, array $payload = []): void {

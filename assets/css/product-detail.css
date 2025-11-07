@@ -101,8 +101,6 @@
 }
 #hp-pm-erp-table th:nth-child(5),
 #hp-pm-erp-table td:nth-child(5) { width: 120px; }
-#hp-pm-erp-table th:nth-child(6),
-#hp-pm-erp-table td:nth-child(6) { width: 90px; }
-#hp-pm-erp-table th:nth-child(7),
-#hp-pm-erp-table td:nth-child(7) { width: 70px; }
+#hp-pm-erp-table th:nth-child(1),
+#hp-pm-erp-table td:nth-child(1) { width: 170px; white-space: nowrap; }
 

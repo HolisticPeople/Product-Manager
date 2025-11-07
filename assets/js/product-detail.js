@@ -480,8 +480,6 @@ document.addEventListener('DOMContentLoaded', function () {
                            '<td>' + (m.qty == null ? '' : m.qty) + '</td>' +
                            '<td>' + orderCell + '</td>' +
                            '<td>' + (m.computed_qoh_after == null ? '' : m.computed_qoh_after) + '</td>' +
-                           '<td>' + (m.wc_qoh == null ? '' : m.wc_qoh) + '</td>' +
-                           '<td>' + (m.qoh_diff == null ? '' : m.qoh_diff) + '</td>' +
                            '<td>' + (m.source || '') + '</td>';
             tbody.appendChild(tr);
           });

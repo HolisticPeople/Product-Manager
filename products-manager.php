@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.39
+ * Version: 0.5.40
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.39';
+    const VERSION = '0.5.40';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -86,6 +86,7 @@ final class HP_Products_Manager {
         // ERP minimal: register a single logging hook behind a feature flag
         if ($this->is_erp_enabled()) {
             add_action('woocommerce_product_set_stock', [$this, 'erp_on_product_set_stock'], 10, 1);
+            add_action('woocommerce_reduce_order_stock', [$this, 'erp_on_reduce_order_stock'], 10, 1);
         }
     }
 
@@ -1310,6 +1311,32 @@ final class HP_Products_Manager {
         $this->erp_log_event('product_set_stock', [
             'product_id' => $product_id,
             'qoh' => $new_qoh,
+            'source' => 'hook',
+        ]);
+    }
+
+    // Hook: log order stock reduction (sales) as one consolidated event
+    public function erp_on_reduce_order_stock($order): void {
+        if (!$this->is_erp_enabled()) return;
+        if (!$order instanceof \WC_Order) return;
+        $items_payload = [];
+        foreach ($order->get_items() as $item) {
+            $product = $item->get_product();
+            if (!$product instanceof \WC_Product) continue;
+            $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+            $qty = (int) $item->get_quantity();
+            $items_payload[] = [
+                'product_id' => (int) $pid,
+                'qty' => -abs($qty),
+                'sku' => (string) $product->get_sku(),
+            ];
+        }
+        $this->erp_log_event('reduce_order_stock', [
+            'order_id' => $order->get_id(),
+            'status' => $order->get_status(),
+            'customer_id' => $order->get_customer_id(),
+            'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+            'items' => $items_payload,
             'source' => 'hook',
         ]);
     }

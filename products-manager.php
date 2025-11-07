@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.36
+ * Version: 0.5.37
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.36';
+    const VERSION = '0.5.37';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -712,6 +712,23 @@ final class HP_Products_Manager {
                 },
             ]
         );
+
+        // ERP minimal: read event log (feature-flag protected)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/erp/logs',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_erp_get_logs'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'limit' => [],
+                    'event' => [],
+                ],
+            ]
+        );
     }
 
     /**
@@ -1172,6 +1189,28 @@ final class HP_Products_Manager {
         dbDelta($sql);
         $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $elog)) === $elog;
         return rest_ensure_response(['ok' => (bool) $exists, 'table' => $elog]);
+    }
+
+    /**
+     * REST: Read recent rows from event log (admin-only, minimal use for validation)
+     */
+    public function rest_erp_get_logs(WP_REST_Request $request) {
+        if (self::ERP_ENABLED !== false && !current_user_can('manage_woocommerce')) {
+            return new \WP_Error('forbidden', __('Not allowed', 'hp-products-manager'), ['status' => 403]);
+        }
+        global $wpdb;
+        $table = $this->table_event_log();
+        $limit = min(500, max(1, (int) ($request->get_param('limit') ?: 100)));
+        $event = trim((string) ($request->get_param('event') ?: ''));
+        if ($event !== '') {
+            $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} WHERE event=%s ORDER BY id DESC LIMIT %d", $event, $limit), ARRAY_A);
+        } else {
+            $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} ORDER BY id DESC LIMIT %d", $limit), ARRAY_A);
+        }
+        return rest_ensure_response([
+            'rows' => is_array($rows) ? $rows : [],
+            'count' => is_array($rows) ? count($rows) : 0,
+        ]);
     }
 
     private function parse_decimal($value): ?float {

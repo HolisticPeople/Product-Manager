@@ -403,9 +403,10 @@ document.addEventListener('DOMContentLoaded', function () {
     postDebug({ action:'restore', product_id: productId, qty: qty }).then(function(res){ showNotice('Logged restore_order_stock', 'info'); console.log(res); });
   });
   if (btnShow) btnShow.addEventListener('click', function(){
-    fetch(dbgBase + '/erp/logs?limit=25', { headers: { 'X-WP-Nonce': data.nonce } })
+    var url = dbgBase + '/erp/logs?limit=25&product_id=' + encodeURIComponent(productId);
+    fetch(url, { headers: { 'X-WP-Nonce': data.nonce } })
       .then(function(r){ return r.json(); })
-      .then(function(res){ console.log('logs:', res); showNotice('Fetched ' + (res && res.count || 0) + ' logs (see console).', 'info'); })
+      .then(function(res){ console.log('logs:', res); showNotice('Fetched ' + (res && res.count || 0) + ' product logs (see console).', 'info'); })
       .catch(function(){ /* ignore */ });
   });
 });

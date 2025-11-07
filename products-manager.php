@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.42
+ * Version: 0.5.43
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.42';
+    const VERSION = '0.5.43';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -751,6 +751,7 @@ final class HP_Products_Manager {
                 'args' => [
                     'limit' => [],
                     'event' => [],
+                    'product_id' => [],
                 ],
             ]
         );
@@ -1277,8 +1278,14 @@ final class HP_Products_Manager {
         $table = $this->table_event_log();
         $limit = min(500, max(1, (int) ($request->get_param('limit') ?: 100)));
         $event = trim((string) ($request->get_param('event') ?: ''));
-        if ($event !== '') {
+        $product_id = (int) ($request->get_param('product_id') ?: 0);
+        $like = $product_id > 0 ? '%' . $wpdb->esc_like('"product_id":' . $product_id) . '%' : '';
+        if ($event !== '' && $product_id > 0) {
+            $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} WHERE event=%s AND payload LIKE %s ORDER BY id DESC LIMIT %d", $event, $like, $limit), ARRAY_A);
+        } elseif ($event !== '') {
             $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} WHERE event=%s ORDER BY id DESC LIMIT %d", $event, $limit), ARRAY_A);
+        } elseif ($product_id > 0) {
+            $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} WHERE payload LIKE %s ORDER BY id DESC LIMIT %d", $like, $limit), ARRAY_A);
         } else {
             $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} ORDER BY id DESC LIMIT %d", $limit), ARRAY_A);
         }

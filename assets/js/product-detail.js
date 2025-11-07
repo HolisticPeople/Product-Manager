@@ -446,6 +446,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       })
       .catch(function(){ /* ignore */ });
+
+    var persistBtn = document.getElementById('hp-pm-erp-persist');
+    if (persistBtn) persistBtn.addEventListener('click', function(){
+      if (!confirm('Persist movements from logs for this product?')) return;
+      var url2 = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements/persist-from-logs';
+      fetch(url2, { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ console.log('persist:', res); showNotice('Persisted ' + (res && res.written || 0) + ' rows', 'info'); })
+        .catch(function(){ /* ignore */ });
+    });
   })();
 });
 

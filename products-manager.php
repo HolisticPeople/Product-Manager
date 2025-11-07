@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.44
+ * Version: 0.5.45
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.44';
+    const VERSION = '0.5.45';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -41,6 +41,11 @@ final class HP_Products_Manager {
     private function is_erp_enabled(): bool {
         // Allow enabling via filter without editing plugin
         return (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
+    }
+
+    private function is_erp_persist_enabled(): bool {
+        // Separate flag for DB writes to movements/state
+        return (bool) apply_filters('hp_pm_erp_persist_enabled', false);
     }
 
     /**
@@ -628,11 +633,16 @@ final class HP_Products_Manager {
             <?php else : ?>
                 <div class="card" style="max-width: 1200px;">
                     <h2><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
-                    <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0;">
+                    <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('30d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-30">--</span></div>
                         <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('7d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-7">--</span></div>
+                        <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
+                        <div style="margin-left:auto; display:flex; gap:8px;">
+                            <button id="hp-pm-erp-persist" class="button"><?php esc_html_e('Persist from logs', 'hp-products-manager'); ?></button>
+                        </div>
+                        <?php endif; ?>
                     </section>
                     <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
                         <thead>
@@ -792,6 +802,22 @@ final class HP_Products_Manager {
                 'args' => [
                     'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
                     'limit' => [],
+                ],
+            ]
+        );
+
+        // Persist from logs into movements (manual, debug/safe)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/movements/persist-from-logs',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_product_persist_from_logs'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
                 ],
             ]
         );
@@ -1240,6 +1266,12 @@ final class HP_Products_Manager {
         return $wpdb->prefix . 'hp_pm_state';
     }
 
+    private function movements_table_exists(): bool {
+        global $wpdb;
+        $table = $this->table_movements();
+        return $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+    }
+
     private function erp_log_event(string $event, array $payload = []): void {
         global $wpdb;
         $table = $this->table_event_log();
@@ -1254,6 +1286,24 @@ final class HP_Products_Manager {
             'payload' => $json,
             'created_at' => current_time('mysql'),
         ], ['%s','%s','%s']);
+    }
+
+    private function write_movement_row(array $data): void {
+        // data keys: product_id, order_id, movement_type, qty, qoh_after, customer_name, source, created_at
+        if (!$this->movements_table_exists()) return;
+        global $wpdb;
+        $table = $this->table_movements();
+        $wpdb->insert($table, [
+            'product_id' => (int) ($data['product_id'] ?? 0),
+            'order_id' => isset($data['order_id']) ? (int) $data['order_id'] : null,
+            'movement_type' => sanitize_key((string) ($data['movement_type'] ?? '')),
+            'qty' => (int) ($data['qty'] ?? 0),
+            'qoh_after' => isset($data['qoh_after']) ? (int) $data['qoh_after'] : null,
+            'customer_id' => null,
+            'customer_name' => isset($data['customer_name']) ? sanitize_text_field((string) $data['customer_name']) : null,
+            'source' => isset($data['source']) ? sanitize_text_field((string) $data['source']) : null,
+            'created_at' => isset($data['created_at']) ? (string) $data['created_at'] : current_time('mysql'),
+        ], ['%d','%d','%s','%d','%d','%d','%s','%s','%s']);
     }
 
     /**
@@ -1483,6 +1533,38 @@ final class HP_Products_Manager {
         ]);
     }
 
+    /**
+     * REST: Persist movements for a product by replaying its event-log rows
+     */
+    public function rest_product_persist_from_logs(WP_REST_Request $request) {
+        if (!$this->is_erp_persist_enabled()) {
+            return new \WP_Error('forbidden', __('Persistence disabled', 'hp-products-manager'), ['status' => 403]);
+        }
+        $id = (int) $request['id'];
+        if ($id <= 0) return new \WP_Error('bad_request', __('Invalid product id', 'hp-products-manager'), ['status' => 400]);
+        if (!$this->movements_table_exists()) return new \WP_Error('missing_table', __('Movements table missing', 'hp-products-manager'), ['status' => 500]);
+
+        $payload = $this->rest_product_movements_from_logs(new WP_REST_Request('GET', ''));
+        $data = $payload->get_data();
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+        $created = current_time('mysql');
+        foreach ($rows as $m) {
+            try {
+                $this->write_movement_row([
+                    'product_id' => $id,
+                    'order_id' => isset($m['order_id']) ? (int) $m['order_id'] : null,
+                    'movement_type' => (string) ($m['movement_type'] ?? ''),
+                    'qty' => isset($m['qty']) ? (int) $m['qty'] : 0,
+                    'qoh_after' => isset($m['qoh_after']) ? (int) $m['qoh_after'] : null,
+                    'customer_name' => isset($m['customer_name']) ? (string) $m['customer_name'] : null,
+                    'source' => 'replay',
+                    'created_at' => (string) ($m['created_at'] ?? $created),
+                ]);
+            } catch (\Throwable $e) { /* ignore individual failures */ }
+        }
+        return rest_ensure_response(['ok' => true, 'written' => count($rows)]);
+    }
+
     // Hook: log product stock set (minimal)
     public function erp_on_product_set_stock($product): void {
         if (!$this->is_erp_enabled()) return;
@@ -1495,6 +1577,22 @@ final class HP_Products_Manager {
             'qoh' => $new_qoh,
             'source' => 'hook',
         ]);
+        // Optional: persist to movements when allowed
+        if ($this->is_erp_persist_enabled()) {
+            try {
+                $created = current_time('mysql');
+                $this->write_movement_row([
+                    'product_id' => $product_id,
+                    'order_id' => null,
+                    'movement_type' => 'set_stock',
+                    'qty' => 0,
+                    'qoh_after' => $new_qoh,
+                    'customer_name' => null,
+                    'source' => 'set_stock',
+                    'created_at' => $created,
+                ]);
+            } catch (\Throwable $e) { /* ignore */ }
+        }
     }
 
     // Hook: log order stock reduction (sales) as one consolidated event
@@ -1521,6 +1619,28 @@ final class HP_Products_Manager {
             'items' => $items_payload,
             'source' => 'hook',
         ]);
+        if ($this->is_erp_persist_enabled()) {
+            try {
+                $created = $order->get_date_created();
+                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof \WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    $qty = -abs((int) $item->get_quantity());
+                    $this->write_movement_row([
+                        'product_id' => $pid,
+                        'order_id' => $order->get_id(),
+                        'movement_type' => 'sale',
+                        'qty' => $qty,
+                        'qoh_after' => null,
+                        'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                        'source' => 'order',
+                        'created_at' => $created_str,
+                    ]);
+                }
+            } catch (\Throwable $e) { /* ignore */ }
+        }
     }
 
     // Hook: log order stock restoration (refund/cancel) as one consolidated event
@@ -1547,6 +1667,28 @@ final class HP_Products_Manager {
             'items' => $items_payload,
             'source' => 'hook',
         ]);
+        if ($this->is_erp_persist_enabled()) {
+            try {
+                $created = $order->get_date_created();
+                $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product instanceof \WC_Product) continue;
+                    $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
+                    $qty = abs((int) $item->get_quantity());
+                    $this->write_movement_row([
+                        'product_id' => $pid,
+                        'order_id' => $order->get_id(),
+                        'movement_type' => 'restore',
+                        'qty' => $qty,
+                        'qoh_after' => null,
+                        'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                        'source' => 'order',
+                        'created_at' => $created_str,
+                    ]);
+                }
+            } catch (\Throwable $e) { /* ignore */ }
+        }
     }
 
     private function parse_decimal($value): ?float {

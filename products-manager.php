@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.53
+ * Version: 0.5.54
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.53';
+    const VERSION = '0.5.54';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1716,6 +1716,42 @@ final class HP_Products_Manager {
                 'sales_7' => (int) $win7,
             ],
         ]);
+    }
+
+    /**
+     * REST: Daily sales aggregation for a product (continuous last-N-day series)
+     */
+    public function rest_get_product_sales_daily(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $days = min(365, max(1, (int) ($request->get_param('days') ?: 90)));
+        global $wpdb;
+        $mov = $this->table_movements();
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $mov)) !== $mov) {
+            return rest_ensure_response(['labels' => [], 'values' => []]);
+        }
+        // Start at local midnight (days-1) days ago, include today
+        $now_ts = current_time('timestamp');
+        $start_ts = strtotime(date('Y-m-d 00:00:00', $now_ts - (($days - 1) * DAY_IN_SECONDS)));
+        $cut = date('Y-m-d H:i:s', $start_ts);
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT DATE(created_at) AS day, SUM(ABS(qty)) AS qty
+             FROM {$mov}
+             WHERE product_id=%d AND movement_type='sale' AND created_at >= %s
+             GROUP BY DATE(created_at)
+             ORDER BY day ASC",
+            $id, $cut
+        ), ARRAY_A);
+        $by_day = [];
+        if (is_array($rows)) {
+            foreach ($rows as $r) { $by_day[(string) $r['day']] = (int) $r['qty']; }
+        }
+        $labels = []; $values = [];
+        for ($i = 0; $i < $days; $i++) {
+            $day = date('Y-m-d', $start_ts + ($i * DAY_IN_SECONDS));
+            $labels[] = $day;
+            $values[] = isset($by_day[$day]) ? (int) $by_day[$day] : 0;
+        }
+        return rest_ensure_response(['labels' => $labels, 'values' => $values]);
     }
 
     // --- Rebuild ALL with progress ---

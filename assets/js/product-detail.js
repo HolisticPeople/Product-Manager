@@ -444,8 +444,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 scales: {
                   x: {
                     type: 'time',
-                    time: { unit: 'month', tooltipFormat: 'PP' },
-                    ticks: { source: 'auto', major: { enabled: true } }
+                    time: { unit: 'day', stepSize: 1, tooltipFormat: 'PP' },
+                    ticks: { source: 'auto', autoSkip: true, maxRotation: 0, major: { enabled: true } }
                   },
                   y: { beginAtZero: true, precision: 0 }
                 },

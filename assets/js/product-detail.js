@@ -409,6 +409,44 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(function(res){ console.log('logs:', res); showNotice('Fetched ' + (res && res.count || 0) + ' product logs (see console).', 'info'); })
       .catch(function(){ /* ignore */ });
   });
+
+  // --- ERP Movements (from logs) ---
+  (function initErpLogs(){
+    var table = document.getElementById('hp-pm-erp-table');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    var statsTotal = document.getElementById('hp-pm-erp-total');
+    var stats90 = document.getElementById('hp-pm-erp-90');
+    var stats30 = document.getElementById('hp-pm-erp-30');
+    var stats7 = document.getElementById('hp-pm-erp-7');
+    var url = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements/logs?limit=200';
+    fetch(url, { headers: { 'X-WP-Nonce': data.nonce } })
+      .then(function(r){ return r.json(); })
+      .then(function(payload){
+        var rows = (payload && payload.rows) || [];
+        if (tbody) {
+          tbody.innerHTML = '';
+          rows.forEach(function(m){
+            var tr = document.createElement('tr');
+            var orderCell = (m.order_id ? ('#' + m.order_id) : '') + (m.customer_name ? (' — ' + m.customer_name) : '');
+            tr.innerHTML = '<td>' + (m.created_at || '') + '</td>' +
+                           '<td>' + (m.movement_type || '') + '</td>' +
+                           '<td>' + (m.qty == null ? '' : m.qty) + '</td>' +
+                           '<td>' + orderCell + '</td>' +
+                           '<td>' + (m.qoh_after == null ? '' : m.qoh_after) + '</td>' +
+                           '<td>' + (m.source || '') + '</td>';
+            tbody.appendChild(tr);
+          });
+        }
+        if (payload && payload.stats) {
+          if (statsTotal) statsTotal.textContent = payload.stats.total_sales || 0;
+          if (stats90) stats90.textContent = payload.stats.sales_90 || 0;
+          if (stats30) stats30.textContent = payload.stats.sales_30 || 0;
+          if (stats7) stats7.textContent = payload.stats.sales_7 || 0;
+        }
+      })
+      .catch(function(){ /* ignore */ });
+  })();
 });
 
 

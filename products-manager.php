@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.43
+ * Version: 0.5.44
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.43';
+    const VERSION = '0.5.44';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -627,28 +627,25 @@ final class HP_Products_Manager {
                 </div>
             <?php else : ?>
                 <div class="card" style="max-width: 1200px;">
-                    <h2><?php esc_html_e('Stock Movements (mockup)', 'hp-products-manager'); ?></h2>
-                    <p><?php esc_html_e('This tab will aggregate stock movements from HPOS Orders, ShipStation and manual adjustments. We will cache results per product and provide a Refresh button.', 'hp-products-manager'); ?></p>
-                    <p><button class="button"><?php esc_html_e('Refresh Movements', 'hp-products-manager'); ?></button></p>
-                    <table class="widefat fixed striped" style="margin-top: 8px;">
+                    <h2><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
+                    <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0;">
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('30d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-30">--</span></div>
+                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('7d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-7">--</span></div>
+                    </section>
+                    <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
                         <thead>
                         <tr>
                             <th><?php esc_html_e('Date', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('Description', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('Order / Customer', 'hp-products-manager'); ?></th>
+                            <th><?php esc_html_e('QOH After', 'hp-products-manager'); ?></th>
                             <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
                         </tr>
                         </thead>
-                        <tbody>
-                        <tr>
-                            <td><?php echo esc_html(date_i18n('Y-m-d H:i')); ?></td>
-                            <td><?php esc_html_e('order', 'hp-products-manager'); ?></td>
-                            <td>-1</td>
-                            <td><?php esc_html_e('Shipment for order #000000 (example)', 'hp-products-manager'); ?></td>
-                            <td>HPOS</td>
-                        </tr>
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
             <?php endif; ?>
@@ -779,6 +776,23 @@ final class HP_Products_Manager {
                 'permission_callback' => function (): bool {
                     return current_user_can('manage_woocommerce');
                 },
+            ]
+        );
+
+        // Movements from logs (read-only)
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/movements/logs',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_product_movements_from_logs'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('manage_woocommerce');
+                },
+                'args' => [
+                    'id' => ['validate_callback' => function ($value) { return is_numeric($value); }],
+                    'limit' => [],
+                ],
             ]
         );
     }
@@ -1392,6 +1406,81 @@ final class HP_Products_Manager {
         }
 
         return rest_ensure_response(['ok' => true, 'action' => $action, 'product_id' => $product_id, 'qty' => (int)$qty]);
+    }
+
+    /**
+     * REST: Build movement rows for a product from the event log (read-only)
+     */
+    public function rest_product_movements_from_logs(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $limit = min(500, max(1, (int) ($request->get_param('limit') ?: 200)));
+        global $wpdb;
+        $table = $this->table_event_log();
+        // Fetch recent log entries referencing this product
+        $like = '%' . $wpdb->esc_like('"product_id":' . $id) . '%';
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT id, event, payload, created_at FROM {$table} WHERE payload LIKE %s ORDER BY id DESC LIMIT %d", $like, $limit), ARRAY_A);
+
+        $movements = [];
+        $sales_total = 0; $now = current_time('timestamp');
+        $win90 = 0; $win30 = 0; $win7 = 0;
+        if (!empty($rows)) {
+            foreach ($rows as $row) {
+                $payload = json_decode((string) ($row['payload'] ?? ''), true);
+                $event = (string) ($row['event'] ?? '');
+                $created_at = (string) ($row['created_at'] ?? '');
+                $ts = $created_at ? strtotime($created_at) : 0;
+                if ($event === 'product_set_stock') {
+                    $movements[] = [
+                        'created_at' => $created_at,
+                        'movement_type' => 'set_stock',
+                        'qty' => null,
+                        'order_id' => null,
+                        'customer_name' => null,
+                        'qoh_after' => isset($payload['qoh']) ? (int) $payload['qoh'] : null,
+                        'source' => isset($payload['source']) ? (string) $payload['source'] : '',
+                    ];
+                    continue;
+                }
+                if ($event === 'reduce_order_stock' || $event === 'restore_order_stock') {
+                    $items = isset($payload['items']) && is_array($payload['items']) ? $payload['items'] : [];
+                    foreach ($items as $it) {
+                        if ((int) ($it['product_id'] ?? 0) !== $id) continue;
+                        $qty = (int) ($it['qty'] ?? 0);
+                        $movements[] = [
+                            'created_at' => $created_at,
+                            'movement_type' => ($event === 'reduce_order_stock' ? 'sale' : 'restore'),
+                            'qty' => $qty,
+                            'order_id' => isset($payload['order_id']) ? (int) $payload['order_id'] : null,
+                            'customer_name' => isset($payload['customer_name']) ? (string) $payload['customer_name'] : '',
+                            'qoh_after' => null,
+                            'source' => isset($payload['source']) ? (string) $payload['source'] : '',
+                        ];
+                        if ($event === 'reduce_order_stock') {
+                            $abs = abs($qty);
+                            $sales_total += $abs;
+                            if ($ts && ($now - $ts) <= 90 * DAY_IN_SECONDS) $win90 += $abs;
+                            if ($ts && ($now - $ts) <= 30 * DAY_IN_SECONDS) $win30 += $abs;
+                            if ($ts && ($now - $ts) <= 7 * DAY_IN_SECONDS) $win7 += $abs;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort descending by date/id to match recent-first display
+        usort($movements, function ($a, $b) {
+            return strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
+        });
+
+        return rest_ensure_response([
+            'rows' => $movements,
+            'stats' => [
+                'total_sales' => (int) $sales_total,
+                'sales_90' => (int) $win90,
+                'sales_30' => (int) $win30,
+                'sales_7' => (int) $win7,
+            ],
+        ]);
     }
 
     // Hook: log product stock set (minimal)

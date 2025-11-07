@@ -61,3 +61,42 @@
 .hp-pm-token { background:#f0f2f4; border:1px solid #dcdcde; border-radius: 12px; padding:2px 8px; display:flex; align-items:center; gap:6px; }
 .hp-pm-token .x { cursor:pointer; }
 
+/* ERP metrics styling */
+#hp-pm-erp-stats {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px !important;
+    align-items: stretch !important;
+    margin: 10px 0;
+}
+.hp-pm-metric {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+.hp-pm-metric-label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #646970;
+    margin-bottom: 4px;
+}
+.hp-pm-metric-value {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* ERP table column widths */
+#hp-pm-erp-table {
+    table-layout: fixed;
+}
+#hp-pm-erp-table th:nth-child(3),
+#hp-pm-erp-table td:nth-child(3) {
+    width: 60px; /* Qty narrow */
+}
+#hp-pm-erp-table th:nth-child(4),
+#hp-pm-erp-table td:nth-child(4) {
+    width: 40%; /* Order / Customer wider */
+}
+

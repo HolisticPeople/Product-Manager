@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.48
+ * Version: 0.5.49
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.48';
+    const VERSION = '0.5.49';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1720,29 +1720,39 @@ final class HP_Products_Manager {
             return rest_ensure_response($state);
         }
         $orders_table = $wpdb->prefix . 'wc_orders';
-        $statuses = array('wc-processing','wc-completed','wc-refunded','wc-cancelled');
-        $in = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
         $batch = max(50, (int) ($state['batch'] ?? 200));
         $last = (int) ($state['last_order_id'] ?? 0);
-        $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status IN ({$in}) AND id > %d ORDER BY id ASC LIMIT %d", $last, $batch));
+        $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$orders_table} WHERE status LIKE %s AND id > %d ORDER BY id ASC LIMIT %d", 'wc-%', $last, $batch));
         if (!empty($ids)) {
             foreach ($ids as $oid) {
                 $order = wc_get_order((int) $oid);
                 if (!$order) continue;
                 $created = $order->get_date_created();
                 $created_str = (is_object($created) && method_exists($created, 'getTimestamp')) ? date_i18n('Y-m-d H:i:s', $created->getTimestamp()) : current_time('mysql');
+                $by_product = [];
                 foreach ($order->get_items() as $item) {
                     $product = $item->get_product();
                     if (!$product instanceof \WC_Product) continue;
                     $pid = $product->is_type('variation') ? $product->get_parent_id() : $product->get_id();
                     $qty = (int) $item->get_quantity();
-                    $status = $order->get_status();
-                    $type = ($status === 'refunded' || $status === 'cancelled') ? 'restore' : 'sale';
+                    $by_product[$pid] = isset($by_product[$pid]) ? ($by_product[$pid] + $qty) : $qty;
+                }
+                $status = $order->get_status();
+                if ($status === 'refunded' || $status === 'cancelled') {
+                    $type = 'restore';
+                } elseif ($order->is_paid()) {
+                    $type = 'sale';
+                } else {
+                    // Skip unpaid/unfulfilled orders to avoid false positives
+                    $type = '';
+                }
+                foreach ($by_product as $pid => $qty_sum) {
+                    if ($type === '') { continue; }
                     $this->write_movement_row([
-                        'product_id' => $pid,
+                        'product_id' => (int) $pid,
                         'order_id' => $order->get_id(),
                         'movement_type' => $type,
-                        'qty' => ($type === 'sale' ? -abs($qty) : abs($qty)),
+                        'qty' => ($type === 'sale' ? -abs((int) $qty_sum) : abs((int) $qty_sum)),
                         'qoh_after' => null,
                         'customer_name' => trim($order->get_formatted_billing_full_name() ?: $order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
                         'source' => 'rebuild_all',

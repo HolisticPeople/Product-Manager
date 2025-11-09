@@ -563,6 +563,21 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function(){ if (progressWrap) progressWrap.style.display='none'; if (abortBtn) abortBtn.style.display='none'; })
         .catch(function(){ /* ignore */ });
     });
+    // Purge all plugin DB (truncate tables and clear state)
+    var purgeBtn = document.getElementById('hp-pm-erp-purge-db');
+    if (purgeBtn) purgeBtn.addEventListener('click', function(){
+      if (!confirm('Purge all plugin ERP data (movements, state, event log)? This cannot be undone. Proceed?')) return;
+      fetch(dbgBase + '/erp/purge', { method: 'POST', headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(){ showNotice('Purged all plugin data', 'info'); })
+        .then(function(){
+          var urlDb2 = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements?limit=200';
+          return fetch(urlDb2, { headers: { 'X-WP-Nonce': data.nonce } });
+        })
+        .then(function(r){ return r ? r.json() : null; })
+        .then(function(payload){ if (payload) render(payload); })
+        .catch(function(){ /* ignore */ });
+    });
     // Rebuild 90d for this product
     var rebuildProductBtn = document.getElementById('hp-pm-erp-rebuild-product');
     if (rebuildProductBtn) rebuildProductBtn.addEventListener('click', function(){

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.61
+ * Version: 0.5.62
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -27,7 +27,7 @@ use WC_Product;
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.61';
+	const VERSION = '0.5.62';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -671,6 +671,7 @@ final class HP_Products_Manager {
                         <div class="hp-pm-erp-actions" style="display:flex; gap:8px; align-items:center;">
                             <button id="hp-pm-erp-rebuild-product" class="button button-small"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
                             <button id="hp-pm-erp-rebuild-all" class="button button-small"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
+                            <button id="hp-pm-erp-purge-db" class="button button-small"><?php esc_html_e('Purge all plugin DB', 'hp-products-manager'); ?></button>
                             <button id="hp-pm-erp-rebuild-abort" class="button button-small" style="display:none;"><?php esc_html_e('Abort', 'hp-products-manager'); ?></button>
                             <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 220px; height: 24px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
                                 <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
@@ -857,6 +858,19 @@ final class HP_Products_Manager {
                 },
             ]
         );
+
+		// ERP maintenance: purge all plugin data (tables are emptied; option cleared)
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/erp/purge',
+			[
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => [$this, 'rest_erp_purge'],
+				'permission_callback' => function (): bool {
+					return current_user_can('manage_woocommerce');
+				},
+			]
+		);
 
         // Movements from logs (read-only)
         register_rest_route(
@@ -1652,6 +1666,29 @@ final class HP_Products_Manager {
 
         return rest_ensure_response(['ok' => true, 'action' => $action, 'product_id' => $product_id, 'qty' => (int)$qty]);
     }
+
+	/**
+	 * REST: Purge all plugin data (truncate ERP tables and clear progress/state option).
+	 */
+	public function rest_erp_purge(WP_REST_Request $request) {
+		if (!current_user_can('manage_woocommerce')) {
+			return new \WP_Error('forbidden', __('Not allowed', 'hp-products-manager'), ['status' => 403]);
+		}
+		global $wpdb;
+		$purged = [];
+		$tables = [$this->table_event_log(), $this->table_movements(), $this->table_state()];
+		foreach ($tables as $t) {
+			$exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t)) === $t;
+			if ($exists) {
+				$wpdb->query("TRUNCATE {$t}");
+				$purged[] = $t;
+			}
+		}
+		delete_option('hp_pm_rebuild_all_state');
+		// Clear cached metrics
+		wp_cache_delete(self::METRICS_CACHE_KEY, self::CACHE_GROUP);
+		return rest_ensure_response(['ok' => true, 'purged' => $purged]);
+	}
 
     /**
      * REST: Build movement rows for a product from the event log (read-only)
@@ -2504,7 +2541,28 @@ final class HP_Products_Manager {
 
         return $map;
     }
+
+    /**
+     * Plugin uninstall cleanup: drop custom tables and remove options.
+     */
+    public static function on_uninstall(): void {
+        global $wpdb;
+        $elog = $wpdb->prefix . 'hp_pm_event_log';
+        $mov  = $wpdb->prefix . 'hp_pm_movements';
+        $state= $wpdb->prefix . 'hp_pm_state';
+        $wpdb->query("DROP TABLE IF EXISTS {$elog}");
+        $wpdb->query("DROP TABLE IF EXISTS {$mov}");
+        $wpdb->query("DROP TABLE IF EXISTS {$state}");
+        delete_option('hp_pm_rebuild_all_state');
+        // Best-effort clear cache group
+        if (function_exists('wp_cache_flush_group')) {
+            wp_cache_flush_group(self::CACHE_GROUP);
+        }
+    }
 }
+
+// Register uninstall hook to fully purge plugin data when removed
+register_uninstall_hook(__FILE__, ['HP_Products_Manager', 'on_uninstall']);
 
 HP_Products_Manager::instance();
 

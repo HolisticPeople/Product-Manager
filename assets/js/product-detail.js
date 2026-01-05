@@ -355,6 +355,7 @@ document.addEventListener('DOMContentLoaded', function () {
     stagedBody.innerHTML = ''; var keys = Object.keys(staged);
     stagedTable.style.display = keys.length ? '' : 'none';
     applyBtn.disabled = keys.length === 0;
+    discardBtn.disabled = keys.length === 0;
 
     if (keys.length > 0) {
       applyBtn.classList.add('button-primary');

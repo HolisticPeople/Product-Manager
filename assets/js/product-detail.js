@@ -102,16 +102,43 @@ document.addEventListener('DOMContentLoaded', function () {
         render(get().filter(function (s){ return s!==slug; }));
       }
     });
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && input.value.trim() !== '') {
-        e.preventDefault();
-        var cur = get(); var slug = input.value.trim();
-        if (cur.indexOf(slug) === -1) cur.push(slug);
-        render(cur); input.value = '';
+
+    input.addEventListener('input', function (e) {
+      var val = input.value.trim().toLowerCase();
+      if (!val) return;
+      var options = datalist.options;
+      for (var i = 0; i < options.length; i++) {
+        var optVal = String(options[i].value || '').toLowerCase();
+        var optLabel = String(options[i].label || options[i].textContent || '').toLowerCase();
+        if (optVal === val || optLabel === val) {
+          var actualValue = options[i].value;
+          var cur = get();
+          if (cur.indexOf(actualValue) === -1) {
+            cur.push(actualValue);
+            render(cur);
+            input.value = '';
+          }
+          break;
+        }
       }
     });
 
-    return { get: get, set: render };
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && input.value.trim() !== '') {
+        e.preventDefault();
+        var cur = get(); var val = input.value.trim();
+        // Try to match slug or name from list
+        var f = (list || []).find(function (x){ return x.slug.toLowerCase() === val.toLowerCase() || x.name.toLowerCase() === val.toLowerCase(); });
+        var toAdd = f ? f.slug : val;
+        if (cur.indexOf(toAdd) === -1) {
+          cur.push(toAdd);
+          render(cur);
+        }
+        input.value = '';
+      }
+    });
+
+    return { get: get, set: render, input: input };
   }
   var brandsTk = setupTokens('brands', data.brands || [], original.brands || []);
   var catsTk = setupTokens('categories', data.categories || [], original.categories || []);
@@ -277,11 +304,24 @@ document.addEventListener('DOMContentLoaded', function () {
   function writeStaged(obj) { localStorage.setItem(storageKey, JSON.stringify(obj || {})); renderStaged(); }
 
   function gatherChanges() {
+    // Auto-tokenize non-empty inputs
+    [brandsTk, catsTk, tagsTk].forEach(function(tk){
+      if (tk && tk.input && tk.input.value.trim() !== '') {
+        var val = tk.input.value.trim();
+        var cur = tk.get();
+        if (cur.indexOf(val) === -1) {
+          cur.push(val);
+          tk.set(cur);
+        }
+        tk.input.value = '';
+      }
+    });
+
     var c = {};
     if (nameEl && nameEl.value !== original.name) c.name = nameEl.value;
     if (skuEl && skuEl.value !== original.sku) c.sku = skuEl.value;
-    if (priceEl && priceEl.value !== String(original.price || '')) c.price = priceEl.value;
-    if (salePriceEl && salePriceEl.value !== String(original.sale_price || '')) c.sale_price = salePriceEl.value;
+    if (priceEl && String(priceEl.value || '') !== String(original.price || '')) c.price = priceEl.value;
+    if (salePriceEl && String(salePriceEl.value || '') !== String(original.sale_price || '')) c.sale_price = salePriceEl.value;
     if (statusEl && statusEl.value !== original.status) c.status = statusEl.value;
     if (visibilityEl && visibilityEl.value !== original.visibility) c.visibility = visibilityEl.value;
 
@@ -292,15 +332,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var selTags = tagsTk.get ? tagsTk.get() : [];
     if (JSON.stringify((selTags.slice().sort())) !== JSON.stringify((original.tags || []).slice().sort())) c.tags = selTags;
 
-    if (costEl && costEl.value !== String(original.cost || '')) c.cost = costEl.value;
-    if (weightEl && weightEl.value !== String(original.weight || '')) c.weight = weightEl.value;
-    if (lengthEl && lengthEl.value !== String(original.length || '')) c.length = lengthEl.value;
-    if (widthEl && widthEl.value !== String(original.width || '')) c.width = widthEl.value;
-    if (heightEl && heightEl.value !== String(original.height || '')) c.height = heightEl.value;
-    if (shipClassEl && shipClassEl.value !== String(original.shipping_class || '')) c.shipping_class = shipClassEl.value;
+    if (costEl && String(costEl.value || '') !== String(original.cost || '')) c.cost = costEl.value;
+    if (weightEl && String(weightEl.value || '') !== String(original.weight || '')) c.weight = weightEl.value;
+    if (lengthEl && String(lengthEl.value || '') !== String(original.length || '')) c.length = lengthEl.value;
+    if (widthEl && String(widthEl.value || '') !== String(original.width || '')) c.width = widthEl.value;
+    if (heightEl && String(heightEl.value || '') !== String(original.height || '')) c.height = heightEl.value;
+    if (shipClassEl && String(shipClassEl.value || '') !== String(original.shipping_class || '')) c.shipping_class = shipClassEl.value;
 
     if (manageStockEl && manageStockEl.checked !== !!original.manage_stock) c.manage_stock = manageStockEl.checked;
-    if (stockQtyEl && stockQtyEl.value !== String(original.stock_quantity || '')) c.stock_quantity = stockQtyEl.value;
+    if (stockQtyEl && String(stockQtyEl.value || '') !== String(original.stock_quantity == null ? '' : original.stock_quantity)) c.stock_quantity = stockQtyEl.value;
     var backorders = Array.from(document.getElementsByName('backorders')).find(function(r){return r.checked;});
     if (backorders && backorders.value !== (original.backorders || 'no')) c.backorders = backorders.value;
 
@@ -313,7 +353,18 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderStaged() {
     var staged = readStaged(); if (!stagedBody || !stagedTable) return;
     stagedBody.innerHTML = ''; var keys = Object.keys(staged);
-    stagedTable.style.display = keys.length ? '' : 'none'; applyBtn.disabled = keys.length === 0;
+    stagedTable.style.display = keys.length ? '' : 'none';
+    applyBtn.disabled = keys.length === 0;
+    discardBtn.disabled = keys.length === 0;
+
+    if (keys.length > 0) {
+      applyBtn.classList.add('button-primary');
+      discardBtn.classList.add('button-primary');
+    } else {
+      applyBtn.classList.remove('button-primary');
+      discardBtn.classList.remove('button-primary');
+    }
+
     keys.forEach(function (k) {
       var tr = document.createElement('tr'); var fromVal = original[k]; var toVal = staged[k];
       if (Array.isArray(fromVal)) fromVal = fromVal.join(', '); if (Array.isArray(toVal)) toVal = toVal.join(', ');

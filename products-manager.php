@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.66
+ * Version: 0.5.67
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.66';
+    const VERSION = '0.5.67';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -2572,6 +2572,15 @@ final class HP_Products_Manager {
 
             if (!$new_id) {
                 throw new \Exception(__('Failed to save duplicated product', 'hp-products-manager'));
+            }
+
+            // Sync terms (taxonomies) which are not automatically copied by clone for a new ID
+            $taxonomies = ['yith_product_brand', 'product_cat', 'product_tag'];
+            foreach ($taxonomies as $tax) {
+                $terms = wp_get_object_terms($id, $tax, ['fields' => 'ids']);
+                if (!is_wp_error($terms) && !empty($terms)) {
+                    wp_set_object_terms($new_id, $terms, $tax);
+                }
             }
 
             // Sync cost if present

@@ -280,8 +280,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var c = {};
     if (nameEl && nameEl.value !== original.name) c.name = nameEl.value;
     if (skuEl && skuEl.value !== original.sku) c.sku = skuEl.value;
-    if (priceEl && priceEl.value !== String(original.price || '')) c.price = priceEl.value;
-    if (salePriceEl && salePriceEl.value !== String(original.sale_price || '')) c.sale_price = salePriceEl.value;
+    if (priceEl && priceEl.value !== (original.price == null ? '' : String(original.price))) c.price = priceEl.value;
+    if (salePriceEl && salePriceEl.value !== (original.sale_price == null ? '' : String(original.sale_price))) c.sale_price = salePriceEl.value;
     if (statusEl && statusEl.value !== original.status) c.status = statusEl.value;
     if (visibilityEl && visibilityEl.value !== original.visibility) c.visibility = visibilityEl.value;
 
@@ -292,15 +292,15 @@ document.addEventListener('DOMContentLoaded', function () {
     var selTags = tagsTk.get ? tagsTk.get() : [];
     if (JSON.stringify((selTags.slice().sort())) !== JSON.stringify((original.tags || []).slice().sort())) c.tags = selTags;
 
-    if (costEl && costEl.value !== String(original.cost || '')) c.cost = costEl.value;
-    if (weightEl && weightEl.value !== String(original.weight || '')) c.weight = weightEl.value;
-    if (lengthEl && lengthEl.value !== String(original.length || '')) c.length = lengthEl.value;
-    if (widthEl && widthEl.value !== String(original.width || '')) c.width = widthEl.value;
-    if (heightEl && heightEl.value !== String(original.height || '')) c.height = heightEl.value;
+    if (costEl && costEl.value !== (original.cost == null ? '' : String(original.cost))) c.cost = costEl.value;
+    if (weightEl && weightEl.value !== (original.weight == null ? '' : String(original.weight))) c.weight = weightEl.value;
+    if (lengthEl && lengthEl.value !== (original.length == null ? '' : String(original.length))) c.length = lengthEl.value;
+    if (widthEl && widthEl.value !== (original.width == null ? '' : String(original.width))) c.width = widthEl.value;
+    if (heightEl && heightEl.value !== (original.height == null ? '' : String(original.height))) c.height = heightEl.value;
     if (shipClassEl && shipClassEl.value !== String(original.shipping_class || '')) c.shipping_class = shipClassEl.value;
 
     if (manageStockEl && manageStockEl.checked !== !!original.manage_stock) c.manage_stock = manageStockEl.checked;
-    if (stockQtyEl && stockQtyEl.value !== String(original.stock_quantity || '')) c.stock_quantity = stockQtyEl.value;
+    if (stockQtyEl && stockQtyEl.value !== (original.stock_quantity == null ? '' : String(original.stock_quantity))) c.stock_quantity = stockQtyEl.value;
     var backorders = Array.from(document.getElementsByName('backorders')).find(function(r){return r.checked;});
     if (backorders && backorders.value !== (original.backorders || 'no')) c.backorders = backorders.value;
 
@@ -313,7 +313,17 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderStaged() {
     var staged = readStaged(); if (!stagedBody || !stagedTable) return;
     stagedBody.innerHTML = ''; var keys = Object.keys(staged);
-    stagedTable.style.display = keys.length ? '' : 'none'; applyBtn.disabled = keys.length === 0;
+    stagedTable.style.display = keys.length ? '' : 'none';
+    applyBtn.disabled = keys.length === 0;
+
+    if (keys.length > 0) {
+      applyBtn.classList.add('button-primary');
+      discardBtn.classList.add('button-primary');
+    } else {
+      applyBtn.classList.remove('button-primary');
+      discardBtn.classList.remove('button-primary');
+    }
+
     keys.forEach(function (k) {
       var tr = document.createElement('tr'); var fromVal = original[k]; var toVal = staged[k];
       if (Array.isArray(fromVal)) fromVal = fromVal.join(', '); if (Array.isArray(toVal)) toVal = toVal.join(', ');

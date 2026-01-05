@@ -102,22 +102,21 @@ document.addEventListener('DOMContentLoaded', function () {
         render(get().filter(function (s){ return s!==slug; }));
       }
     });
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:105',message:'Token input event',data:{prefix:prefix,value:input.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-// #endregion
+
     input.addEventListener('input', function (e) {
-      var val = input.value;
+      var val = input.value.trim().toLowerCase();
+      if (!val) return;
       var options = datalist.options;
       for (var i = 0; i < options.length; i++) {
-        if (options[i].value === val) {
+        var optVal = String(options[i].value || '').toLowerCase();
+        var optLabel = String(options[i].label || options[i].textContent || '').toLowerCase();
+        if (optVal === val || optLabel === val) {
+          var actualValue = options[i].value;
           var cur = get();
-          if (cur.indexOf(val) === -1) {
-            cur.push(val);
+          if (cur.indexOf(actualValue) === -1) {
+            cur.push(actualValue);
             render(cur);
             input.value = '';
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:115',message:'Token added via input',data:{prefix:prefix,slug:val,new_list:cur},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-// #endregion
           }
           break;
         }
@@ -127,13 +126,19 @@ fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{metho
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && input.value.trim() !== '') {
         e.preventDefault();
-        var cur = get(); var slug = input.value.trim();
-        if (cur.indexOf(slug) === -1) cur.push(slug);
-        render(cur); input.value = '';
+        var cur = get(); var val = input.value.trim();
+        // Try to match slug or name from list
+        var f = (list || []).find(function (x){ return x.slug.toLowerCase() === val.toLowerCase() || x.name.toLowerCase() === val.toLowerCase(); });
+        var toAdd = f ? f.slug : val;
+        if (cur.indexOf(toAdd) === -1) {
+          cur.push(toAdd);
+          render(cur);
+        }
+        input.value = '';
       }
     });
 
-    return { get: get, set: render };
+    return { get: get, set: render, input: input };
   }
   var brandsTk = setupTokens('brands', data.brands || [], original.brands || []);
   var catsTk = setupTokens('categories', data.categories || [], original.categories || []);
@@ -299,33 +304,43 @@ fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{metho
   function writeStaged(obj) { localStorage.setItem(storageKey, JSON.stringify(obj || {})); renderStaged(); }
 
   function gatherChanges() {
+    // Auto-tokenize non-empty inputs
+    [brandsTk, catsTk, tagsTk].forEach(function(tk){
+      if (tk && tk.input && tk.input.value.trim() !== '') {
+        var val = tk.input.value.trim();
+        var cur = tk.get();
+        if (cur.indexOf(val) === -1) {
+          cur.push(val);
+          tk.set(cur);
+        }
+        tk.input.value = '';
+      }
+    });
+
     var c = {};
     if (nameEl && nameEl.value !== original.name) c.name = nameEl.value;
     if (skuEl && skuEl.value !== original.sku) c.sku = skuEl.value;
-    if (priceEl && priceEl.value !== (original.price == null ? '' : String(original.price))) c.price = priceEl.value;
-    if (salePriceEl && salePriceEl.value !== (original.sale_price == null ? '' : String(original.sale_price))) c.sale_price = salePriceEl.value;
+    if (priceEl && String(priceEl.value || '') !== String(original.price || '')) c.price = priceEl.value;
+    if (salePriceEl && String(salePriceEl.value || '') !== String(original.sale_price || '')) c.sale_price = salePriceEl.value;
     if (statusEl && statusEl.value !== original.status) c.status = statusEl.value;
     if (visibilityEl && visibilityEl.value !== original.visibility) c.visibility = visibilityEl.value;
 
     var selBrands = brandsTk.get ? brandsTk.get() : [];
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:290',message:'Comparing brands',data:{sel:selBrands,original:original.brands},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-// #endregion
     if (JSON.stringify((selBrands.slice().sort())) !== JSON.stringify((original.brands || []).slice().sort())) c.brands = selBrands;
     var selCats = catsTk.get ? catsTk.get() : [];
     if (JSON.stringify((selCats.slice().sort())) !== JSON.stringify((original.categories || []).slice().sort())) c.categories = selCats;
     var selTags = tagsTk.get ? tagsTk.get() : [];
     if (JSON.stringify((selTags.slice().sort())) !== JSON.stringify((original.tags || []).slice().sort())) c.tags = selTags;
 
-    if (costEl && costEl.value !== (original.cost == null ? '' : String(original.cost))) c.cost = costEl.value;
-    if (weightEl && weightEl.value !== (original.weight == null ? '' : String(original.weight))) c.weight = weightEl.value;
-    if (lengthEl && lengthEl.value !== (original.length == null ? '' : String(original.length))) c.length = lengthEl.value;
-    if (widthEl && widthEl.value !== (original.width == null ? '' : String(original.width))) c.width = widthEl.value;
-    if (heightEl && heightEl.value !== (original.height == null ? '' : String(original.height))) c.height = heightEl.value;
-    if (shipClassEl && shipClassEl.value !== String(original.shipping_class || '')) c.shipping_class = shipClassEl.value;
+    if (costEl && String(costEl.value || '') !== String(original.cost || '')) c.cost = costEl.value;
+    if (weightEl && String(weightEl.value || '') !== String(original.weight || '')) c.weight = weightEl.value;
+    if (lengthEl && String(lengthEl.value || '') !== String(original.length || '')) c.length = lengthEl.value;
+    if (widthEl && String(widthEl.value || '') !== String(original.width || '')) c.width = widthEl.value;
+    if (heightEl && String(heightEl.value || '') !== String(original.height || '')) c.height = heightEl.value;
+    if (shipClassEl && String(shipClassEl.value || '') !== String(original.shipping_class || '')) c.shipping_class = shipClassEl.value;
 
     if (manageStockEl && manageStockEl.checked !== !!original.manage_stock) c.manage_stock = manageStockEl.checked;
-    if (stockQtyEl && stockQtyEl.value !== (original.stock_quantity == null ? '' : String(original.stock_quantity))) c.stock_quantity = stockQtyEl.value;
+    if (stockQtyEl && String(stockQtyEl.value || '') !== String(original.stock_quantity == null ? '' : original.stock_quantity)) c.stock_quantity = stockQtyEl.value;
     var backorders = Array.from(document.getElementsByName('backorders')).find(function(r){return r.checked;});
     if (backorders && backorders.value !== (original.backorders || 'no')) c.backorders = backorders.value;
 

@@ -20,12 +20,20 @@ document.addEventListener('DOMContentLoaded', function () {
   var widthEl = document.getElementById('hp-pm-pd-width');
   var heightEl = document.getElementById('hp-pm-pd-height');
   var shipClassEl = document.getElementById('hp-pm-pd-ship-class');
+  var manageStockEl = document.getElementById('hp-pm-pd-manage-stock');
+  var stockQtyEl = document.getElementById('hp-pm-pd-stock-qty');
   var imgEl = document.getElementById('hp-pm-pd-image');
   var galleryEl = document.getElementById('hp-pm-pd-gallery');
   var editLink = document.getElementById('hp-pm-pd-edit');
   var viewLink = document.getElementById('hp-pm-pd-view');
 
   function setValue(el, v) { if (el) el.value = (v == null ? '' : v); }
+  function setRadioValue(name, v) {
+    var els = document.getElementsByName(name);
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].value === String(v)) els[i].checked = true;
+    }
+  }
 
   setValue(nameEl, original.name);
   setValue(skuEl, original.sku);
@@ -38,7 +46,20 @@ document.addEventListener('DOMContentLoaded', function () {
   setValue(lengthEl, original.length);
   setValue(widthEl, original.width);
   setValue(heightEl, original.height);
+  if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
+  setValue(stockQtyEl, original.stock_quantity);
+  setRadioValue('backorders', original.backorders || 'no');
   if (imgEl) imgEl.src = original.image || '';
+
+  function toggleStockRows() {
+    var rows = document.querySelectorAll('.hp-pm-stock-row');
+    var isChecked = manageStockEl && manageStockEl.checked;
+    rows.forEach(function (r) { r.style.display = isChecked ? '' : 'none'; });
+  }
+  if (manageStockEl) {
+    manageStockEl.addEventListener('change', toggleStockRows);
+    toggleStockRows();
+  }
   if (editLink) editLink.href = original.editLink || '#';
   if (viewLink) viewLink.href = original.viewLink || '#';
 
@@ -117,7 +138,8 @@ document.addEventListener('DOMContentLoaded', function () {
     currentGallery.forEach(function (id) {
       var url = galleryThumbs[id] || '';
       var d = document.createElement('div'); d.className = 'hp-pm-thumb'; d.draggable = true; d.dataset.id = id;
-      d.innerHTML = '<img src="' + url + '" alt=""><span class="hp-pm-thumb-remove">×</span>';
+      d.innerHTML = '<img src="' + url + '" alt=""><span class="hp-pm-thumb-remove" title="Remove">×</span>' +
+                    '<button type="button" class="hp-pm-thumb-main-btn" title="Set as Main">★</button>';
       galleryEl.appendChild(d);
     });
     var plus = document.createElement('div'); plus.className = 'hp-pm-thumb hp-pm-thumb-add'; plus.textContent = '+'; galleryEl.appendChild(plus);
@@ -130,6 +152,21 @@ document.addEventListener('DOMContentLoaded', function () {
         var id = parseInt(e.target.parentElement.dataset.id, 10);
         currentGallery = currentGallery.filter(function (x){ return x !== id; });
         galleryDirty = true; renderGallery();
+      } else if (e.target && e.target.classList.contains('hp-pm-thumb-main-btn')) {
+        var id = parseInt(e.target.parentElement.dataset.id, 10);
+        var prevMain = currentImageId;
+        if (prevMain && !galleryThumbs[prevMain]) { galleryThumbs[prevMain] = (imgEl && imgEl.src) ? imgEl.src : (original.image || ''); }
+        var idx = currentGallery.indexOf(id);
+        if (idx > -1) {
+          if (prevMain) {
+            currentGallery.splice(idx, 1, prevMain);
+          } else {
+            currentGallery.splice(idx, 1);
+          }
+          currentImageId = id;
+          imageDirty = true; galleryDirty = true;
+          renderMain(); renderGallery();
+        }
       } else if (e.target && e.target.classList.contains('hp-pm-thumb-add')) {
         if (typeof wp !== 'undefined' && wp.media) {
           var frame = wp.media({ multiple: true });
@@ -262,6 +299,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (heightEl && heightEl.value !== String(original.height || '')) c.height = heightEl.value;
     if (shipClassEl && shipClassEl.value !== String(original.shipping_class || '')) c.shipping_class = shipClassEl.value;
 
+    if (manageStockEl && manageStockEl.checked !== !!original.manage_stock) c.manage_stock = manageStockEl.checked;
+    if (stockQtyEl && stockQtyEl.value !== String(original.stock_quantity || '')) c.stock_quantity = stockQtyEl.value;
+    var backorders = Array.from(document.getElementsByName('backorders')).find(function(r){return r.checked;});
+    if (backorders && backorders.value !== (original.backorders || 'no')) c.backorders = backorders.value;
+
     // Images: include if dirty or different
     if (imageDirty || (currentImageId !== (original.image_id || null))) c.image_id = currentImageId;
     if (galleryDirty || JSON.stringify(currentGallery) !== JSON.stringify(original.gallery_ids || [])) c.gallery_ids = currentGallery;
@@ -307,6 +349,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (rm === 'width') setValue(widthEl, original.width);
     if (rm === 'height') setValue(heightEl, original.height);
     if (rm === 'shipping_class') setValue(shipClassEl, original.shipping_class || '');
+    if (rm === 'manage_stock') { if (manageStockEl) manageStockEl.checked = !!original.manage_stock; }
+    if (rm === 'stock_quantity') setValue(stockQtyEl, original.stock_quantity);
+    if (rm === 'backorders') setRadioValue('backorders', original.backorders || 'no');
     if (rm === 'image_id') { currentImageId = original.image_id || null; if (imgEl) imgEl.src = original.image || ''; imageDirty = false; }
     if (rm === 'gallery_ids') { currentGallery = (original.gallery_ids || []).slice(); renderGallery(); }
   });
@@ -328,6 +373,9 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue(costEl, original.cost); setValue(weightEl, original.weight);
         setValue(lengthEl, original.length); setValue(widthEl, original.width);
         setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
+        if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
+        setValue(stockQtyEl, original.stock_quantity);
+        setRadioValue('backorders', original.backorders || 'no');
         currentImageId = original.image_id || null;
         if (imgEl) imgEl.src = original.image || '';
         currentGallery = (original.gallery_ids || []).slice();
@@ -370,12 +418,40 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue(statusEl, original.status); setValue(visibilityEl, original.visibility);
         brandsTk.set && brandsTk.set(original.brands || []); catsTk.set && catsTk.set(original.categories || []); tagsTk.set && tagsTk.set(original.tags || []);
         setValue(costEl, original.cost); setValue(weightEl, original.weight); setValue(lengthEl, original.length); setValue(widthEl, original.width); setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
+        if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
+        setValue(stockQtyEl, original.stock_quantity);
+        setRadioValue('backorders', original.backorders || 'no');
         if (imgEl) imgEl.src = original.image || ''; currentImageId = original.image_id || null; currentGallery = (original.gallery_ids || []).slice(); galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; }); renderGallery(); imageDirty=false; galleryDirty=false;
       }
       writeStaged({}); showNotice(data.i18n.applied, 'success');
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });
+
+  // Duplicate button
+  var duplicateBtn = document.getElementById('hp-pm-duplicate-btn');
+  if (duplicateBtn) {
+    duplicateBtn.addEventListener('click', function () {
+      duplicateBtn.disabled = true;
+      fetch(data.restBase + '/duplicate', {
+        method: 'POST',
+        headers: { 'X-WP-Nonce': data.nonce }
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.url) {
+          window.location.href = res.url;
+        } else {
+          alert('Duplicate failed: ' + (res.message || 'Unknown error'));
+          duplicateBtn.disabled = false;
+        }
+      })
+      .catch(function (e) {
+        alert('Duplicate failed: ' + e.message);
+        duplicateBtn.disabled = false;
+      });
+    });
+  }
 
   // --- ERP Debug buttons (visible only when ?hp_pm_debug=1) ---
   var dbgBase = data.restBase.replace(/\/product\/\d+$/, '');

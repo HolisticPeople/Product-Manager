@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.64
+ * Version: 0.5.66
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.64';
+    const VERSION = '0.5.66';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -450,6 +450,9 @@ final class HP_Products_Manager {
                     'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
                     'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
                     'cost'       => $this->get_strict_cost($product_id),
+                    'manage_stock' => $product->get_manage_stock(),
+                    'stock_quantity' => $product->get_stock_quantity(),
+                    'backorders' => $product->get_backorders(),
                     'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
                     'image_id'   => $product->get_image_id() ?: null,
                     'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -523,6 +526,8 @@ final class HP_Products_Manager {
                         </div>
                         <div id="hp-pm-pd-gallery" class="hp-pm-gallery"></div>
                         <div class="hp-pm-pd-links">
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=hp-products-manager')); ?>" class="button hp-pm-back-btn"><?php esc_html_e('Back to products list', 'hp-products-manager'); ?></a>
+                            <button id="hp-pm-duplicate-btn" class="button"><?php esc_html_e('Duplicate', 'hp-products-manager'); ?></button>
                             <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
                             <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
                         </div>
@@ -603,6 +608,26 @@ final class HP_Products_Manager {
                             <tr>
                                 <th><?php esc_html_e('Cost', 'hp-products-manager'); ?></th>
                                 <td><input id="hp-pm-pd-cost" type="number" step="0.01" class="regular-text"></td>
+                            </tr>
+                        </table>
+
+                        <h2><?php esc_html_e('Inventory', 'hp-products-manager'); ?></h2>
+                        <table class="form-table hp-pm-form">
+                            <tr>
+                                <th><?php esc_html_e('Track stock?', 'hp-products-manager'); ?></th>
+                                <td><input id="hp-pm-pd-manage-stock" type="checkbox"></td>
+                            </tr>
+                            <tr class="hp-pm-stock-row">
+                                <th><?php esc_html_e('Quantity', 'hp-products-manager'); ?></th>
+                                <td><input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text"></td>
+                            </tr>
+                            <tr class="hp-pm-stock-row">
+                                <th><?php esc_html_e('Allow backorders?', 'hp-products-manager'); ?></th>
+                                <td>
+                                    <label><input type="radio" name="backorders" value="no"> <?php esc_html_e('Do not allow', 'hp-products-manager'); ?></label><br>
+                                    <label><input type="radio" name="backorders" value="notify"> <?php esc_html_e('Allow, but notify customer', 'hp-products-manager'); ?></label><br>
+                                    <label><input type="radio" name="backorders" value="yes"> <?php esc_html_e('Allow', 'hp-products-manager'); ?></label>
+                                </td>
                             </tr>
                         </table>
 
@@ -775,6 +800,23 @@ final class HP_Products_Manager {
                 'args' => [
                     'id' => [
                         // WP passes (value, request, param) to validators; wrap native to avoid arg mismatch
+                        'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                    ],
+                ],
+            ]
+        );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\\d+)/duplicate',
+            [
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => [$this, 'rest_duplicate_product'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('edit_products');
+                },
+                'args' => [
+                    'id' => [
                         'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
                     ],
                 ],
@@ -2300,6 +2342,9 @@ final class HP_Products_Manager {
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
             'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
             'cost'       => $this->get_strict_cost($id),
+            'manage_stock' => $product->get_manage_stock(),
+            'stock_quantity' => $product->get_stock_quantity(),
+            'backorders' => $product->get_backorders(),
             'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -2345,6 +2390,7 @@ final class HP_Products_Manager {
             'brands','categories','tags','shipping_class',
             'weight','length','width','height','cost',
             'image_id','gallery_ids',
+            'manage_stock', 'stock_quantity', 'backorders',
         ];
         $apply = array_intersect_key($changes, array_flip($allowed));
 
@@ -2366,12 +2412,22 @@ final class HP_Products_Manager {
                 $product->set_price((string) $price);
             }
         }
+
+        $pending_cost = null;
         if (isset($apply['cost'])) {
-            $cost = $this->parse_decimal($apply['cost']);
-            if ($cost !== null) {
-                $this->update_cost_meta($id, $cost);
-            }
+            $pending_cost = $this->parse_decimal($apply['cost']);
         }
+
+        if (isset($apply['manage_stock'])) {
+            $product->set_manage_stock(rest_sanitize_boolean($apply['manage_stock']));
+        }
+        if (isset($apply['stock_quantity'])) {
+            $product->set_stock_quantity($apply['stock_quantity'] === '' ? null : (int) $apply['stock_quantity']);
+        }
+        if (isset($apply['backorders'])) {
+            $product->set_backorders(sanitize_key((string) $apply['backorders']));
+        }
+
         if (isset($apply['sale_price'])) {
             $sp = $this->parse_decimal($apply['sale_price']);
             $product->set_sale_price($sp !== null ? (string) $sp : '');
@@ -2437,6 +2493,11 @@ final class HP_Products_Manager {
         }
 
         $product->save();
+
+        if ($pending_cost !== null) {
+            $this->update_cost_meta($id, $pending_cost);
+        }
+
         $this->flush_metrics_cache();
 
         // Build fresh snapshot inline to avoid any WP_REST_Request quirks
@@ -2458,6 +2519,9 @@ final class HP_Products_Manager {
             'width'      => method_exists($product, 'get_width') ? $product->get_width('edit') : '',
             'height'     => method_exists($product, 'get_height') ? $product->get_height('edit') : '',
             'cost'       => $this->get_strict_cost($id),
+            'manage_stock' => $product->get_manage_stock(),
+            'stock_quantity' => $product->get_stock_quantity(),
+            'backorders' => $product->get_backorders(),
             'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -2482,6 +2546,46 @@ final class HP_Products_Manager {
             }
             // Surface failure as REST error instead of fatal 500 without message
             return new \WP_Error('apply_failed', $e->getMessage(), ['status' => 500]);
+        }
+    }
+
+    /**
+     * REST: Duplicate a product
+     */
+    public function rest_duplicate_product(WP_REST_Request $request) {
+        try {
+            $id = (int) $request['id'];
+            $product = wc_get_product($id);
+            if (!$product instanceof WC_Product) {
+                return new \WP_Error('not_found', __('Product not found', 'hp-products-manager'), ['status' => 404]);
+            }
+
+            // Simple clone for now; handles meta and core data for simple products well
+            $duplicate = clone $product;
+            $duplicate->set_id(0);
+            $duplicate->set_name($product->get_name() . ' (copy)');
+            if ($product->get_sku()) {
+                $duplicate->set_sku($product->get_sku() . '-1');
+            }
+            $duplicate->set_status('draft');
+            $new_id = $duplicate->save();
+
+            if (!$new_id) {
+                throw new \Exception(__('Failed to save duplicated product', 'hp-products-manager'));
+            }
+
+            // Sync cost if present
+            $cost = $this->get_strict_cost($id);
+            if ($cost !== null) {
+                $this->update_cost_meta($new_id, $cost);
+            }
+
+            return rest_ensure_response([
+                'id' => $new_id,
+                'url' => admin_url('admin.php?page=hp-products-manager-product&product_id=' . $new_id),
+            ]);
+        } catch (\Throwable $e) {
+            return new \WP_Error('duplicate_failed', $e->getMessage(), ['status' => 500]);
         }
     }
     /**

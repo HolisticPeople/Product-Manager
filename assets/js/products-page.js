@@ -70,8 +70,36 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     populateBrands(config.brands || []);
+    restoreFilters();
     updateMetrics(config.metrics || {});
     loadAllOnce();
+
+    function restoreFilters() {
+        var saved = sessionStorage.getItem('hp_pm_last_filters');
+        if (!saved) return;
+        try {
+            var filters = JSON.parse(saved);
+            var search = document.getElementById('hp-pm-filter-search');
+            var brand = document.getElementById('hp-pm-filter-brand');
+            var status = document.getElementById('hp-pm-filter-status');
+            var visibility = document.getElementById('hp-pm-filter-visibility');
+            var qohGt0 = document.getElementById('hp-pm-filter-qoh-gt0');
+            var reservedGt0 = document.getElementById('hp-pm-filter-reserved-gt0');
+            var availableLt0 = document.getElementById('hp-pm-filter-available-lt0');
+
+            if (filters.search && search) search.value = filters.search;
+            if (filters.brand_tax && filters.brand_slug && brand) {
+                brand.value = filters.brand_tax + ':' + filters.brand_slug;
+            }
+            if (filters.status && status) status.value = filters.status;
+            if (filters.visibility && visibility) visibility.value = filters.visibility;
+            if (filters.qoh_gt0 && qohGt0) qohGt0.checked = true;
+            if (filters.res_gt0 && reservedGt0) reservedGt0.checked = true;
+            if (filters.avail_lt0 && availableLt0) availableLt0.checked = true;
+        } catch (e) {
+            console.warn('Failed to restore filters:', e);
+        }
+    }
 
     var filterForm = document.getElementById('hp-products-filters');
     var resetButton = document.getElementById('hp-pm-filters-reset');
@@ -146,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 table.setData(allProducts);
                 updateMetrics(payload.metrics || {});
                 wireLiveFilters();
+                applyFilters(); // Initial filter apply from restored session
                 updateCount(allProducts.length);
             })
             .catch(function (error) {
@@ -157,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function applyFilters() {
         var filters = collectFilters();
+        sessionStorage.setItem('hp_pm_last_filters', JSON.stringify(filters));
 
         // Map brand slug to name for comparison
         var slugToName = {};

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.69
+ * Version: 0.5.70
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.69';
+    const VERSION = '0.5.70';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -438,12 +438,15 @@ final class HP_Products_Manager {
                     'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
                     'status'     => $product->get_status(),
                     'visibility' => $product->get_catalog_visibility(),
-                    'brands'     => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
-                    'categories' => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all'])),
-                    'tags'       => array_map(function ($t) { return $t->slug; }, (array) wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all'])),
+                    'brands'     => $this->extract_term_slugs(wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
+                    'categories' => $this->extract_term_slugs(wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all'])),
+                    'tags'       => $this->extract_term_slugs(wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all'])),
                     'shipping_class' => (function() use ($product_id) {
                         $terms = wc_get_product_terms($product_id, 'product_shipping_class', ['fields' => 'all']);
-                        return !empty($terms) ? $terms[0]->slug : '';
+                        if (is_wp_error($terms) || empty($terms) || !is_object($terms[0])) {
+                            return '';
+                        }
+                        return $terms[0]->slug;
                     })(),
                     'weight'     => $product->get_weight('edit'),
                     'length'     => method_exists($product, 'get_length') ? $product->get_length('edit') : '',
@@ -2618,7 +2621,7 @@ final class HP_Products_Manager {
 
         $orders = wc_get_orders([
             'status' => ['processing'],
-            'limit'  => -1,
+            'limit'  => 500, // Safety limit to avoid OOM on production
             'orderby'=> 'date',
             'order'  => 'DESC',
             'return' => 'objects',

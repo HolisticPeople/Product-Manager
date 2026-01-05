@@ -102,6 +102,28 @@ document.addEventListener('DOMContentLoaded', function () {
         render(get().filter(function (s){ return s!==slug; }));
       }
     });
+// #region agent log
+fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:105',message:'Token input event',data:{prefix:prefix,value:input.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+// #endregion
+    input.addEventListener('input', function (e) {
+      var val = input.value;
+      var options = datalist.options;
+      for (var i = 0; i < options.length; i++) {
+        if (options[i].value === val) {
+          var cur = get();
+          if (cur.indexOf(val) === -1) {
+            cur.push(val);
+            render(cur);
+            input.value = '';
+// #region agent log
+fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:115',message:'Token added via input',data:{prefix:prefix,slug:val,new_list:cur},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+// #endregion
+          }
+          break;
+        }
+      }
+    });
+
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && input.value.trim() !== '') {
         e.preventDefault();
@@ -286,6 +308,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (visibilityEl && visibilityEl.value !== original.visibility) c.visibility = visibilityEl.value;
 
     var selBrands = brandsTk.get ? brandsTk.get() : [];
+// #region agent log
+fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:290',message:'Comparing brands',data:{sel:selBrands,original:original.brands},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+// #endregion
     if (JSON.stringify((selBrands.slice().sort())) !== JSON.stringify((original.brands || []).slice().sort())) c.brands = selBrands;
     var selCats = catsTk.get ? catsTk.get() : [];
     if (JSON.stringify((selCats.slice().sort())) !== JSON.stringify((original.categories || []).slice().sort())) c.categories = selCats;

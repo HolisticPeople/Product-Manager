@@ -432,7 +432,6 @@ document.addEventListener('DOMContentLoaded', function () {
   var duplicateBtn = document.getElementById('hp-pm-duplicate-btn');
   if (duplicateBtn) {
     duplicateBtn.addEventListener('click', function () {
-      if (!confirm('Duplicate this product with (copy) name and -1 SKU?')) return;
       duplicateBtn.disabled = true;
       fetch(data.restBase + '/duplicate', {
         method: 'POST',

@@ -27,6 +27,19 @@ document.addEventListener('DOMContentLoaded', function () {
   var editLink = document.getElementById('hp-pm-pd-edit');
   var viewLink = document.getElementById('hp-pm-pd-view');
 
+  // ACF / Meta Fields
+  var metaKeys = [
+    'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
+    'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
+    'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+    'how_to_use', 'cautions', 'recommended_use', 'community_tips',
+    'traditional_function', 'chinese_energy', 'ayurvedic_energy', 
+    'supplement_type', 'expert_article', 'video', 'video_transcription', 'slogan', 'aka_product_name', 'description_long',
+    'product_type_hp', 'body_systems_organs', 'site_catalog'
+  ];
+  var metaEls = {};
+  metaKeys.forEach(function(k) { metaEls[k] = document.getElementById('hp-pm-pd-' + k); });
+
   function setValue(el, v) { if (el) el.value = (v == null ? '' : v); }
   function setRadioValue(name, v) {
     var els = document.getElementsByName(name);
@@ -49,6 +62,14 @@ document.addEventListener('DOMContentLoaded', function () {
   if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
   setValue(stockQtyEl, original.stock_quantity);
   setRadioValue('backorders', original.backorders || 'no');
+
+  // Initialize ACF fields
+  metaKeys.forEach(function(k) {
+    var val = original[k];
+    if (Array.isArray(val)) val = val.join(', ');
+    setValue(metaEls[k], val);
+  });
+
   if (imgEl) imgEl.src = original.image || '';
 
   function toggleStockRows() {
@@ -344,6 +365,23 @@ document.addEventListener('DOMContentLoaded', function () {
     var backorders = Array.from(document.getElementsByName('backorders')).find(function(r){return r.checked;});
     if (backorders && backorders.value !== (original.backorders || 'no')) c.backorders = backorders.value;
 
+    // ACF Fields
+    metaKeys.forEach(function(k) {
+      var el = metaEls[k];
+      if (!el) return;
+      var val = el.value;
+      var orig = original[k];
+      if (Array.isArray(orig)) orig = orig.join(', ');
+      if (String(val || '') !== String(orig || '')) {
+        // Special case: serialized fields stored as comma-separated in UI for now
+        if (k === 'body_systems_organs' || k === 'site_catalog') {
+          c[k] = val.split(',').map(function(s){return s.trim();}).filter(Boolean);
+        } else {
+          c[k] = val;
+        }
+      }
+    });
+
     // Images: include if dirty or different
     if (imageDirty || (currentImageId !== (original.image_id || null))) c.image_id = currentImageId;
     if (galleryDirty || JSON.stringify(currentGallery) !== JSON.stringify(original.gallery_ids || [])) c.gallery_ids = currentGallery;
@@ -403,6 +441,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (rm === 'manage_stock') { if (manageStockEl) manageStockEl.checked = !!original.manage_stock; }
     if (rm === 'stock_quantity') setValue(stockQtyEl, original.stock_quantity);
     if (rm === 'backorders') setRadioValue('backorders', original.backorders || 'no');
+    if (metaKeys.indexOf(rm) !== -1) {
+      var val = original[rm];
+      if (Array.isArray(val)) val = val.join(', ');
+      setValue(metaEls[rm], val);
+    }
     if (rm === 'image_id') { currentImageId = original.image_id || null; if (imgEl) imgEl.src = original.image || ''; imageDirty = false; }
     if (rm === 'gallery_ids') { currentGallery = (original.gallery_ids || []).slice(); renderGallery(); }
   });
@@ -427,6 +470,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
         setValue(stockQtyEl, original.stock_quantity);
         setRadioValue('backorders', original.backorders || 'no');
+        metaKeys.forEach(function(k) {
+          var val = original[k];
+          if (Array.isArray(val)) val = val.join(', ');
+          setValue(metaEls[k], val);
+        });
         currentImageId = original.image_id || null;
         if (imgEl) imgEl.src = original.image || '';
         currentGallery = (original.gallery_ids || []).slice();

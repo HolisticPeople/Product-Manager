@@ -1,13 +1,21 @@
 .hp-pm-card .hp-pm-staging-actions {
-    margin-top: 16px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dcdcde;
     display: flex;
     gap: 8px;
     align-items: center;
 }
 
 .hp-pm-staged {
-    margin-top: 16px;
+    margin-top: 20px;
+    background: #fdfdfd;
+    padding: 12px;
+    border: 1px dashed #c3c4c7;
+    border-radius: 4px;
 }
+
+.hp-pm-staged-table th { background: #f0f0f1; }
 
 .hp-pm-form select[multiple] {
     min-height: 90px;
@@ -16,19 +24,21 @@
 .hp-pm-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px 24px;
+    gap: 20px 32px;
     margin-top: 12px;
 }
 
 .hp-pm-pd-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
+    justify-content: flex-start;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #dcdcde;
 }
 
 .hp-pm-main-img {
-    max-width: 120px;
+    max-width: 150px;
     height: auto;
     border: 2px solid #2271b1;
     border-radius: 4px;
@@ -38,14 +48,41 @@
 .hp-pm-gallery {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-left: 16px;
+    gap: 8px;
+    margin-left: 20px;
+    flex: 1;
+}
+
+.hp-pm-pd-links {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.hp-pm-nav-tabs {
+    margin-bottom: 0 !important;
+}
+
+.hp-pm-tab-pane {
+    display: none;
+    padding: 10px 0;
+}
+
+.hp-pm-tab-pane.active {
+    display: block;
+}
+
+.hp-pm-form textarea.large-text {
+    min-height: 100px;
+    font-family: monospace;
+    font-size: 13px;
 }
 
 .hp-pm-thumb {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 80px;
+    height: 80px;
     border: 1px solid #dcdcde;
     border-radius: 3px;
     overflow: hidden;

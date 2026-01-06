@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.72
+ * Version: 0.5.73
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.72';
+    const VERSION = '0.5.73';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -372,6 +372,49 @@ final class HP_Products_Manager {
             </section>
         </div>
         <?php
+    }
+
+    /**
+     * Get ACF field choices dynamically
+     */
+    private function get_acf_choices($field_name) {
+        if (!function_exists('acf_get_field')) return null;
+        $field = acf_get_field($field_name);
+        return (isset($field['choices']) && is_array($field['choices'])) ? $field['choices'] : null;
+    }
+
+    /**
+     * Helper to render an ACF field based on its type
+     */
+    private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false) {
+        if ($choices === null) {
+            $choices = $this->get_acf_choices($field_name);
+        }
+        
+        $id = 'hp-pm-pd-' . $field_name;
+        $html = '<tr><th>' . esc_html($label) . '</th><td>';
+        
+        if ($type === 'textarea') {
+            $class = in_array($field_name, ['description_long', 'video_transcription', 'ingredients', 'how_to_use', 'cautions', 'recommended_use', 'community_tips', 'traditional_function', 'expert_article']) ? 'large-text hp-pm-full-width auto-expand' : 'large-text';
+            $html .= '<textarea id="' . esc_attr($id) . '" rows="3" class="' . esc_attr($class) . '"></textarea>';
+        } elseif ($type === 'select' || $choices !== null) {
+            $html .= '<select id="' . esc_attr($id) . '"' . ($multiple ? ' multiple style="height:120px;"' : '') . ' class="regular-text">';
+            if (!$multiple) $html .= '<option value="">' . esc_html__('— Select —', 'hp-products-manager') . '</option>';
+            if (is_array($choices)) {
+                foreach ($choices as $val => $text) {
+                    $html .= '<option value="' . esc_attr($val) . '">' . esc_html($text) . '</option>';
+                }
+            }
+            $html .= '</select>';
+            if ($multiple) $html .= '<p class="description">' . esc_html__('Hold Ctrl/Cmd to select multiple', 'hp-products-manager') . '</p>';
+        } elseif ($type === 'number') {
+            $html .= '<input id="' . esc_attr($id) . '" type="number" step="any" class="regular-text">';
+        } else {
+            $html .= '<input id="' . esc_attr($id) . '" type="text" class="regular-text">';
+        }
+        
+        $html .= '</td></tr>';
+        return $html;
     }
 
     /**
@@ -725,203 +768,126 @@ final class HP_Products_Manager {
                         </div>
 
                         <!-- Tab: Dosing & Servings -->
-                        <div id="tab-dosing" class="hp-pm-tab-pane <?php echo $active_tab === 'dosing' ? 'active' : ''; ?>">
+                        <div id="tab-dosing" class="hp-pm-tab-pane <?php echo $active_tab_id === 'dosing' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
                                 <section>
                                     <h2><?php esc_html_e('Dosing Information', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Serving Size', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-serving_size" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Serving Form Unit', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-serving_form_unit" type="text" class="regular-text" placeholder="e.g. Capsule"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Servings Per Container', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-servings_per_container" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Supplement Form', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-supplement_form" type="text" class="regular-text" placeholder="e.g. Capsules"></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('serving_size', __('Serving Size', 'hp-products-manager'), 'number');
+                                            echo $this->render_acf_field('serving_form_unit', __('Serving Form Unit', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('servings_per_container', __('Servings Per Container', 'hp-products-manager'), 'number');
+                                            echo $this->render_acf_field('supplement_form', __('Supplement Form', 'hp-products-manager'), 'select');
+                                        ?>
                                     </table>
                                 </section>
                                 <section>
                                     <h2><?php esc_html_e('Bottle Size', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Bottle Size (EU)', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-bottle_size_eu" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Units (EU)', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-bottle_size_units_eu" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Bottle Size (USA)', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-bottle_size_usa" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Units (USA)', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-bottle_size_units_usa" type="text" class="regular-text"></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('bottle_size_eu', __('Bottle Size (EU)', 'hp-products-manager'), 'number');
+                                            echo $this->render_acf_field('bottle_size_units_eu', __('Units (EU)', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('bottle_size_usa', __('Bottle Size (USA)', 'hp-products-manager'), 'number');
+                                            echo $this->render_acf_field('bottle_size_units_usa', __('Units (USA)', 'hp-products-manager'), 'select');
+                                        ?>
                                     </table>
                                 </section>
                             </div>
                         </div>
 
                         <!-- Tab: Ingredients & Mfg -->
-                        <div id="tab-ingredients" class="hp-pm-tab-pane <?php echo $active_tab === 'ingredients' ? 'active' : ''; ?>">
+                        <div id="tab-ingredients" class="hp-pm-tab-pane <?php echo $active_tab_id === 'ingredients' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
                                 <section>
                                     <h2><?php esc_html_e('Ingredients', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Active Ingredients', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-ingredients" rows="5" class="large-text"></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Other Ingredients', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-ingredients_other" rows="3" class="large-text"></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Potency Value', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-potency" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Potency Units', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-potency_units" type="text" class="regular-text"></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select');
+                                        ?>
                                     </table>
                                 </section>
                                 <section>
                                     <h2><?php esc_html_e('Manufacturer Details', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Manufacturer SKU', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-sku_mfr" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Manufacturer Name', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-manufacturer_acf" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Country of Manufacture', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-country_of_manufacturer" type="text" class="regular-text"></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('sku_mfr', __('Manufacturer SKU', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('manufacturer_acf', __('Manufacturer Name', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('country_of_manufacturer', __('Country of Manufacture', 'hp-products-manager'), 'select');
+                                        ?>
                                     </table>
                                 </section>
                             </div>
                         </div>
 
                         <!-- Tab: Instructions & Safety -->
-                        <div id="tab-instructions" class="hp-pm-tab-pane <?php echo $active_tab === 'instructions' ? 'active' : ''; ?>">
+                        <div id="tab-instructions" class="hp-pm-tab-pane <?php echo $active_tab_id === 'instructions' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
-                                <section>
+                                <section class="full-width">
                                     <h2><?php esc_html_e('Usage Instructions', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('How to Use', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-how_to_use" rows="5" class="large-text"></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Recommended Use', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-recommended_use" rows="3" class="large-text"></textarea></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('how_to_use', __('How to Use', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('recommended_use', __('Recommended Use', 'hp-products-manager'), 'textarea');
+                                        ?>
                                     </table>
                                 </section>
-                                <section>
+                                <section class="full-width">
                                     <h2><?php esc_html_e('Safety & Tips', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Cautions', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-cautions" rows="5" class="large-text"></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Community Tips', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-community_tips" rows="3" class="large-text"></textarea></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('cautions', __('Cautions', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('community_tips', __('Community Tips', 'hp-products-manager'), 'textarea');
+                                        ?>
                                     </table>
                                 </section>
                             </div>
                         </div>
 
                         <!-- Tab: Expert Info -->
-                        <div id="tab-expert" class="hp-pm-tab-pane <?php echo $active_tab === 'expert' ? 'active' : ''; ?>">
+                        <div id="tab-expert" class="hp-pm-tab-pane <?php echo $active_tab_id === 'expert' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
                                 <section>
                                     <h2><?php esc_html_e('Expert Data', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Body Systems & Organs', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-body_systems_organs" type="text" class="regular-text" placeholder="Serialized array"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Traditional Function', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-traditional_function" rows="3" class="large-text"></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Chinese Energy', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-chinese_energy" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Ayurvedic Energy', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-ayurvedic_energy" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Supplement Type', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-supplement_type" type="text" class="regular-text"></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('body_systems_organs', __('Body Systems & Organs', 'hp-products-manager'), 'select', null, true);
+                                            echo $this->render_acf_field('traditional_function', __('Traditional Function', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('chinese_energy', __('Chinese Energy', 'hp-products-manager'), 'select', null, true);
+                                            echo $this->render_acf_field('ayurvedic_energy', __('Ayurvedic Energy', 'hp-products-manager'), 'select', null, true);
+                                            echo $this->render_acf_field('supplement_type', __('Supplement Type', 'hp-products-manager'), 'select', null, true);
+                                        ?>
                                     </table>
                                 </section>
-                                <section>
+                                <section class="full-width">
                                     <h2><?php esc_html_e('Marketing & Content', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Slogan', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-slogan" type="text" class="large-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Alternative Name', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-aka_product_name" type="text" class="large-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Long Description', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-description_long" rows="5" class="large-text"></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Expert Article URL', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-expert_article" type="url" class="large-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Video ID/URL', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-video" type="text" class="large-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Video Transcription', 'hp-products-manager'); ?></th>
-                                            <td><textarea id="hp-pm-pd-video_transcription" rows="3" class="large-text"></textarea></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('slogan', __('Slogan', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('aka_product_name', __('Alternative Name', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('description_long', __('Long Description', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('expert_article', __('Expert Article URL', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('video', __('Video ID/URL', 'hp-products-manager'), 'text');
+                                            echo $this->render_acf_field('video_transcription', __('Video Transcription', 'hp-products-manager'), 'textarea');
+                                        ?>
                                     </table>
                                 </section>
                             </div>
                         </div>
 
                         <!-- Tab: Admin -->
-                        <div id="tab-admin" class="hp-pm-tab-pane <?php echo $active_tab === 'admin' ? 'active' : ''; ?>">
+                        <!-- Tab: Admin -->
+                        <div id="tab-admin" class="hp-pm-tab-pane <?php echo $active_tab_id === 'admin' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
                                 <section>
                                     <h2><?php esc_html_e('Internal Settings', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
-                                        <tr>
-                                            <th><?php esc_html_e('Product Type HP', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-product_type_hp" type="text" class="regular-text"></td>
-                                        </tr>
-                                        <tr>
-                                            <th><?php esc_html_e('Site Catalog', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-site_catalog" type="text" class="regular-text" placeholder="Serialized array"></td>
-                                        </tr>
+                                        <?php 
+                                            echo $this->render_acf_field('product_type_hp', __('Product Type HP', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('site_catalog', __('Site Catalog', 'hp-products-manager'), 'select', null, true);
+                                        ?>
                                     </table>
                                 </section>
                             </div>

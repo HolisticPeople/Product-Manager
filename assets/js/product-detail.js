@@ -485,9 +485,9 @@ document.addEventListener('DOMContentLoaded', function () {
       function deepNormalize(s) {
         if (!s) return '';
         return String(s)
-          .replace(/\r\n/g, '\n')      // Normalize newlines
-          .replace(/\n+/g, '\n')       // Collapse multiple newlines
-          .replace(/\s+/g, ' ')        // Collapse all whitespace to single space
+          .replace(/[\r\n\t]+/g, ' ')  // Turn all newlines/tabs into spaces
+          .replace(/>\s+</g, '><')    // Remove whitespace between tags
+          .replace(/\s+/g, ' ')       // Collapse multiple spaces to one
           .trim();
       }
 

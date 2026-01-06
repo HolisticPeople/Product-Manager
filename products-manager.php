@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.82
+ * Version: 0.5.83
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.82';
+    const VERSION = '0.5.83';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -406,7 +406,15 @@ final class HP_Products_Manager {
                 $vals = is_array($current_value) ? $current_value : explode(',', (string)$current_value);
                 foreach ($vals as $v) {
                     $v = trim((string)$v);
-                    if ($v !== '' && !isset($final_choices[$v])) {
+                    if ($v === '') continue;
+                    $found = false;
+                    foreach ($final_choices as $ckey => $cval) {
+                        if ((string)$ckey === $v || (string)$cval === $v) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                    if (!$found) {
                         $final_choices[$v] = $v;
                     }
                 }
@@ -827,7 +835,7 @@ final class HP_Products_Manager {
                                     <table class="form-table hp-pm-form">
                                         <?php 
                                             echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients', true));
-                                            echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'ingredients_other', true));
+                                            echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients_other', true));
                                             echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'potency', true));
                                             echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'potency_units', true));
                                         ?>
@@ -892,7 +900,7 @@ final class HP_Products_Manager {
                                             echo $this->render_acf_field('slogan', __('Slogan', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'slogan', true));
                                             echo $this->render_acf_field('aka_product_name', __('Alternative Name', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'aka_product_name', true));
                                             echo $this->render_acf_field('description_long', __('Long Description', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'description_long', true));
-                                            echo $this->render_acf_field('expert_article', __('Expert Article URL', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'expert_article', true));
+                                            echo $this->render_acf_field('expert_article', __('Expert Article URL', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'expert_article', true));
                                             echo $this->render_acf_field('video', __('Video ID/URL', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'video', true));
                                             echo $this->render_acf_field('video_transcription', __('Video Transcription', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'video_transcription', true));
                                         ?>

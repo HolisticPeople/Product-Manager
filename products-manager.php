@@ -387,6 +387,9 @@ final class HP_Products_Manager {
      * Helper to render an ACF field based on its type
      */
     private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false) {
+        // #region agent log
+        file_put_contents('c:\DEV\.cursor\debug.log', json_encode(['hypothesisId' => 'C', 'location' => 'products-manager.php:render_acf_field', 'message' => 'Rendering ACF field', 'data' => ['field' => $field_name, 'type' => $type], 'timestamp' => microtime(true)*1000]) . "\n", FILE_APPEND);
+        // #endregion
         if ($choices === null) {
             $choices = $this->get_acf_choices($field_name);
         }
@@ -421,6 +424,9 @@ final class HP_Products_Manager {
      * Render the product detail mockup page with tabs and staging placeholder.
      */
     public function render_product_detail_page(): void {
+        // #region agent log
+        file_put_contents('c:\DEV\.cursor\debug.log', json_encode(['hypothesisId' => 'A', 'location' => 'products-manager.php:render_product_detail_page', 'message' => 'Start rendering detail page', 'timestamp' => microtime(true)*1000]) . "\n", FILE_APPEND);
+        // #endregion
         $product_id = isset($_GET['product_id']) ? (int) $_GET['product_id'] : 0;
         $product = $product_id ? wc_get_product($product_id) : null;
 

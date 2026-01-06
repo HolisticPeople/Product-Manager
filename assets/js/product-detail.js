@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:1',message:'JS Init Start',timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   if (typeof HPProductDetailData === 'undefined') return;
   var data = HPProductDetailData;
   var original = JSON.parse(JSON.stringify(data.product));
@@ -116,6 +119,9 @@ document.addEventListener('DOMContentLoaded', function () {
   setRadioValue('backorders', original.backorders || 'no');
 
   // Initialize ACF fields
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:72',message:'Initializing ACF fields',metaKeysCount:metaKeys.length,timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   metaKeys.forEach(function(k) {
     var val = original[k];
     var el = metaEls[k];
@@ -129,6 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Initial auto-expand for textareas
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:130',message:'Auto-expanding textareas',timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
   document.querySelectorAll('textarea.auto-expand').forEach(function(el) {
     autoExpand(el);
   });

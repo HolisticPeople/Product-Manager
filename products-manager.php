@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.71
+ * Version: 0.5.72
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.71';
+    const VERSION = '0.5.72';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -547,30 +547,8 @@ final class HP_Products_Manager {
             <h1><?php echo esc_html($title); ?></h1>
             <p class="hp-pm-version"><?php printf(esc_html__('Version %s', 'hp-products-manager'), esc_html(self::VERSION)); ?></p>
 
-            <h2 class="nav-tab-wrapper hp-pm-nav-tabs">
-                <?php
-                    $tabs = [
-                        'core'         => __('Core & Inventory', 'hp-products-manager'),
-                        'pricing'      => __('Pricing & Shipping', 'hp-products-manager'),
-                        'dosing'       => __('Dosing & Servings', 'hp-products-manager'),
-                        'ingredients'  => __('Ingredients & Mfg', 'hp-products-manager'),
-                        'instructions' => __('Instructions & Safety', 'hp-products-manager'),
-                        'expert'       => __('Expert Info', 'hp-products-manager'),
-                        'admin'        => __('Admin', 'hp-products-manager'),
-                        'erp'          => __('Sales & ERP', 'hp-products-manager'),
-                    ];
-                    $active_tab = isset($_GET['tab']) && isset($tabs[$_GET['tab']]) ? $_GET['tab'] : 'core';
-                    foreach ($tabs as $tab_id => $tab_label) {
-                        $args = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => $tab_id];
-                        if (isset($_GET['hp_pm_debug'])) { $args['hp_pm_debug'] = '1'; }
-                        $url = add_query_arg($args, admin_url('admin.php'));
-                        echo '<a href="' . esc_url($url) . '" class="nav-tab ' . ($active_tab === $tab_id ? 'nav-tab-active' : '') . '">' . esc_html($tab_label) . '</a>';
-                    }
-                ?>
-            </h2>
-
             <div class="hp-pm-pd-container">
-                <div class="card hp-pm-card" style="max-width: 1200px;">
+                <div class="card hp-pm-header-card" style="max-width: 1200px; margin-bottom: 20px;">
                     <div class="hp-pm-pd-header">
                         <div class="hp-pm-pd-image">
                             <img id="hp-pm-pd-image" src="" alt="" class="hp-pm-main-img">
@@ -583,10 +561,32 @@ final class HP_Products_Manager {
                             <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
                         </div>
                     </div>
+                </div>
 
+                <h2 class="nav-tab-wrapper hp-pm-nav-tabs">
+                    <?php
+                        $tabs = [
+                            'core'         => __('Core & Inventory', 'hp-products-manager'),
+                            'pricing'      => __('Pricing & Shipping', 'hp-products-manager'),
+                            'dosing'       => __('Dosing & Servings', 'hp-products-manager'),
+                            'ingredients'  => __('Ingredients & Mfg', 'hp-products-manager'),
+                            'instructions' => __('Instructions & Safety', 'hp-products-manager'),
+                            'expert'       => __('Expert Info', 'hp-products-manager'),
+                            'admin'        => __('Admin', 'hp-products-manager'),
+                            'erp'          => __('Sales & ERP', 'hp-products-manager'),
+                        ];
+                        // Default to 'core' unless 'tab' is explicitly in URL (for legacy support or direct links)
+                        $active_tab_id = isset($_GET['tab']) && isset($tabs[$_GET['tab']]) ? $_GET['tab'] : 'core';
+                        foreach ($tabs as $tab_id => $tab_label) {
+                            echo '<a href="#tab-' . esc_attr($tab_id) . '" class="nav-tab ' . ($active_tab_id === $tab_id ? 'nav-tab-active' : '') . '" data-tab="' . esc_attr($tab_id) . '">' . esc_html($tab_label) . '</a>';
+                        }
+                    ?>
+                </h2>
+
+                <div class="card hp-pm-card hp-pm-tabs-card" style="max-width: 1200px; border-top: none;">
                     <div class="hp-pm-tab-content">
                         <!-- Tab: Core & Inventory -->
-                        <div id="tab-core" class="hp-pm-tab-pane <?php echo $active_tab === 'core' ? 'active' : ''; ?>">
+                        <div id="tab-core" class="hp-pm-tab-pane <?php echo $active_tab_id === 'core' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
                                 <section>
                                     <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
@@ -928,7 +928,7 @@ final class HP_Products_Manager {
                         </div>
 
                         <!-- Tab: ERP -->
-                        <div id="tab-erp" class="hp-pm-tab-pane <?php echo $active_tab === 'erp' ? 'active' : ''; ?>">
+                        <div id="tab-erp" class="hp-pm-tab-pane <?php echo $active_tab_id === 'erp' ? 'active' : ''; ?>">
                             <div style="margin-top:20px;">
                                 <h2><?php esc_html_e('Sales History', 'hp-products-manager'); ?></h2>
                                 <div style="margin:12px 0 4px 0;">

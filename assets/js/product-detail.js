@@ -84,6 +84,40 @@ document.addEventListener('DOMContentLoaded', function () {
   if (editLink) editLink.href = original.editLink || '#';
   if (viewLink) viewLink.href = original.viewLink || '#';
 
+  // --- Client-side Tab Switching ---
+  var tabs = document.querySelectorAll('.hp-pm-nav-tabs .nav-tab');
+  var panes = document.querySelectorAll('.hp-pm-tab-pane');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function(e) {
+      e.preventDefault();
+      var targetId = tab.getAttribute('data-tab');
+      if (!targetId) return;
+
+      // Update tabs UI
+      tabs.forEach(function(t) { t.classList.remove('nav-tab-active'); });
+      tab.classList.add('nav-tab-active');
+
+      // Update panes UI
+      panes.forEach(function(p) { p.classList.remove('active'); });
+      var targetPane = document.getElementById('tab-' + targetId);
+      if (targetPane) targetPane.classList.add('active');
+
+      // Update URL hash without reload
+      if (history.pushState) {
+        var newUrl = window.location.href.split('#')[0].split('&tab=')[0] + '&tab=' + targetId;
+        history.pushState({ tab: targetId }, '', newUrl);
+      }
+    });
+  });
+
+  // Handle back/forward buttons
+  window.addEventListener('popstate', function(e) {
+    if (e.state && e.state.tab) {
+      var t = document.querySelector('.nav-tab[data-tab="' + e.state.tab + '"]');
+      if (t) t.click();
+    }
+  });
+
   if (shipClassEl && Array.isArray(data.shippingClasses)) {
     data.shippingClasses.forEach(function (t) {
       var opt = document.createElement('option');

@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // Compare arrays for multiselect
       if (Array.isArray(val)) {
         var a = (val || []).slice().sort();
-        var b = (orig || []).slice().sort();
+        var b = (Array.isArray(orig) ? orig : (orig ? [orig] : [])).slice().sort();
         if (JSON.stringify(a) !== JSON.stringify(b)) {
           c[k] = val;
         }
@@ -525,7 +525,14 @@ document.addEventListener('DOMContentLoaded', function () {
   renderStaged();
 
   if (stageBtn) stageBtn.addEventListener('click', function () {
-    var changes = gatherChanges(); if (Object.keys(changes).length === 0) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:stageBtn_click',message:'Stage button clicked',timestamp:Date.now(),hypothesisId:'fix_gather_changes_error'})}).catch(()=>{});
+    // #endregion
+    var changes = gatherChanges();
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:stageBtn_click',message:'Gathered changes',data:changes,timestamp:Date.now(),hypothesisId:'fix_gather_changes_error'})}).catch(()=>{});
+    // #endregion
+    if (Object.keys(changes).length === 0) return;
     var staged = readStaged(); Object.assign(staged, changes); writeStaged(staged);
   });
 

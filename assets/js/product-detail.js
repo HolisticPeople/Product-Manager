@@ -482,9 +482,18 @@ document.addEventListener('DOMContentLoaded', function () {
       var normVal = val;
       var normOrig = orig;
 
-      if (el.tagName === 'TEXTAREA') {
-        normVal = (val || '').replace(/\r\n/g, '\n').trim();
-        normOrig = (orig || '').replace(/\r\n/g, '\n').trim();
+      function deepNormalize(s) {
+        if (!s) return '';
+        return String(s)
+          .replace(/\r\n/g, '\n')      // Normalize newlines
+          .replace(/\n+/g, '\n')       // Collapse multiple newlines
+          .replace(/\s+/g, ' ')        // Collapse all whitespace to single space
+          .trim();
+      }
+
+      if (el.tagName === 'TEXTAREA' || typeof val === 'string') {
+        normVal = deepNormalize(val);
+        normOrig = deepNormalize(orig);
       }
       
       // Compare arrays for multiselect
@@ -493,17 +502,11 @@ document.addEventListener('DOMContentLoaded', function () {
         var b = (Array.isArray(orig) ? orig : (typeof orig === 'string' ? orig.split(',').map(function(s){return s.trim();}).filter(Boolean) : (orig ? [orig] : []))).slice().sort();
         if (JSON.stringify(a) !== JSON.stringify(b)) {
           c[k] = val;
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:gatherChanges_acf_array',message:'ACF Array Change Detected',data:{key:k, val:a, orig:b},timestamp:Date.now(),hypothesisId:'redundant_changes'})}).catch(()=>{});
-          // #endregion
         }
       } else {
         // Simple comparison for strings/numbers
-        if (String(normVal || '') !== String(normOrig || '')) {
+        if (normVal !== normOrig) {
           c[k] = val;
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:gatherChanges_acf_simple',message:'ACF Simple Change Detected',data:{key:k, val:normVal, orig:normOrig},timestamp:Date.now(),hypothesisId:'redundant_changes'})}).catch(()=>{});
-          // #endregion
         }
       }
     });
@@ -541,13 +544,7 @@ document.addEventListener('DOMContentLoaded', function () {
   renderStaged();
 
   if (stageBtn) stageBtn.addEventListener('click', function () {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:stageBtn_click',message:'Stage button clicked',timestamp:Date.now(),hypothesisId:'fix_gather_changes_error'})}).catch(()=>{});
-    // #endregion
     var changes = gatherChanges();
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:stageBtn_click',message:'Gathered changes',data:changes,timestamp:Date.now(),hypothesisId:'fix_gather_changes_error'})}).catch(()=>{});
-    // #endregion
     if (Object.keys(changes).length === 0) return;
     var staged = readStaged(); Object.assign(staged, changes); writeStaged(staged);
   });

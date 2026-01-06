@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.81
+ * Version: 0.5.82
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.81';
+    const VERSION = '0.5.82';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -386,7 +386,7 @@ final class HP_Products_Manager {
     /**
      * Helper to render an ACF field based on its type
      */
-    private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false) {
+    private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false, $current_value = null) {
         if ($choices === null) {
             $choices = $this->get_acf_choices($field_name);
         }
@@ -400,10 +400,20 @@ final class HP_Products_Manager {
         } elseif ($type === 'select' || $choices !== null) {
             $html .= '<select id="' . esc_attr($id) . '"' . ($multiple ? ' multiple style="height:120px;"' : '') . ' class="regular-text">';
             if (!$multiple) $html .= '<option value="">' . esc_html__('— Select —', 'hp-products-manager') . '</option>';
-            if (is_array($choices)) {
-                foreach ($choices as $val => $text) {
-                    $html .= '<option value="' . esc_attr($val) . '">' . esc_html($text) . '</option>';
+            
+            $final_choices = is_array($choices) ? $choices : [];
+            if ($current_value) {
+                $vals = is_array($current_value) ? $current_value : explode(',', (string)$current_value);
+                foreach ($vals as $v) {
+                    $v = trim((string)$v);
+                    if ($v !== '' && !isset($final_choices[$v])) {
+                        $final_choices[$v] = $v;
+                    }
                 }
+            }
+
+            foreach ($final_choices as $val => $text) {
+                $html .= '<option value="' . esc_attr($val) . '">' . esc_html($text) . '</option>';
             }
             $html .= '</select>';
             if ($multiple) $html .= '<p class="description">' . esc_html__('Hold Ctrl/Cmd to select multiple', 'hp-products-manager') . '</p>';
@@ -788,10 +798,10 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Dosing Information', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('serving_size', __('Serving Size', 'hp-products-manager'), 'number');
-                                            echo $this->render_acf_field('serving_form_unit', __('Serving Form Unit', 'hp-products-manager'), 'select');
-                                            echo $this->render_acf_field('servings_per_container', __('Servings Per Container', 'hp-products-manager'), 'number');
-                                            echo $this->render_acf_field('supplement_form', __('Supplement Form', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('serving_size', __('Serving Size', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'serving_size', true));
+                                            echo $this->render_acf_field('serving_form_unit', __('Serving Form Unit', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'serving_form_unit', true));
+                                            echo $this->render_acf_field('servings_per_container', __('Servings Per Container', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'servings_per_container', true));
+                                            echo $this->render_acf_field('supplement_form', __('Supplement Form', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'supplement_form', true));
                                         ?>
                                     </table>
                                 </section>
@@ -799,10 +809,10 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Bottle Size', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('bottle_size_eu', __('Bottle Size (EU)', 'hp-products-manager'), 'number');
-                                            echo $this->render_acf_field('bottle_size_units_eu', __('Units (EU)', 'hp-products-manager'), 'select');
-                                            echo $this->render_acf_field('bottle_size_usa', __('Bottle Size (USA)', 'hp-products-manager'), 'number');
-                                            echo $this->render_acf_field('bottle_size_units_usa', __('Units (USA)', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('bottle_size_eu', __('Bottle Size (EU)', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'bottle_size_eu', true));
+                                            echo $this->render_acf_field('bottle_size_units_eu', __('Units (EU)', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'bottle_size_units_eu', true));
+                                            echo $this->render_acf_field('bottle_size_usa', __('Bottle Size (USA)', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'bottle_size_usa', true));
+                                            echo $this->render_acf_field('bottle_size_units_usa', __('Units (USA)', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'bottle_size_units_usa', true));
                                         ?>
                                     </table>
                                 </section>
@@ -816,10 +826,10 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Ingredients', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea');
-                                            echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients', true));
+                                            echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'ingredients_other', true));
+                                            echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'potency', true));
+                                            echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'potency_units', true));
                                         ?>
                                     </table>
                                 </section>
@@ -827,9 +837,9 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Manufacturer Details', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('sku_mfr', __('Manufacturer SKU', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('manufacturer_acf', __('Manufacturer Name', 'hp-products-manager'), 'select');
-                                            echo $this->render_acf_field('country_of_manufacturer', __('Country of Manufacture', 'hp-products-manager'), 'select');
+                                            echo $this->render_acf_field('sku_mfr', __('Manufacturer SKU', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'sku_mfr', true));
+                                            echo $this->render_acf_field('manufacturer_acf', __('Manufacturer Name', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'manufacturer_acf', true));
+                                            echo $this->render_acf_field('country_of_manufacturer', __('Country of Manufacture', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'country_of_manufacturer', true));
                                         ?>
                                     </table>
                                 </section>
@@ -843,8 +853,8 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Usage Instructions', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('how_to_use', __('How to Use', 'hp-products-manager'), 'textarea');
-                                            echo $this->render_acf_field('recommended_use', __('Recommended Use', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('how_to_use', __('How to Use', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'how_to_use', true));
+                                            echo $this->render_acf_field('recommended_use', __('Recommended Use', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'recommended_use', true));
                                         ?>
                                     </table>
                                 </section>
@@ -852,8 +862,8 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Safety & Tips', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('cautions', __('Cautions', 'hp-products-manager'), 'textarea');
-                                            echo $this->render_acf_field('community_tips', __('Community Tips', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('cautions', __('Cautions', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'cautions', true));
+                                            echo $this->render_acf_field('community_tips', __('Community Tips', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'community_tips', true));
                                         ?>
                                     </table>
                                 </section>
@@ -867,11 +877,11 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Expert Data', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('body_systems_organs', __('Body Systems & Organs', 'hp-products-manager'), 'select', null, true);
-                                            echo $this->render_acf_field('traditional_function', __('Traditional Function', 'hp-products-manager'), 'textarea');
-                                            echo $this->render_acf_field('chinese_energy', __('Chinese Energy', 'hp-products-manager'), 'select', null, true);
-                                            echo $this->render_acf_field('ayurvedic_energy', __('Ayurvedic Energy', 'hp-products-manager'), 'select', null, true);
-                                            echo $this->render_acf_field('supplement_type', __('Supplement Type', 'hp-products-manager'), 'select', null, true);
+                                            echo $this->render_acf_field('body_systems_organs', __('Body Systems & Organs', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'body_systems_organs', true));
+                                            echo $this->render_acf_field('traditional_function', __('Traditional Function', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'traditional_function', true));
+                                            echo $this->render_acf_field('chinese_energy', __('Chinese Energy', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'chinese_energy', true));
+                                            echo $this->render_acf_field('ayurvedic_energy', __('Ayurvedic Energy', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'ayurvedic_energy', true));
+                                            echo $this->render_acf_field('supplement_type', __('Supplement Type', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'supplement_type', true));
                                         ?>
                                     </table>
                                 </section>
@@ -879,12 +889,12 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Marketing & Content', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('slogan', __('Slogan', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('aka_product_name', __('Alternative Name', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('description_long', __('Long Description', 'hp-products-manager'), 'textarea');
-                                            echo $this->render_acf_field('expert_article', __('Expert Article URL', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('video', __('Video ID/URL', 'hp-products-manager'), 'text');
-                                            echo $this->render_acf_field('video_transcription', __('Video Transcription', 'hp-products-manager'), 'textarea');
+                                            echo $this->render_acf_field('slogan', __('Slogan', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'slogan', true));
+                                            echo $this->render_acf_field('aka_product_name', __('Alternative Name', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'aka_product_name', true));
+                                            echo $this->render_acf_field('description_long', __('Long Description', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'description_long', true));
+                                            echo $this->render_acf_field('expert_article', __('Expert Article URL', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'expert_article', true));
+                                            echo $this->render_acf_field('video', __('Video ID/URL', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'video', true));
+                                            echo $this->render_acf_field('video_transcription', __('Video Transcription', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'video_transcription', true));
                                         ?>
                                     </table>
                                 </section>
@@ -899,8 +909,8 @@ final class HP_Products_Manager {
                                     <h2><?php esc_html_e('Internal Settings', 'hp-products-manager'); ?></h2>
                                     <table class="form-table hp-pm-form">
                                         <?php 
-                                            echo $this->render_acf_field('product_type_hp', __('Product Type HP', 'hp-products-manager'), 'select');
-                                            echo $this->render_acf_field('site_catalog', __('Site Catalog', 'hp-products-manager'), 'select', null, true);
+                                            echo $this->render_acf_field('product_type_hp', __('Product Type HP', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'product_type_hp', true));
+                                            echo $this->render_acf_field('site_catalog', __('Site Catalog', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'site_catalog', true));
                                         ?>
                                     </table>
                                 </section>

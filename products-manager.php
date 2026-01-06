@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.76
+ * Version: 0.5.77
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.76';
+    const VERSION = '0.5.77';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -596,11 +596,25 @@ final class HP_Products_Manager {
                         </div>
                         <div id="hp-pm-pd-gallery" class="hp-pm-gallery"></div>
                         <div class="hp-pm-pd-links">
-                            <a href="<?php echo esc_url(admin_url('admin.php?page=hp-products-manager')); ?>" class="button hp-pm-back-btn"><?php esc_html_e('Back to products list', 'hp-products-manager'); ?></a>
-                            <button id="hp-pm-duplicate-btn" class="button"><?php esc_html_e('Duplicate', 'hp-products-manager'); ?></button>
-                            <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
-                            <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
+                            <div class="hp-pm-pd-links-top" style="display:flex; gap:8px; justify-content: flex-end; margin-bottom: 12px;">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=hp-products-manager')); ?>" class="button hp-pm-back-btn"><?php esc_html_e('Back to products list', 'hp-products-manager'); ?></a>
+                                <button id="hp-pm-duplicate-btn" class="button"><?php esc_html_e('Duplicate', 'hp-products-manager'); ?></button>
+                                <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
+                                <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
+                            </div>
+                            <div class="hp-pm-staging-actions" style="display:flex; gap:8px; justify-content: flex-end;">
+                                <button id="hp-pm-stage-btn" class="button button-primary"><?php esc_html_e('Stage Changes', 'hp-products-manager'); ?></button>
+                                <button id="hp-pm-apply-btn" class="button" disabled><?php esc_html_e('Apply All', 'hp-products-manager'); ?></button>
+                                <button id="hp-pm-discard-btn" class="button" disabled><?php esc_html_e('Discard All', 'hp-products-manager'); ?></button>
+                            </div>
                         </div>
+                    </div>
+                    <div id="hp-pm-staged-table" class="hp-pm-staged" style="display:none; margin-top: 15px; border-top: 1px solid #dcdcde; padding-top: 15px;">
+                        <h3 id="hp-pm-staged-title" style="margin-top:0;"><?php esc_html_e('Staged Changes', 'hp-products-manager'); ?></h3>
+                        <table class="widefat striped">
+                            <thead><tr><th>Field</th><th>From</th><th>To</th><th>Action</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -943,20 +957,6 @@ final class HP_Products_Manager {
                                 </table>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="hp-pm-staging-actions">
-                        <button id="hp-pm-stage-btn" class="button button-primary"><?php esc_html_e('Stage Changes', 'hp-products-manager'); ?></button>
-                        <button id="hp-pm-apply-btn" class="button" disabled><?php esc_html_e('Apply All', 'hp-products-manager'); ?></button>
-                        <button id="hp-pm-discard-btn" class="button" disabled><?php esc_html_e('Discard All', 'hp-products-manager'); ?></button>
-                    </div>
-
-                    <div id="hp-pm-staged-table" class="hp-pm-staged" style="display:none;">
-                        <h3 id="hp-pm-staged-title"><?php esc_html_e('Staged Changes', 'hp-products-manager'); ?></h3>
-                        <table class="widefat striped">
-                            <thead><tr><th>Field</th><th>From</th><th>To</th><th>Action</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
                     </div>
                 </div>
             </div>

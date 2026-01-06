@@ -57,9 +57,9 @@
 .hp-pm-pd-links {
     margin-left: auto;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     gap: 8px;
-    align-items: center;
+    align-items: flex-end;
 }
 
 .hp-pm-nav-tabs {

@@ -500,6 +500,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if (Array.isArray(val)) {
         var a = (val || []).slice().sort();
         var b = (Array.isArray(orig) ? orig : (typeof orig === 'string' ? orig.split(',').map(function(s){return s.trim();}).filter(Boolean) : (orig ? [orig] : []))).slice().sort();
+        
+        // Final sanity check for empty vs empty
+        if (a.length === 0 && b.length === 0) return;
+
         if (JSON.stringify(a) !== JSON.stringify(b)) {
           c[k] = val;
         }
@@ -533,9 +537,38 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     keys.forEach(function (k) {
-      var tr = document.createElement('tr'); var fromVal = original[k]; var toVal = staged[k];
-      if (Array.isArray(fromVal)) fromVal = fromVal.join(', '); if (Array.isArray(toVal)) toVal = toVal.join(', ');
-      tr.innerHTML = '<td>' + k + '</td><td>' + (fromVal == null ? '' : fromVal) + '</td><td>' + (toVal == null ? '' : toVal) + '</td>' +
+      var tr = document.createElement('tr'); 
+      var fromVal = original[k]; 
+      var toVal = staged[k];
+      
+      var fromDisplay = fromVal;
+      var toDisplay = toVal;
+
+      if (Array.isArray(fromVal)) fromDisplay = fromVal.join(', '); 
+      if (Array.isArray(toVal)) toDisplay = toVal.join(', ');
+
+      var fromHtml = (fromDisplay == null ? '' : _.escape(String(fromDisplay)));
+      var toHtml = (toDisplay == null ? '' : _.escape(String(toDisplay)));
+
+      // Highlight differences if it's a list or long text
+      if (Array.isArray(fromVal) || Array.isArray(toVal) || k.indexOf('description') !== -1 || k.indexOf('article') !== -1) {
+          var a = Array.isArray(fromVal) ? fromVal : (String(fromVal || '').split(',').map(function(s){return s.trim();}).filter(Boolean));
+          var b = Array.isArray(toVal) ? toVal : (String(toVal || '').split(',').map(function(s){return s.trim();}).filter(Boolean));
+          
+          if (a.length > 0 || b.length > 0) {
+              var removed = a.filter(function(x){ return b.indexOf(x) === -1; });
+              var added = b.filter(function(x){ return a.indexOf(x) === -1; });
+              
+              if (removed.length > 0 || added.length > 0) {
+                  toHtml = '';
+                  if (added.length > 0) toHtml += '<div style="color: #2271b1; font-weight: 600;">+ ' + _.escape(added.join(', ')) + '</div>';
+                  if (removed.length > 0) toHtml += '<div style="color: #d63638; text-decoration: line-through; opacity: 0.8;">- ' + _.escape(removed.join(', ')) + '</div>';
+                  if (toHtml === '') toHtml = _.escape(String(toDisplay)); // Fallback
+              }
+          }
+      }
+
+      tr.innerHTML = '<td>' + k + '</td><td>' + fromHtml + '</td><td>' + toHtml + '</td>' +
         '<td><button type="button" class="button-link" data-remove="' + k + '">Remove</button></td>';
       stagedBody.appendChild(tr);
     });

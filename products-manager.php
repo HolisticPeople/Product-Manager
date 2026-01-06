@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.87
+ * Version: 0.5.88
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.87';
+    const VERSION = '0.5.88';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -502,7 +502,9 @@ final class HP_Products_Manager {
                     'tax_class'  => $product->get_tax_class('edit'),
                     'sold_individually' => $product->get_sold_individually('edit'),
                     'upsell_ids' => $product->get_upsell_ids('edit'),
-                    'crosssell_ids' => $product->get_crosssell_ids('edit'),
+                    'crosssell_ids' => $product->get_cross_sell_ids('edit'),
+                    'upsell_labels' => (object) $this->get_product_labels($product->get_upsell_ids('edit')),
+                    'crosssell_labels' => (object) $this->get_product_labels($product->get_cross_sell_ids('edit')),
                     'yoast_focuskw' => get_post_meta($product_id, '_yoast_wpseo_focuskw', true),
                     'yoast_title' => get_post_meta($product_id, '_yoast_wpseo_title', true),
                     'yoast_metadesc' => get_post_meta($product_id, '_yoast_wpseo_metadesc', true),
@@ -1656,6 +1658,23 @@ final class HP_Products_Manager {
         $value = get_post_meta($product_id, self::COST_META_KEY, true);
         $parsed = $this->parse_decimal_relaxed($value);
         return $parsed !== null ? $parsed : null;
+    }
+
+    /**
+     * Helper to get product labels (Name + SKU) for a list of IDs
+     */
+    private function get_product_labels($ids) {
+        if (empty($ids) || !is_array($ids)) return [];
+        global $wpdb;
+        $ids = array_map('intval', $ids);
+        $ids_str = implode(',', $ids);
+        $results = $wpdb->get_results("SELECT ID as id, post_title as name FROM {$wpdb->posts} WHERE ID IN ($ids_str)");
+        $out = [];
+        foreach ($results as $r) {
+            $sku = get_post_meta($r->id, '_sku', true);
+            $out[(int)$r->id] = $r->name . ($sku ? ' (' . $sku . ')' : ' (no SKU)');
+        }
+        return $out;
     }
 
     // Update cost in canonical meta and popular Cost-of-Goods keys for compatibility
@@ -2903,7 +2922,7 @@ final class HP_Products_Manager {
             $product->set_upsell_ids(array_map('intval', $apply['upsell_ids']));
         }
         if (isset($apply['crosssell_ids']) && is_array($apply['crosssell_ids'])) {
-            $product->set_crosssell_ids(array_map('intval', $apply['crosssell_ids']));
+            $product->set_cross_sell_ids(array_map('intval', $apply['crosssell_ids']));
         }
         if (isset($apply['yoast_focuskw'])) {
             update_post_meta($id, '_yoast_wpseo_focuskw', sanitize_text_field($apply['yoast_focuskw']));
@@ -2998,7 +3017,9 @@ final class HP_Products_Manager {
             'tax_class'  => $product->get_tax_class('edit'),
             'sold_individually' => $product->get_sold_individually('edit'),
             'upsell_ids' => $product->get_upsell_ids('edit'),
-            'crosssell_ids' => $product->get_crosssell_ids('edit'),
+            'crosssell_ids' => $product->get_cross_sell_ids('edit'),
+            'upsell_labels' => (object) $this->get_product_labels($product->get_upsell_ids('edit')),
+            'crosssell_labels' => (object) $this->get_product_labels($product->get_cross_sell_ids('edit')),
             'yoast_focuskw' => get_post_meta($id, '_yoast_wpseo_focuskw', true),
             'yoast_title' => get_post_meta($id, '_yoast_wpseo_title', true),
             'yoast_metadesc' => get_post_meta($id, '_yoast_wpseo_metadesc', true),

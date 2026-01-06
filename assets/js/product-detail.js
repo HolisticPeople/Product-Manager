@@ -300,9 +300,16 @@ document.addEventListener('DOMContentLoaded', function () {
     var tokens = document.getElementById('hp-pm-pd-' + prefix + '-tokens');
     var input = document.getElementById('hp-pm-pd-' + prefix + '-input');
     var datalist = allProductsList;
+    
+    // Determine the label key in data.product (upsell_labels or crosssell_labels)
+    var labelKey = prefix.replace(/s$/, '') + '_labels';
+    var extraLabels = data.product[labelKey] || {};
+
     var current = (currentIds || []).map(function(id) {
       var p = (data.allProducts || []).find(function(item){ return item.id == id; });
-      return p ? { id: p.id, label: p.name } : { id: id, label: 'ID: ' + id };
+      if (p) return { id: p.id, label: p.name + (p.sku ? ' (' + p.sku + ')' : '') };
+      if (extraLabels[id]) return { id: id, label: extraLabels[id] };
+      return { id: id, label: 'ID: ' + id };
     });
 
     function render() {
@@ -342,7 +349,9 @@ document.addEventListener('DOMContentLoaded', function () {
       set: function(ids) {
         current = (ids || []).map(function(id) {
           var p = (data.allProducts || []).find(function(item){ return item.id == id; });
-          return p ? { id: p.id, label: p.name } : { id: id, label: 'ID: ' + id };
+          if (p) return { id: p.id, label: p.name + (p.sku ? ' (' + p.sku + ')' : '') };
+          if (extraLabels[id]) return { id: id, label: extraLabels[id] };
+          return { id: id, label: 'ID: ' + id };
         });
         render();
       }

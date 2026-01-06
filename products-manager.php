@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.74
+ * Version: 0.5.76
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.74';
+    const VERSION = '0.5.76';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -387,9 +387,6 @@ final class HP_Products_Manager {
      * Helper to render an ACF field based on its type
      */
     private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false) {
-        // #region agent log
-        file_put_contents('c:\DEV\.cursor\debug.log', json_encode(['hypothesisId' => 'C', 'location' => 'products-manager.php:render_acf_field', 'message' => 'Rendering ACF field', 'data' => ['field' => $field_name, 'type' => $type], 'timestamp' => microtime(true)*1000]) . "\n", FILE_APPEND);
-        // #endregion
         if ($choices === null) {
             $choices = $this->get_acf_choices($field_name);
         }
@@ -424,9 +421,6 @@ final class HP_Products_Manager {
      * Render the product detail mockup page with tabs and staging placeholder.
      */
     public function render_product_detail_page(): void {
-        // #region agent log
-        file_put_contents('c:\DEV\.cursor\debug.log', json_encode(['hypothesisId' => 'A', 'location' => 'products-manager.php:render_product_detail_page', 'message' => 'Start rendering detail page', 'timestamp' => microtime(true)*1000]) . "\n", FILE_APPEND);
-        // #endregion
         $product_id = isset($_GET['product_id']) ? (int) $_GET['product_id'] : 0;
         $product = $product_id ? wc_get_product($product_id) : null;
 
@@ -436,8 +430,6 @@ final class HP_Products_Manager {
         }
 
         $title = sprintf(__('Product: %s', 'hp-products-manager'), $product->get_name());
-        $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'general';
-        $active_tab = in_array($active_tab, ['general', 'erp'], true) ? $active_tab : 'general';
 
         // Enqueue product detail assets and bootstrap data for JS
         $asset_base = plugin_dir_url(__FILE__) . 'assets/';
@@ -728,7 +720,7 @@ final class HP_Products_Manager {
                         </div>
 
                         <!-- Tab: Pricing & Shipping -->
-                        <div id="tab-pricing" class="hp-pm-tab-pane <?php echo $active_tab === 'pricing' ? 'active' : ''; ?>">
+                        <div id="tab-pricing" class="hp-pm-tab-pane <?php echo $active_tab_id === 'pricing' ? 'active' : ''; ?>">
                             <div class="hp-pm-grid">
                                 <section>
                                     <h2><?php esc_html_e('Pricing & Cost', 'hp-products-manager'); ?></h2>

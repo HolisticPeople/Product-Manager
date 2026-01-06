@@ -498,14 +498,14 @@ document.addEventListener('DOMContentLoaded', function () {
       
       // Compare arrays for multiselect
       if (Array.isArray(val)) {
-        var a = (val || []).slice().sort();
-        var b = (Array.isArray(orig) ? orig : (typeof orig === 'string' ? orig.split(',').map(function(s){return s.trim();}).filter(Boolean) : (orig ? [orig] : []))).slice().sort();
+        var a = (val || []).filter(Boolean).slice().sort();
+        var b = (Array.isArray(orig) ? orig : (typeof orig === 'string' ? orig.split(',').map(function(s){return s.trim();}).filter(Boolean) : (orig ? [orig] : []))).filter(Boolean).slice().sort();
         
         // Final sanity check for empty vs empty
         if (a.length === 0 && b.length === 0) return;
 
         if (JSON.stringify(a) !== JSON.stringify(b)) {
-          c[k] = val;
+          c[k] = a; // Store filtered array
         }
       } else {
         // Simple comparison for strings/numbers
@@ -551,20 +551,19 @@ document.addEventListener('DOMContentLoaded', function () {
       var toHtml = (toDisplay == null ? '' : _.escape(String(toDisplay)));
 
       // Highlight differences if it's a list or long text
-      if (Array.isArray(fromVal) || Array.isArray(toVal) || k.indexOf('description') !== -1 || k.indexOf('article') !== -1) {
-          var a = Array.isArray(fromVal) ? fromVal : (String(fromVal || '').split(',').map(function(s){return s.trim();}).filter(Boolean));
-          var b = Array.isArray(toVal) ? toVal : (String(toVal || '').split(',').map(function(s){return s.trim();}).filter(Boolean));
+      if (Array.isArray(fromVal) || Array.isArray(toVal) || k.indexOf('brands') !== -1 || k.indexOf('categories') !== -1 || k.indexOf('tags') !== -1) {
+          var a = Array.isArray(fromVal) ? fromVal.filter(Boolean) : (String(fromVal || '').split(',').map(function(s){return s.trim();}).filter(Boolean));
+          var b = Array.isArray(toVal) ? toVal.filter(Boolean) : (String(toVal || '').split(',').map(function(s){return s.trim();}).filter(Boolean));
           
           if (a.length > 0 || b.length > 0) {
-              var removed = a.filter(function(x){ return b.indexOf(x) === -1; });
-              var added = b.filter(function(x){ return a.indexOf(x) === -1; });
-              
-              if (removed.length > 0 || added.length > 0) {
-                  toHtml = '';
-                  if (added.length > 0) toHtml += '<div style="color: #2271b1; font-weight: 600;">+ ' + _.escape(added.join(', ')) + '</div>';
-                  if (removed.length > 0) toHtml += '<div style="color: #d63638; text-decoration: line-through; opacity: 0.8;">- ' + _.escape(removed.join(', ')) + '</div>';
-                  if (toHtml === '') toHtml = _.escape(String(toDisplay)); // Fallback
-              }
+              var allItems = Array.from(new Set(a.concat(b))).sort();
+              toHtml = allItems.map(function(item) {
+                  var isRemoved = b.indexOf(item) === -1;
+                  var isAdded = a.indexOf(item) === -1;
+                  if (isRemoved) return '<span style="color: #d63638; text-decoration: line-through; opacity: 0.8;">' + _.escape(item) + '</span>';
+                  if (isAdded) return '<span style="color: #2271b1; font-weight: 600;">' + _.escape(item) + '</span>';
+                  return _.escape(item);
+              }).join(', ');
           }
       }
 

@@ -410,6 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var applyBtn = document.getElementById('hp-pm-apply-btn');
   var discardBtn = document.getElementById('hp-pm-discard-btn');
   var stagedSection = document.getElementById('hp-pm-staged-section');
+  var stagedTitle = document.getElementById('hp-pm-staged-title');
   var stagedTable = document.getElementById('hp-pm-staged-table');
   var stagedBody = stagedTable ? stagedTable.querySelector('tbody') : null;
 

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.70
+ * Version: 0.5.88
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.70';
+    const VERSION = '0.5.88';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -375,6 +375,67 @@ final class HP_Products_Manager {
     }
 
     /**
+     * Get ACF field choices dynamically
+     */
+    private function get_acf_choices($field_name) {
+        if (!function_exists('acf_get_field')) return null;
+        $field = acf_get_field($field_name);
+        return (isset($field['choices']) && is_array($field['choices'])) ? $field['choices'] : null;
+    }
+
+    /**
+     * Helper to render an ACF field based on its type
+     */
+    private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false, $current_value = null) {
+        if ($choices === null) {
+            $choices = $this->get_acf_choices($field_name);
+        }
+        
+        $id = 'hp-pm-pd-' . $field_name;
+        $html = '<tr><th>' . esc_html($label) . '</th><td>';
+        
+        if ($type === 'textarea') {
+            $class = in_array($field_name, ['description_long', 'video_transcription', 'ingredients', 'how_to_use', 'cautions', 'recommended_use', 'community_tips', 'traditional_function', 'expert_article']) ? 'large-text hp-pm-full-width auto-expand' : 'large-text';
+            $html .= '<textarea id="' . esc_attr($id) . '" rows="3" class="' . esc_attr($class) . '"></textarea>';
+        } elseif ($type === 'select' || $choices !== null) {
+            $html .= '<select id="' . esc_attr($id) . '"' . ($multiple ? ' multiple style="height:120px;"' : '') . ' class="regular-text">';
+            if (!$multiple) $html .= '<option value="">' . esc_html__('— Select —', 'hp-products-manager') . '</option>';
+            
+            $final_choices = is_array($choices) ? $choices : [];
+            if ($current_value) {
+                $vals = is_array($current_value) ? $current_value : explode(',', (string)$current_value);
+                foreach ($vals as $v) {
+                    $v = trim((string)$v);
+                    if ($v === '') continue;
+                    $found = false;
+                    foreach ($final_choices as $ckey => $cval) {
+                        if ((string)$ckey === $v || (string)$cval === $v) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                    if (!$found) {
+                        $final_choices[$v] = $v;
+                    }
+                }
+            }
+
+            foreach ($final_choices as $val => $text) {
+                $html .= '<option value="' . esc_attr($val) . '">' . esc_html($text) . '</option>';
+            }
+            $html .= '</select>';
+            if ($multiple) $html .= '<p class="description">' . esc_html__('Hold Ctrl/Cmd to select multiple', 'hp-products-manager') . '</p>';
+        } elseif ($type === 'number') {
+            $html .= '<input id="' . esc_attr($id) . '" type="number" step="any" class="regular-text">';
+        } else {
+            $html .= '<input id="' . esc_attr($id) . '" type="text" class="regular-text">';
+        }
+        
+        $html .= '</td></tr>';
+        return $html;
+    }
+
+    /**
      * Render the product detail mockup page with tabs and staging placeholder.
      */
     public function render_product_detail_page(): void {
@@ -387,8 +448,6 @@ final class HP_Products_Manager {
         }
 
         $title = sprintf(__('Product: %s', 'hp-products-manager'), $product->get_name());
-        $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'general';
-        $active_tab = in_array($active_tab, ['general', 'erp'], true) ? $active_tab : 'general';
 
         // Enqueue product detail assets and bootstrap data for JS
         $asset_base = plugin_dir_url(__FILE__) . 'assets/';
@@ -438,6 +497,17 @@ final class HP_Products_Manager {
                     'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
                     'status'     => $product->get_status(),
                     'visibility' => $product->get_catalog_visibility(),
+                    'short_description' => $product->get_short_description('edit'),
+                    'tax_status' => $product->get_tax_status('edit'),
+                    'tax_class'  => $product->get_tax_class('edit'),
+                    'sold_individually' => $product->get_sold_individually('edit'),
+                    'upsell_ids' => $product->get_upsell_ids('edit'),
+                    'crosssell_ids' => $product->get_cross_sell_ids('edit'),
+                    'upsell_labels' => (object) $this->get_product_labels($product->get_upsell_ids('edit')),
+                    'crosssell_labels' => (object) $this->get_product_labels($product->get_cross_sell_ids('edit')),
+                    'yoast_focuskw' => get_post_meta($product_id, '_yoast_wpseo_focuskw', true),
+                    'yoast_title' => get_post_meta($product_id, '_yoast_wpseo_title', true),
+                    'yoast_metadesc' => get_post_meta($product_id, '_yoast_wpseo_metadesc', true),
                     'brands'     => $this->extract_term_slugs(wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
                     'categories' => $this->extract_term_slugs(wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all'])),
                     'tags'       => $this->extract_term_slugs(wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all'])),
@@ -456,6 +526,43 @@ final class HP_Products_Manager {
                     'manage_stock' => $product->get_manage_stock(),
                     'stock_quantity' => $product->get_stock_quantity(),
                     'backorders' => $product->get_backorders(),
+                    // Dosing & Servings
+                    'serving_size'           => get_post_meta($product_id, 'serving_size', true),
+                    'servings_per_container' => get_post_meta($product_id, 'servings_per_container', true),
+                    'serving_form_unit'      => get_post_meta($product_id, 'serving_form_unit', true),
+                    'supplement_form'        => get_post_meta($product_id, 'supplement_form', true),
+                    'bottle_size_eu'         => get_post_meta($product_id, 'bottle_size_eu', true),
+                    'bottle_size_units_eu'   => get_post_meta($product_id, 'bottle_size_units_eu', true),
+                    'bottle_size_usa'        => get_post_meta($product_id, 'bottle_size_usa', true),
+                    'bottle_size_units_usa'  => get_post_meta($product_id, 'bottle_size_units_usa', true),
+                    // Ingredients & Mfg
+                    'ingredients'             => get_post_meta($product_id, 'ingredients', true),
+                    'ingredients_other'       => get_post_meta($product_id, 'ingredients_other', true),
+                    'potency'                 => get_post_meta($product_id, 'potency', true),
+                    'potency_units'           => get_post_meta($product_id, 'potency_units', true),
+                    'sku_mfr'                 => get_post_meta($product_id, 'sku_mfr', true),
+                    'manufacturer_acf'        => get_post_meta($product_id, 'manufacturer_acf', true),
+                    'country_of_manufacturer' => get_post_meta($product_id, 'country_of_manufacturer', true),
+                    // Instructions & Safety
+                    'how_to_use'      => get_post_meta($product_id, 'how_to_use', true),
+                    'cautions'        => get_post_meta($product_id, 'cautions', true),
+                    'recommended_use' => get_post_meta($product_id, 'recommended_use', true),
+                    'community_tips'  => get_post_meta($product_id, 'community_tips', true),
+                    // Expert Info
+                    'body_systems_organs' => (array) get_post_meta($product_id, 'body_systems_organs', true),
+                    'traditional_function'=> get_post_meta($product_id, 'traditional_function', true),
+                    'chinese_energy'      => get_post_meta($product_id, 'chinese_energy', true),
+                    'ayurvedic_energy'    => get_post_meta($product_id, 'ayurvedic_energy', true),
+                    'supplement_type'     => get_post_meta($product_id, 'supplement_type', true),
+                    'expert_article'      => get_post_meta($product_id, 'expert_article', true),
+                    'video'               => get_post_meta($product_id, 'video', true),
+                    'video_transcription' => get_post_meta($product_id, 'video_transcription', true),
+                    'slogan'              => get_post_meta($product_id, 'slogan', true),
+                    'aka_product_name'    => get_post_meta($product_id, 'aka_product_name', true),
+                    'description_long'    => get_post_meta($product_id, 'description_long', true),
+                    // Admin
+                    'product_type_hp' => get_post_meta($product_id, 'product_type_hp', true),
+                    'site_catalog'    => (array) get_post_meta($product_id, 'site_catalog', true),
                     'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
                     'image_id'   => $product->get_image_id() ?: null,
                     'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -494,6 +601,24 @@ final class HP_Products_Manager {
                     }
                     return $out;
                 })(),
+                'allProducts' => (function(){
+                    global $wpdb;
+                    $results = $wpdb->get_results("SELECT ID as id, post_title as name FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status = 'publish' LIMIT 2000");
+                    $out = [];
+                    foreach ($results as $r) {
+                        $sku = get_post_meta($r->id, '_sku', true);
+                        $out[] = ['id' => (int)$r->id, 'name' => $r->name, 'sku' => $sku];
+                    }
+                    return $out;
+                })(),
+                'taxClasses' => (function(){
+                    $classes = WC_Tax::get_tax_classes();
+                    $out = [['slug' => '', 'name' => __('Standard', 'hp-products-manager')]];
+                    foreach ($classes as $class) {
+                        $out[] = ['slug' => sanitize_title($class), 'name' => $class];
+                    }
+                    return $out;
+                })(),
                 'i18n'     => [
                     'stagedChanges' => __('Staged Changes', 'hp-products-manager'),
                     'stageBtn'      => __('Stage Changes', 'hp-products-manager'),
@@ -510,232 +635,467 @@ final class HP_Products_Manager {
             <h1><?php echo esc_html($title); ?></h1>
             <p class="hp-pm-version"><?php printf(esc_html__('Version %s', 'hp-products-manager'), esc_html(self::VERSION)); ?></p>
 
-            <h2 class="nav-tab-wrapper">
-                <?php
-                    $hp_pm_debug_qs = isset($_GET['hp_pm_debug']) ? 1 : 0;
-                    $args_general = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'general'];
-                    $args_erp = ['page' => 'hp-products-manager-product', 'product_id' => $product_id, 'tab' => 'erp'];
-                    if ($hp_pm_debug_qs) { $args_general['hp_pm_debug'] = '1'; $args_erp['hp_pm_debug'] = '1'; }
-                ?>
-                <a href="<?php echo esc_url(add_query_arg($args_general, admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('General', 'hp-products-manager'); ?></a>
-                <a href="<?php echo esc_url(add_query_arg($args_erp, admin_url('admin.php'))); ?>" class="nav-tab <?php echo $active_tab === 'erp' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e('ERP', 'hp-products-manager'); ?></a>
-            </h2>
-
-            <?php if ($active_tab === 'general') : ?>
-                <div class="card hp-pm-card" style="max-width: 1200px;">
+            <div class="hp-pm-pd-container">
+                <div class="card hp-pm-header-card" style="max-width: 1200px; margin-bottom: 20px;">
                     <div class="hp-pm-pd-header">
                         <div class="hp-pm-pd-image">
                             <img id="hp-pm-pd-image" src="" alt="" class="hp-pm-main-img">
                         </div>
                         <div id="hp-pm-pd-gallery" class="hp-pm-gallery"></div>
                         <div class="hp-pm-pd-links">
-                            <a href="<?php echo esc_url(admin_url('admin.php?page=hp-products-manager')); ?>" class="button hp-pm-back-btn"><?php esc_html_e('Back to products list', 'hp-products-manager'); ?></a>
-                            <button id="hp-pm-duplicate-btn" class="button"><?php esc_html_e('Duplicate', 'hp-products-manager'); ?></button>
-                            <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
-                            <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
+                            <div class="hp-pm-pd-links-top" style="display:flex; gap:8px; justify-content: flex-end; margin-bottom: 12px;">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=hp-products-manager')); ?>" class="button hp-pm-back-btn"><?php esc_html_e('Back to products list', 'hp-products-manager'); ?></a>
+                                <button id="hp-pm-duplicate-btn" class="button"><?php esc_html_e('Duplicate', 'hp-products-manager'); ?></button>
+                                <a id="hp-pm-pd-edit" href="#" target="_blank" class="button"><?php esc_html_e('Open in WP Admin', 'hp-products-manager'); ?></a>
+                                <a id="hp-pm-pd-view" href="#" target="_blank" class="button"><?php esc_html_e('View Product', 'hp-products-manager'); ?></a>
+                            </div>
+                            <div class="hp-pm-staging-actions" style="display:flex; gap:8px; justify-content: flex-end;">
+                                <button id="hp-pm-stage-btn" class="button button-primary"><?php esc_html_e('Stage Changes', 'hp-products-manager'); ?></button>
+                                <button id="hp-pm-apply-btn" class="button" disabled><?php esc_html_e('Apply All', 'hp-products-manager'); ?></button>
+                                <button id="hp-pm-discard-btn" class="button" disabled><?php esc_html_e('Discard All', 'hp-products-manager'); ?></button>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="hp-pm-grid">
-                    <section>
-                        <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
-                        <table class="form-table hp-pm-form">
-                        <tr>
-                            <th><?php esc_html_e('Name', 'hp-products-manager'); ?></th>
-                            <td><input id="hp-pm-pd-name" type="text" class="regular-text"></td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('SKU', 'hp-products-manager'); ?></th>
-                            <td><input id="hp-pm-pd-sku" type="text" class="regular-text"></td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('Status', 'hp-products-manager'); ?></th>
-                            <td>
-                                <select id="hp-pm-pd-status">
-                                    <option value="publish">publish</option>
-                                    <option value="draft">draft</option>
-                                    <option value="private">private</option>
-                                    <option value="pending">pending</option>
-                                </select>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('Visibility', 'hp-products-manager'); ?></th>
-                            <td>
-                                <select id="hp-pm-pd-visibility">
-                                    <option value="visible"><?php esc_html_e('Catalog & Search', 'hp-products-manager'); ?></option>
-                                    <option value="catalog"><?php esc_html_e('Catalog Only', 'hp-products-manager'); ?></option>
-                                    <option value="search"><?php esc_html_e('Search Only', 'hp-products-manager'); ?></option>
-                                    <option value="hidden"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></option>
-                                </select>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('Brand(s)', 'hp-products-manager'); ?></th>
-                            <td>
-                                <div id="hp-pm-pd-brands-tokens" class="hp-pm-tokens"></div>
-                                <input id="hp-pm-pd-brands-input" list="hp-pm-brands-list" placeholder="<?php esc_attr_e('Search brand…', 'hp-products-manager'); ?>">
-                                <datalist id="hp-pm-brands-list"></datalist>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('Categories', 'hp-products-manager'); ?></th>
-                            <td>
-                                <div id="hp-pm-pd-categories-tokens" class="hp-pm-tokens"></div>
-                                <input id="hp-pm-pd-categories-input" list="hp-pm-cats-list" placeholder="<?php esc_attr_e('Search category…', 'hp-products-manager'); ?>">
-                                <datalist id="hp-pm-cats-list"></datalist>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e('Tags', 'hp-products-manager'); ?></th>
-                            <td>
-                                <div id="hp-pm-pd-tags-tokens" class="hp-pm-tokens"></div>
-                                <input id="hp-pm-pd-tags-input" list="hp-pm-tags-list" placeholder="<?php esc_attr_e('Search tag…', 'hp-products-manager'); ?>">
-                                <datalist id="hp-pm-tags-list"></datalist>
-                            </td>
-                        </tr>
-                        </table>
-                    </section>
-
-                    <section>
-                        <h2><?php esc_html_e('Pricing & Cost', 'hp-products-manager'); ?></h2>
-                        <table class="form-table hp-pm-form">
-                            <tr>
-                                <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e('Sale Price', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-sale-price" type="number" step="0.01" class="regular-text"></td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e('Cost', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-cost" type="number" step="0.01" class="regular-text"></td>
-                            </tr>
-                        </table>
-
-                        <h2><?php esc_html_e('Inventory', 'hp-products-manager'); ?></h2>
-                        <table class="form-table hp-pm-form">
-                            <tr>
-                                <th><?php esc_html_e('Track stock?', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-manage-stock" type="checkbox"></td>
-                            </tr>
-                            <tr class="hp-pm-stock-row">
-                                <th><?php esc_html_e('Quantity', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text"></td>
-                            </tr>
-                            <tr class="hp-pm-stock-row">
-                                <th><?php esc_html_e('Allow backorders?', 'hp-products-manager'); ?></th>
-                                <td>
-                                    <label><input type="radio" name="backorders" value="no"> <?php esc_html_e('Do not allow', 'hp-products-manager'); ?></label><br>
-                                    <label><input type="radio" name="backorders" value="notify"> <?php esc_html_e('Allow, but notify customer', 'hp-products-manager'); ?></label><br>
-                                    <label><input type="radio" name="backorders" value="yes"> <?php esc_html_e('Allow', 'hp-products-manager'); ?></label>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <h2><?php esc_html_e('Shipping', 'hp-products-manager'); ?></h2>
-                        <table class="form-table hp-pm-form">
-                            <tr>
-                                <th><?php esc_html_e('Weight', 'hp-products-manager'); ?></th>
-                                <td><input id="hp-pm-pd-weight" type="number" step="0.01" class="regular-text"></td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e('Dimensions (L × W × H)', 'hp-products-manager'); ?></th>
-                                <td>
-                                    <input id="hp-pm-pd-length" type="number" step="0.01" style="width:90px;"> ×
-                                    <input id="hp-pm-pd-width" type="number" step="0.01" style="width:90px;"> ×
-                                    <input id="hp-pm-pd-height" type="number" step="0.01" style="width:90px;">
-                                </td>
-                            </tr>
-                            <tr>
-                                <th><?php esc_html_e('Shipping Class', 'hp-products-manager'); ?></th>
-                                <td>
-                                    <select id="hp-pm-pd-ship-class" style="min-width: 280px;"></select>
-                                </td>
-                            </tr>
-                        </table>
-                    </section>
-                    </div>
-
-                    <div class="hp-pm-staging-actions">
-                        <button id="hp-pm-stage-btn" class="button button-primary"></button>
-                        <button id="hp-pm-apply-btn" class="button" disabled></button>
-                        <button id="hp-pm-discard-btn" class="button"></button>
-                    </div>
-
-                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
-                    <div class="hp-pm-debug card" style="margin-top:10px; padding:10px; border:1px dashed #ccd0d4;">
-                        <strong><?php esc_html_e('ERP Debug', 'hp-products-manager'); ?></strong>
-                        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-                            <button id="hp-pm-debug-setstock" class="button"><?php esc_html_e('Log set_stock', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-debug-reduce" class="button"><?php esc_html_e('Log reduce_order_stock', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-debug-restore" class="button"><?php esc_html_e('Log restore_order_stock', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-debug-showlogs" class="button"><?php esc_html_e('Show recent logs', 'hp-products-manager'); ?></button>
-                        </div>
-                        <p style="margin-top:6px; color:#666;">&nbsp;</p>
-                    </div>
-                    <?php endif; ?>
-
-                    <div class="hp-pm-staged">
-                        <h3 id="hp-pm-staged-title"></h3>
-                        <table class="widefat fixed striped" id="hp-pm-staged-table" style="display:none;">
-                            <thead><tr><th><?php esc_html_e('Field', 'hp-products-manager'); ?></th><th><?php esc_html_e('From', 'hp-products-manager'); ?></th><th><?php esc_html_e('To', 'hp-products-manager'); ?></th><th></th></tr></thead>
+                    <details id="hp-pm-staged-section" class="hp-pm-staged" style="display:none; margin-top: 15px; border-top: 1px solid #dcdcde; padding-top: 15px;" open>
+                        <summary style="cursor: pointer; font-weight: 600; font-size: 1.1em; outline: none; margin-bottom: 10px;">
+                            <span id="hp-pm-staged-title"><?php esc_html_e('Staged Changes', 'hp-products-manager'); ?></span>
+                        </summary>
+                        <table id="hp-pm-staged-table" class="widefat striped">
+                            <thead><tr><th>Field</th><th>From</th><th>To</th><th>Action</th></tr></thead>
                             <tbody></tbody>
                         </table>
-                    </div>
+                    </details>
                 </div>
-            <?php else : ?>
-                <div class="card" style="max-width: 1200px;">
-                    <h2><?php esc_html_e('Sales History', 'hp-products-manager'); ?></h2>
-                    <div style="margin:12px 0 4px 0;">
-                        <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
-                    </div>
-                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
-                    <div class="hp-pm-erp-toolbar" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 10px;">
-                        <div class="hp-pm-erp-actions" style="display:flex; gap:8px; align-items:center;">
-                            <button id="hp-pm-erp-rebuild-product" class="button button-small"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-erp-rebuild-all" class="button button-small"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-erp-purge-db" class="button button-small"><?php esc_html_e('Purge all plugin DB', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-erp-rebuild-abort" class="button button-small" style="display:none;"><?php esc_html_e('Abort', 'hp-products-manager'); ?></button>
-                            <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 220px; height: 24px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
-                                <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
+
+                <h2 class="nav-tab-wrapper hp-pm-nav-tabs">
+                    <?php
+                        $tabs = [
+                            'core'         => __('Core & Inventory', 'hp-products-manager'),
+                            'pricing'      => __('Pricing & Shipping', 'hp-products-manager'),
+                            'dosing'       => __('Dosing & Servings', 'hp-products-manager'),
+                            'ingredients'  => __('Ingredients & Mfg', 'hp-products-manager'),
+                            'instructions' => __('Instructions & Safety', 'hp-products-manager'),
+                            'expert'       => __('Expert Info', 'hp-products-manager'),
+                            'linked'       => __('Linked Products', 'hp-products-manager'),
+                            'seo'          => __('SEO', 'hp-products-manager'),
+                            'admin'        => __('Admin', 'hp-products-manager'),
+                            'erp'          => __('Sales & ERP', 'hp-products-manager'),
+                        ];
+                        // Default to 'core' unless 'tab' is explicitly in URL (for legacy support or direct links)
+                        $active_tab_id = isset($_GET['tab']) && isset($tabs[$_GET['tab']]) ? $_GET['tab'] : 'core';
+                        foreach ($tabs as $tab_id => $tab_label) {
+                            echo '<a href="#tab-' . esc_attr($tab_id) . '" class="nav-tab ' . ($active_tab_id === $tab_id ? 'nav-tab-active' : '') . '" data-tab="' . esc_attr($tab_id) . '">' . esc_html($tab_label) . '</a>';
+                        }
+                    ?>
+                </h2>
+
+                <div class="card hp-pm-card hp-pm-tabs-card" style="max-width: 1200px; border-top: none;">
+                    <div class="hp-pm-tab-content">
+                        <!-- Tab: Core & Inventory -->
+                        <div id="tab-core" class="hp-pm-tab-pane <?php echo $active_tab_id === 'core' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Basics', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                    <tr>
+                                        <th><?php esc_html_e('Name', 'hp-products-manager'); ?></th>
+                                        <td><input id="hp-pm-pd-name" type="text" class="regular-text"></td>
+                                    </tr>
+                                    <tr>
+                                        <th><?php esc_html_e('SKU', 'hp-products-manager'); ?></th>
+                                        <td><input id="hp-pm-pd-sku" type="text" class="regular-text"></td>
+                                    </tr>
+                                    <tr>
+                                        <th><?php esc_html_e('Status', 'hp-products-manager'); ?></th>
+                                        <td>
+                                            <select id="hp-pm-pd-status">
+                                                <option value="publish">publish</option>
+                                                <option value="draft">draft</option>
+                                                <option value="private">private</option>
+                                                <option value="pending">pending</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th><?php esc_html_e('Short Description', 'hp-products-manager'); ?></th>
+                                        <td><textarea id="hp-pm-pd-short-description" class="large-text hp-pm-full-width auto-expand" rows="3"></textarea></td>
+                                    </tr>
+                                    <tr>
+                                        <th><?php esc_html_e('Visibility', 'hp-products-manager'); ?></th>
+                                        <td>
+                                            <select id="hp-pm-pd-visibility">
+                                                <option value="visible"><?php esc_html_e('Catalog & Search', 'hp-products-manager'); ?></option>
+                                                <option value="catalog"><?php esc_html_e('Catalog Only', 'hp-products-manager'); ?></option>
+                                                <option value="search"><?php esc_html_e('Search Only', 'hp-products-manager'); ?></option>
+                                                <option value="hidden"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    </table>
+                                </section>
+                                <section>
+                                    <h2><?php esc_html_e('Taxonomies', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                    <tr>
+                                        <th><?php esc_html_e('Brand(s)', 'hp-products-manager'); ?></th>
+                                        <td>
+                                            <div id="hp-pm-pd-brands-tokens" class="hp-pm-tokens"></div>
+                                            <input id="hp-pm-pd-brands-input" list="hp-pm-brands-list" placeholder="<?php esc_attr_e('Search brand…', 'hp-products-manager'); ?>">
+                                            <datalist id="hp-pm-brands-list"></datalist>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th><?php esc_html_e('Categories', 'hp-products-manager'); ?></th>
+                                        <td>
+                                            <div id="hp-pm-pd-categories-tokens" class="hp-pm-tokens"></div>
+                                            <input id="hp-pm-pd-categories-input" list="hp-pm-cats-list" placeholder="<?php esc_attr_e('Search category…', 'hp-products-manager'); ?>">
+                                            <datalist id="hp-pm-cats-list"></datalist>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th><?php esc_html_e('Tags', 'hp-products-manager'); ?></th>
+                                        <td>
+                                            <div id="hp-pm-pd-tags-tokens" class="hp-pm-tokens"></div>
+                                            <input id="hp-pm-pd-tags-input" list="hp-pm-tags-list" placeholder="<?php esc_attr_e('Search tag…', 'hp-products-manager'); ?>">
+                                            <datalist id="hp-pm-tags-list"></datalist>
+                                        </td>
+                                    </tr>
+                                    </table>
+                                </section>
                             </div>
-                            <span id="hp-pm-erp-rebuild-progress-label" style="display:none;"></span>
+                            <div class="hp-pm-grid" style="margin-top:20px;">
+                                <section>
+                                    <h2><?php esc_html_e('Inventory', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <tr>
+                                            <th><?php esc_html_e('Track stock?', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-manage-stock" type="checkbox"></td>
+                                        </tr>
+                                        <tr class="hp-pm-stock-row">
+                                            <th><?php esc_html_e('Quantity', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text"></td>
+                                        </tr>
+                                        <tr class="hp-pm-stock-row">
+                                            <th><?php esc_html_e('Allow backorders?', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <label><input type="radio" name="backorders" value="no"> <?php esc_html_e('Do not allow', 'hp-products-manager'); ?></label><br>
+                                                <label><input type="radio" name="backorders" value="notify"> <?php esc_html_e('Allow, but notify customer', 'hp-products-manager'); ?></label><br>
+                                                <label><input type="radio" name="backorders" value="yes"> <?php esc_html_e('Allow', 'hp-products-manager'); ?></label>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Sold individually?', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-sold-individually" type="checkbox"></td>
+                                        </tr>
+                                    </table>
+                                </section>
+                            </div>
                         </div>
-                        <div class="hp-pm-erp-ranges" style="display:flex; gap:6px;">
-                            <button type="button" class="button button-small hp-pm-erp-range" data-days="7">7d</button>
-                            <button type="button" class="button button-small hp-pm-erp-range" data-days="30">30d</button>
-                            <button type="button" class="button button-small hp-pm-erp-range" data-days="90">90d</button>
+
+                        <!-- Tab: Pricing & Shipping -->
+                        <div id="tab-pricing" class="hp-pm-tab-pane <?php echo $active_tab_id === 'pricing' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Pricing & Cost', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <tr>
+                                            <th><?php esc_html_e('Price', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-price" type="number" step="0.01" class="regular-text"></td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Sale Price', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-sale-price" type="number" step="0.01" class="regular-text"></td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Cost', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-cost" type="number" step="0.01" class="regular-text"></td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Tax Status', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <select id="hp-pm-pd-tax-status">
+                                                    <option value="taxable"><?php esc_html_e('Taxable', 'hp-products-manager'); ?></option>
+                                                    <option value="shipping"><?php esc_html_e('Shipping only', 'hp-products-manager'); ?></option>
+                                                    <option value="none"><?php esc_html_e('None', 'hp-products-manager'); ?></option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Tax Class', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <select id="hp-pm-pd-tax-class"></select>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </section>
+                                <section>
+                                    <h2><?php esc_html_e('Shipping', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <tr>
+                                            <th><?php esc_html_e('Weight', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-weight" type="number" step="0.01" class="regular-text"></td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Dimensions (L × W × H)', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <input id="hp-pm-pd-length" type="number" step="0.01" style="width:90px;"> ×
+                                                <input id="hp-pm-pd-width" type="number" step="0.01" style="width:90px;"> ×
+                                                <input id="hp-pm-pd-height" type="number" step="0.01" style="width:90px;">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Shipping Class', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <select id="hp-pm-pd-ship-class" style="min-width: 280px;"></select>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Dosing & Servings -->
+                        <div id="tab-dosing" class="hp-pm-tab-pane <?php echo $active_tab_id === 'dosing' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Dosing Information', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('serving_size', __('Serving Size', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'serving_size', true));
+                                            echo $this->render_acf_field('serving_form_unit', __('Serving Form Unit', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'serving_form_unit', true));
+                                            echo $this->render_acf_field('servings_per_container', __('Servings Per Container', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'servings_per_container', true));
+                                            echo $this->render_acf_field('supplement_form', __('Supplement Form', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'supplement_form', true));
+                                        ?>
+                                    </table>
+                                </section>
+                                <section>
+                                    <h2><?php esc_html_e('Bottle Size', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('bottle_size_eu', __('Bottle Size (EU)', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'bottle_size_eu', true));
+                                            echo $this->render_acf_field('bottle_size_units_eu', __('Units (EU)', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'bottle_size_units_eu', true));
+                                            echo $this->render_acf_field('bottle_size_usa', __('Bottle Size (USA)', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'bottle_size_usa', true));
+                                            echo $this->render_acf_field('bottle_size_units_usa', __('Units (USA)', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'bottle_size_units_usa', true));
+                                        ?>
+                                    </table>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Ingredients & Mfg -->
+                        <div id="tab-ingredients" class="hp-pm-tab-pane <?php echo $active_tab_id === 'ingredients' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Ingredients', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients', true));
+                                            echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients_other', true));
+                                            echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'potency', true));
+                                            echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'potency_units', true));
+                                        ?>
+                                    </table>
+                                </section>
+                                <section>
+                                    <h2><?php esc_html_e('Manufacturer Details', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('sku_mfr', __('Manufacturer SKU', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'sku_mfr', true));
+                                            echo $this->render_acf_field('manufacturer_acf', __('Manufacturer Name', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'manufacturer_acf', true));
+                                            echo $this->render_acf_field('country_of_manufacturer', __('Country of Manufacture', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'country_of_manufacturer', true));
+                                        ?>
+                                    </table>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Instructions & Safety -->
+                        <div id="tab-instructions" class="hp-pm-tab-pane <?php echo $active_tab_id === 'instructions' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section class="full-width">
+                                    <h2><?php esc_html_e('Usage Instructions', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('how_to_use', __('How to Use', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'how_to_use', true));
+                                            echo $this->render_acf_field('recommended_use', __('Recommended Use', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'recommended_use', true));
+                                        ?>
+                                    </table>
+                                </section>
+                                <section class="full-width">
+                                    <h2><?php esc_html_e('Safety & Tips', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('cautions', __('Cautions', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'cautions', true));
+                                            echo $this->render_acf_field('community_tips', __('Community Tips', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'community_tips', true));
+                                        ?>
+                                    </table>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Expert Info -->
+                        <div id="tab-expert" class="hp-pm-tab-pane <?php echo $active_tab_id === 'expert' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Expert Data', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('body_systems_organs', __('Body Systems & Organs', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'body_systems_organs', true));
+                                            echo $this->render_acf_field('traditional_function', __('Traditional Function', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'traditional_function', true));
+                                            echo $this->render_acf_field('chinese_energy', __('Chinese Energy', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'chinese_energy', true));
+                                            echo $this->render_acf_field('ayurvedic_energy', __('Ayurvedic Energy', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'ayurvedic_energy', true));
+                                            echo $this->render_acf_field('supplement_type', __('Supplement Type', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'supplement_type', true));
+                                        ?>
+                                    </table>
+                                </section>
+                                <section class="full-width">
+                                    <h2><?php esc_html_e('Marketing & Content', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('slogan', __('Slogan', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'slogan', true));
+                                            echo $this->render_acf_field('aka_product_name', __('Alternative Name', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'aka_product_name', true));
+                                            echo $this->render_acf_field('description_long', __('Long Description', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'description_long', true));
+                                            echo $this->render_acf_field('expert_article', __('Expert Article URL', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'expert_article', true));
+                                            echo $this->render_acf_field('video', __('Video ID/URL', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'video', true));
+                                            echo $this->render_acf_field('video_transcription', __('Video Transcription', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'video_transcription', true));
+                                        ?>
+                                    </table>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Linked Products -->
+                        <div id="tab-linked" class="hp-pm-tab-pane <?php echo $active_tab_id === 'linked' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Upsells', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <tr>
+                                            <th><?php esc_html_e('Upsells', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <div id="hp-pm-pd-upsells-tokens" class="hp-pm-tokens"></div>
+                                                <input id="hp-pm-pd-upsells-input" list="hp-pm-all-products-list" placeholder="<?php esc_attr_e('Search products…', 'hp-products-manager'); ?>">
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </section>
+                                <section>
+                                    <h2><?php esc_html_e('Cross-sells', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <tr>
+                                            <th><?php esc_html_e('Cross-sells', 'hp-products-manager'); ?></th>
+                                            <td>
+                                                <div id="hp-pm-pd-crosssells-tokens" class="hp-pm-tokens"></div>
+                                                <input id="hp-pm-pd-crosssells-input" list="hp-pm-all-products-list" placeholder="<?php esc_attr_e('Search products…', 'hp-products-manager'); ?>">
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </section>
+                                <datalist id="hp-pm-all-products-list"></datalist>
+                            </div>
+                        </div>
+
+                        <!-- Tab: SEO -->
+                        <div id="tab-seo" class="hp-pm-tab-pane <?php echo $active_tab_id === 'seo' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section class="full-width">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <h2><?php esc_html_e('Yoast SEO Settings', 'hp-products-manager'); ?></h2>
+                                        <button id="hp-pm-seo-audit-btn" class="button"><?php esc_html_e('Run SEO Audit', 'hp-products-manager'); ?></button>
+                                    </div>
+                                    <table class="form-table hp-pm-form">
+                                        <tr>
+                                            <th><?php esc_html_e('Focus Keyword', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-yoast-focuskw" type="text" class="regular-text"></td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('SEO Title', 'hp-products-manager'); ?></th>
+                                            <td><input id="hp-pm-pd-yoast-title" type="text" class="large-text hp-pm-full-width"></td>
+                                        </tr>
+                                        <tr>
+                                            <th><?php esc_html_e('Meta Description', 'hp-products-manager'); ?></th>
+                                            <td><textarea id="hp-pm-pd-yoast-metadesc" class="large-text hp-pm-full-width auto-expand" rows="3"></textarea></td>
+                                        </tr>
+                                    </table>
+                                    <div id="hp-pm-seo-audit-results" style="margin-top:20px; display:none;">
+                                        <h3><?php esc_html_e('SEO Audit Results', 'hp-products-manager'); ?></h3>
+                                        <div class="hp-pm-seo-audit-list"></div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Admin -->
+                        <!-- Tab: Admin -->
+                        <div id="tab-admin" class="hp-pm-tab-pane <?php echo $active_tab_id === 'admin' ? 'active' : ''; ?>">
+                            <div class="hp-pm-grid">
+                                <section>
+                                    <h2><?php esc_html_e('Internal Settings', 'hp-products-manager'); ?></h2>
+                                    <table class="form-table hp-pm-form">
+                                        <?php 
+                                            echo $this->render_acf_field('product_type_hp', __('Product Type HP', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'product_type_hp', true));
+                                            echo $this->render_acf_field('site_catalog', __('Site Catalog', 'hp-products-manager'), 'select', null, true, get_post_meta($product_id, 'site_catalog', true));
+                                        ?>
+                                    </table>
+                                </section>
+                            </div>
+                        </div>
+
+                        <!-- Tab: ERP -->
+                        <div id="tab-erp" class="hp-pm-tab-pane <?php echo $active_tab_id === 'erp' ? 'active' : ''; ?>">
+                            <div style="margin-top:20px;">
+                                <h2><?php esc_html_e('Sales History', 'hp-products-manager'); ?></h2>
+                                <div style="margin:12px 0 4px 0;">
+                                    <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
+                                </div>
+                                <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
+                                <div class="hp-pm-erp-toolbar" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 10px;">
+                                    <div class="hp-pm-erp-actions" style="display:flex; gap:8px; align-items:center;">
+                                        <button id="hp-pm-erp-rebuild-product" class="button button-small"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
+                                        <button id="hp-pm-erp-rebuild-all" class="button button-small"><?php esc_html_e('Rebuild ALL', 'hp-products-manager'); ?></button>
+                                        <button id="hp-pm-erp-purge-db" class="button button-small"><?php esc_html_e('Purge all plugin DB', 'hp-products-manager'); ?></button>
+                                        <button id="hp-pm-erp-rebuild-abort" class="button button-small" style="display:none;"><?php esc_html_e('Abort', 'hp-products-manager'); ?></button>
+                                        <div id="hp-pm-erp-rebuild-progress" style="display:none; width: 220px; height: 24px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
+                                            <div style="width:0%; height:100%; background:#007cba; transition: width 0.1s linear;" id="hp-pm-erp-rebuild-progress-fill"></div>
+                                        </div>
+                                        <span id="hp-pm-erp-rebuild-progress-label" style="display:none;"></span>
+                                    </div>
+                                    <div class="hp-pm-erp-ranges" style="display:flex; gap:6px;">
+                                        <button type="button" class="button button-small hp-pm-erp-range" data-days="7">7d</button>
+                                        <button type="button" class="button button-small hp-pm-erp-range" data-days="30">30d</button>
+                                        <button type="button" class="button button-small hp-pm-erp-range" data-days="90">90d</button>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                                <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('30d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-30">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('7d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-7">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('QOH', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Reserved', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-reserved">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Available', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-available">--</span></div>
+                                    <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Δ vs WC', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh-diff">--</span></div>
+                                </section>
+                                <h2 style="margin-top:14px;"><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
+                                <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
+                                    <thead>
+                                    <tr>
+                                        <th><?php esc_html_e('Date', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('Order / Customer', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('QOH After (computed)', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
-                    <?php endif; ?>
-                    <section class="hp-pm-metrics" id="hp-pm-erp-stats" style="display:flex; gap:24px; margin:10px 0; align-items:center;">
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Total Sales', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-total">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('90d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-90">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('30d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-30">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('7d', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-7">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('QOH', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Reserved', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-reserved">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Available', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-available">--</span></div>
-                        <div class="hp-pm-metric"><span class="hp-pm-metric-label"><?php esc_html_e('Δ vs WC', 'hp-products-manager'); ?></span> <span class="hp-pm-metric-value" id="hp-pm-erp-qoh-diff">--</span></div>
-                    </section>
-                    <h2 style="margin-top:14px;"><?php esc_html_e('Stock Movements', 'hp-products-manager'); ?></h2>
-                    <table class="widefat fixed striped" id="hp-pm-erp-table" style="margin-top: 8px;">
-                        <thead>
-                        <tr>
-                            <th><?php esc_html_e('Date', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('Order / Customer', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('QOH After (computed)', 'hp-products-manager'); ?></th>
-                            <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
-                        </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
                 </div>
-            <?php endif; ?>
+            </div>
         </div>
         <?php
     }
@@ -1025,6 +1385,23 @@ final class HP_Products_Manager {
                 ],
             ]
         );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/product/(?P<id>\d+)/seo-audit',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_get_product_seo_audit'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('edit_products');
+                },
+                'args' => [
+                    'id' => [
+                        'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                    ],
+                ],
+            ]
+        );
     }
 
     /**
@@ -1281,6 +1658,23 @@ final class HP_Products_Manager {
         $value = get_post_meta($product_id, self::COST_META_KEY, true);
         $parsed = $this->parse_decimal_relaxed($value);
         return $parsed !== null ? $parsed : null;
+    }
+
+    /**
+     * Helper to get product labels (Name + SKU) for a list of IDs
+     */
+    private function get_product_labels($ids) {
+        if (empty($ids) || !is_array($ids)) return [];
+        global $wpdb;
+        $ids = array_map('intval', $ids);
+        $ids_str = implode(',', $ids);
+        $results = $wpdb->get_results("SELECT ID as id, post_title as name FROM {$wpdb->posts} WHERE ID IN ($ids_str)");
+        $out = [];
+        foreach ($results as $r) {
+            $sku = get_post_meta($r->id, '_sku', true);
+            $out[(int)$r->id] = $r->name . ($sku ? ' (' . $sku . ')' : ' (no SKU)');
+        }
+        return $out;
     }
 
     // Update cost in canonical meta and popular Cost-of-Goods keys for compatibility
@@ -2348,6 +2742,44 @@ final class HP_Products_Manager {
             'manage_stock' => $product->get_manage_stock(),
             'stock_quantity' => $product->get_stock_quantity(),
             'backorders' => $product->get_backorders(),
+            // Dosing & Servings
+            'serving_size'           => get_post_meta($id, 'serving_size', true),
+            'servings_per_container' => get_post_meta($id, 'servings_per_container', true),
+            'serving_form_unit'      => get_post_meta($id, 'serving_form_unit', true),
+            'supplement_form'        => get_post_meta($id, 'supplement_form', true),
+            'bottle_size_eu'         => get_post_meta($id, 'bottle_size_eu', true),
+            'bottle_size_units_eu'   => get_post_meta($id, 'bottle_size_units_eu', true),
+            'bottle_size_usa'        => get_post_meta($id, 'bottle_size_usa', true),
+            'bottle_size_units_usa'  => get_post_meta($id, 'bottle_size_units_usa', true),
+            // Ingredients & Mfg
+            'ingredients'             => get_post_meta($id, 'ingredients', true),
+            'ingredients_other'       => get_post_meta($id, 'ingredients_other', true),
+            'potency'                 => get_post_meta($id, 'potency', true),
+            'potency_units'           => get_post_meta($id, 'potency_units', true),
+            'sku_mfr'                 => get_post_meta($id, 'sku_mfr', true),
+            'manufacturer_acf'        => get_post_meta($id, 'manufacturer_acf', true),
+            'country_of_manufacturer' => get_post_meta($id, 'country_of_manufacturer', true),
+            // Instructions & Safety
+            'how_to_use'      => get_post_meta($id, 'how_to_use', true),
+            'cautions'        => get_post_meta($id, 'cautions', true),
+            'recommended_use' => get_post_meta($id, 'recommended_use', true),
+            'community_tips'  => get_post_meta($id, 'community_tips', true),
+            // Expert Info
+            'body_systems_organs' => (array) get_post_meta($id, 'body_systems_organs', true),
+            'traditional_function'=> get_post_meta($id, 'traditional_function', true),
+            'chinese_energy'      => get_post_meta($id, 'chinese_energy', true),
+            'callback_ayurvedic_energy' => get_post_meta($id, 'ayurvedic_energy', true), // Renamed to avoid confusion if needed
+            'ayurvedic_energy'    => get_post_meta($id, 'ayurvedic_energy', true),
+            'supplement_type'     => get_post_meta($id, 'supplement_type', true),
+            'expert_article'      => get_post_meta($id, 'expert_article', true),
+            'video'               => get_post_meta($id, 'video', true),
+            'video_transcription' => get_post_meta($id, 'video_transcription', true),
+            'slogan'              => get_post_meta($id, 'slogan', true),
+            'aka_product_name'    => get_post_meta($id, 'aka_product_name', true),
+            'description_long'    => get_post_meta($id, 'description_long', true),
+            // Admin
+            'product_type_hp' => get_post_meta($id, 'product_type_hp', true),
+            'site_catalog'    => (array) get_post_meta($id, 'site_catalog', true),
             'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -2390,10 +2822,25 @@ final class HP_Products_Manager {
         // Allowed fields only (explicit list to avoid accidental updates)
         $allowed = [
             'name','sku','price','sale_price','status','visibility',
+            'short_description', 'tax_status', 'tax_class', 'sold_individually',
+            'upsell_ids', 'crosssell_ids',
+            'yoast_focuskw', 'yoast_title', 'yoast_metadesc',
             'brands','categories','tags','shipping_class',
             'weight','length','width','height','cost',
             'image_id','gallery_ids',
             'manage_stock', 'stock_quantity', 'backorders',
+            // Dosing & Servings
+            'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
+            'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
+            // Ingredients & Mfg
+            'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+            // Instructions & Safety
+            'how_to_use', 'cautions', 'recommended_use', 'community_tips',
+            // Expert Info
+            'body_systems_organs', 'traditional_function', 'chinese_energy', 'ayurvedic_energy', 
+            'supplement_type', 'expert_article', 'video', 'video_transcription', 'slogan', 'aka_product_name', 'description_long',
+            // Admin
+            'product_type_hp', 'site_catalog',
         ];
         $apply = array_intersect_key($changes, array_flip($allowed));
 
@@ -2459,6 +2906,33 @@ final class HP_Products_Manager {
             $vis = sanitize_key((string) $apply['visibility']);
             $product->set_catalog_visibility($vis);
         }
+        if (isset($apply['short_description'])) {
+            $product->set_short_description(wp_kses_post($apply['short_description']));
+        }
+        if (isset($apply['tax_status'])) {
+            $product->set_tax_status(sanitize_key($apply['tax_status']));
+        }
+        if (isset($apply['tax_class'])) {
+            $product->set_tax_class(sanitize_key($apply['tax_class']));
+        }
+        if (isset($apply['sold_individually'])) {
+            $product->set_sold_individually(rest_sanitize_boolean($apply['sold_individually']));
+        }
+        if (isset($apply['upsell_ids']) && is_array($apply['upsell_ids'])) {
+            $product->set_upsell_ids(array_map('intval', $apply['upsell_ids']));
+        }
+        if (isset($apply['crosssell_ids']) && is_array($apply['crosssell_ids'])) {
+            $product->set_cross_sell_ids(array_map('intval', $apply['crosssell_ids']));
+        }
+        if (isset($apply['yoast_focuskw'])) {
+            update_post_meta($id, '_yoast_wpseo_focuskw', sanitize_text_field($apply['yoast_focuskw']));
+        }
+        if (isset($apply['yoast_title'])) {
+            update_post_meta($id, '_yoast_wpseo_title', sanitize_text_field($apply['yoast_title']));
+        }
+        if (isset($apply['yoast_metadesc'])) {
+            update_post_meta($id, '_yoast_wpseo_metadesc', sanitize_text_field($apply['yoast_metadesc']));
+        }
         if (isset($apply['brands']) && is_array($apply['brands'])) {
             $slugs = array_values(array_filter(array_map('sanitize_title', $apply['brands'])));
             if (taxonomy_exists('yith_product_brand')) {
@@ -2495,6 +2969,31 @@ final class HP_Products_Manager {
             update_post_meta($id, '_product_image_gallery', implode(',', $ids));
         }
 
+        // ACF / Meta Fields handling
+        $meta_fields = [
+            'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
+            'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
+            'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+            'how_to_use', 'cautions', 'recommended_use', 'community_tips',
+            'traditional_function', 'chinese_energy', 'ayurvedic_energy', 
+            'supplement_type', 'expert_article', 'video', 'video_transcription', 'slogan', 'aka_product_name', 'description_long',
+            'product_type_hp',
+        ];
+        foreach ($meta_fields as $meta_key) {
+            if (isset($apply[$meta_key])) {
+                update_post_meta($id, $meta_key, wp_kses_post($apply[$meta_key]));
+            }
+        }
+        // Serialized fields
+        if (isset($apply['body_systems_organs'])) {
+            $val = is_array($apply['body_systems_organs']) ? $apply['body_systems_organs'] : [];
+            update_post_meta($id, 'body_systems_organs', $val);
+        }
+        if (isset($apply['site_catalog'])) {
+            $val = is_array($apply['site_catalog']) ? $apply['site_catalog'] : [];
+            update_post_meta($id, 'site_catalog', $val);
+        }
+
         $product->save();
 
         if ($pending_cost !== null) {
@@ -2513,6 +3012,17 @@ final class HP_Products_Manager {
             'sale_price' => ($product->get_sale_price('edit') !== '' ? (float) $product->get_sale_price('edit') : null),
             'status'     => $product->get_status(),
             'visibility' => $product->get_catalog_visibility(),
+            'short_description' => $product->get_short_description('edit'),
+            'tax_status' => $product->get_tax_status('edit'),
+            'tax_class'  => $product->get_tax_class('edit'),
+            'sold_individually' => $product->get_sold_individually('edit'),
+            'upsell_ids' => $product->get_upsell_ids('edit'),
+            'crosssell_ids' => $product->get_cross_sell_ids('edit'),
+            'upsell_labels' => (object) $this->get_product_labels($product->get_upsell_ids('edit')),
+            'crosssell_labels' => (object) $this->get_product_labels($product->get_cross_sell_ids('edit')),
+            'yoast_focuskw' => get_post_meta($id, '_yoast_wpseo_focuskw', true),
+            'yoast_title' => get_post_meta($id, '_yoast_wpseo_title', true),
+            'yoast_metadesc' => get_post_meta($id, '_yoast_wpseo_metadesc', true),
             'brands'     => $this->extract_term_slugs($terms_brand),
             'categories' => $this->extract_term_slugs(wc_get_product_terms($id, 'product_cat', ['fields' => 'all'])),
             'tags'       => $this->extract_term_slugs(wc_get_product_terms($id, 'product_tag', ['fields' => 'all'])),
@@ -2525,6 +3035,44 @@ final class HP_Products_Manager {
             'manage_stock' => $product->get_manage_stock(),
             'stock_quantity' => $product->get_stock_quantity(),
             'backorders' => $product->get_backorders(),
+            // Dosing & Servings
+            'serving_size'           => get_post_meta($id, 'serving_size', true),
+            'servings_per_container' => get_post_meta($id, 'servings_per_container', true),
+            'serving_form_unit'      => get_post_meta($id, 'serving_form_unit', true),
+            'supplement_form'        => get_post_meta($id, 'supplement_form', true),
+            'bottle_size_eu'         => get_post_meta($id, 'bottle_size_eu', true),
+            'bottle_size_units_eu'   => get_post_meta($id, 'bottle_size_units_eu', true),
+            'bottle_size_usa'        => get_post_meta($id, 'bottle_size_usa', true),
+            'bottle_size_units_usa'  => get_post_meta($id, 'bottle_size_units_usa', true),
+            // Ingredients & Mfg
+            'ingredients'             => get_post_meta($id, 'ingredients', true),
+            'ingredients_other'       => get_post_meta($id, 'ingredients_other', true),
+            'potency'                 => get_post_meta($id, 'potency', true),
+            'potency_units'           => get_post_meta($id, 'potency_units', true),
+            'sku_mfr'                 => get_post_meta($id, 'sku_mfr', true),
+            'manufacturer_acf'        => get_post_meta($id, 'manufacturer_acf', true),
+            'country_of_manufacturer' => get_post_meta($id, 'country_of_manufacturer', true),
+            // Instructions & Safety
+            'how_to_use'      => get_post_meta($id, 'how_to_use', true),
+            'cautions'        => get_post_meta($id, 'cautions', true),
+            'recommended_use' => get_post_meta($id, 'recommended_use', true),
+            'community_tips'  => get_post_meta($id, 'community_tips', true),
+            // Expert Info
+            'body_systems_organs' => (array) get_post_meta($id, 'body_systems_organs', true),
+            'traditional_function'=> get_post_meta($id, 'traditional_function', true),
+            'chinese_energy'      => get_post_meta($id, 'chinese_energy', true),
+            'callback_ayurvedic_energy' => get_post_meta($id, 'ayurvedic_energy', true), // Renamed to avoid confusion if needed
+            'ayurvedic_energy'    => get_post_meta($id, 'ayurvedic_energy', true),
+            'supplement_type'     => get_post_meta($id, 'supplement_type', true),
+            'expert_article'      => get_post_meta($id, 'expert_article', true),
+            'video'               => get_post_meta($id, 'video', true),
+            'video_transcription' => get_post_meta($id, 'video_transcription', true),
+            'slogan'              => get_post_meta($id, 'slogan', true),
+            'aka_product_name'    => get_post_meta($id, 'aka_product_name', true),
+            'description_long'    => get_post_meta($id, 'description_long', true),
+            // Admin
+            'product_type_hp' => get_post_meta($id, 'product_type_hp', true),
+            'site_catalog'    => (array) get_post_meta($id, 'site_catalog', true),
             'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
@@ -2680,6 +3228,79 @@ final class HP_Products_Manager {
         if (function_exists('wp_cache_flush_group')) {
             wp_cache_flush_group(self::CACHE_GROUP);
         }
+    }
+
+    /**
+     * REST callback: Perform SEO audit for a product.
+     */
+    public function rest_get_product_seo_audit(WP_REST_Request $request) {
+        $id = (int) $request['id'];
+        $product = wc_get_product($id);
+        if (!$product) {
+            return new \WP_Error('not_found', __('Product not found', 'hp-products-manager'), ['status' => 404]);
+        }
+
+        $focus_kw = get_post_meta($id, '_yoast_wpseo_focuskw', true);
+        $title = get_post_meta($id, '_yoast_wpseo_title', true) ?: $product->get_name();
+        $desc_short = $product->get_short_description();
+        $desc_long = get_post_meta($id, 'description_long', true) ?: $product->get_description();
+        $meta_desc = get_post_meta($id, '_yoast_wpseo_metadesc', true);
+
+        $results = [];
+
+        // 1. Focus Keyword exists
+        if (empty($focus_kw)) {
+            $results[] = ['level' => 'error', 'msg' => __('No focus keyword set.', 'hp-products-manager')];
+        } else {
+            $kw = strtolower($focus_kw);
+
+            // 2. Keyword in title
+            if (strpos(strtolower($title), $kw) === false) {
+                $results[] = ['level' => 'warning', 'msg' => sprintf(__('Focus keyword "%s" not found in SEO title.', 'hp-products-manager'), $focus_kw)];
+            } else {
+                $results[] = ['level' => 'good', 'msg' => __('Focus keyword found in SEO title.', 'hp-products-manager')];
+            }
+
+            // 3. Keyword in descriptions
+            $in_short = strpos(strtolower($desc_short), $kw) !== false;
+            $in_long = strpos(strtolower($desc_long), $kw) !== false;
+            if (!$in_short && !$in_long) {
+                $results[] = ['level' => 'warning', 'msg' => __('Focus keyword not found in product descriptions.', 'hp-products-manager')];
+            } else {
+                $results[] = ['level' => 'good', 'msg' => __('Focus keyword found in product descriptions.', 'hp-products-manager')];
+            }
+        }
+
+        // 4. Meta description length
+        $meta_len = strlen($meta_desc);
+        if ($meta_len === 0) {
+            $results[] = ['level' => 'error', 'msg' => __('No meta description set.', 'hp-products-manager')];
+        } elseif ($meta_len < 120) {
+            $results[] = ['level' => 'warning', 'msg' => __('Meta description is too short (less than 120 chars).', 'hp-products-manager')];
+        } elseif ($meta_len > 160) {
+            $results[] = ['level' => 'warning', 'msg' => __('Meta description is too long (more than 160 chars).', 'hp-products-manager')];
+        } else {
+            $results[] = ['level' => 'good', 'msg' => __('Meta description length is good.', 'hp-products-manager')];
+        }
+
+        // 5. Content length
+        $content_len = str_word_count(strip_tags($desc_long));
+        if ($content_len < 300) {
+            $results[] = ['level' => 'warning', 'msg' => sprintf(__('Long description is short (%d words). Aim for 300+.', 'hp-products-manager'), $content_len)];
+        } else {
+            $results[] = ['level' => 'good', 'msg' => __('Content length is good.', 'hp-products-manager')];
+        }
+
+        return rest_ensure_response([
+            'id' => $id,
+            'results' => $results,
+            'overall' => (function() use ($results) {
+                $levels = array_column($results, 'level');
+                if (in_array('error', $levels)) return 'bad';
+                if (in_array('warning', $levels)) return 'ok';
+                return 'good';
+            })()
+        ]);
     }
 }
 

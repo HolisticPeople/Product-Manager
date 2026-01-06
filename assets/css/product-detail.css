@@ -1,13 +1,21 @@
 .hp-pm-card .hp-pm-staging-actions {
-    margin-top: 16px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dcdcde;
     display: flex;
     gap: 8px;
     align-items: center;
 }
 
 .hp-pm-staged {
-    margin-top: 16px;
+    margin-top: 20px;
+    background: #fdfdfd;
+    padding: 12px;
+    border: 1px dashed #c3c4c7;
+    border-radius: 4px;
 }
+
+.hp-pm-staged-table th { background: #f0f0f1; }
 
 .hp-pm-form select[multiple] {
     min-height: 90px;
@@ -16,19 +24,22 @@
 .hp-pm-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px 24px;
+    gap: 20px 32px;
     margin-top: 12px;
 }
 
 .hp-pm-pd-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
-    margin-bottom: 12px;
+}
+
+.hp-pm-header-card {
+    padding: 15px 20px !important;
 }
 
 .hp-pm-main-img {
-    max-width: 120px;
+    max-width: 100px;
     height: auto;
     border: 2px solid #2271b1;
     border-radius: 4px;
@@ -38,14 +49,110 @@
 .hp-pm-gallery {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-left: 16px;
+    gap: 8px;
+    margin-left: 20px;
+    flex: 1;
+}
+
+.hp-pm-pd-links {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.hp-pm-nav-tabs {
+    margin-bottom: 0 !important;
+    background: transparent !important;
+    border-bottom: none !important;
+    padding-left: 10px !important;
+}
+
+.hp-pm-nav-tabs .nav-tab {
+    margin-right: 4px !important;
+    border-bottom: none !important;
+    background: #e0e0e0;
+}
+
+.hp-pm-nav-tabs .nav-tab-active {
+    background: #fff !important;
+    border-bottom: 1px solid #fff !important;
+    margin-bottom: -1px;
+    z-index: 10;
+}
+
+.hp-pm-tabs-card {
+    border-top: 1px solid #c3c4c7 !important;
+    border-top-left-radius: 0 !important;
+    padding: 20px !important;
+}
+
+.hp-pm-tab-pane {
+    display: none;
+    padding: 0;
+}
+
+.hp-pm-tab-pane.active {
+    display: block;
+}
+
+.hp-pm-pd-container {
+    max-width: 1200px;
+    margin: 20px auto;
+}
+
+.hp-pm-full-width {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+textarea.auto-expand {
+    min-height: 100px;
+    resize: vertical;
+    overflow-y: hidden;
+}
+
+.hp-pm-form th {
+    width: 220px;
+    padding: 10px 10px 10px 0;
+    font-weight: 600;
+}
+
+.hp-pm-form td {
+    padding: 10px 0;
+}
+
+/* Full width section for long text */
+.hp-pm-tab-pane section.full-width {
+    grid-column: 1 / -1;
+}
+
+.hp-pm-tab-pane section.full-width table {
+    width: 100%;
+}
+
+.hp-pm-tab-pane section.full-width table th {
+    display: block;
+    width: 100%;
+    padding-bottom: 5px;
+}
+
+.hp-pm-tab-pane section.full-width table td {
+    display: block;
+    width: 100%;
+}
+
+.hp-pm-form textarea.large-text {
+    min-height: 100px;
+    font-family: monospace;
+    font-size: 13px;
 }
 
 .hp-pm-thumb {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 80px;
+    height: 80px;
     border: 1px solid #dcdcde;
     border-radius: 3px;
     overflow: hidden;

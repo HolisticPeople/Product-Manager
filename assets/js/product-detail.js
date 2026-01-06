@@ -409,7 +409,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var stageBtn = document.getElementById('hp-pm-stage-btn');
   var applyBtn = document.getElementById('hp-pm-apply-btn');
   var discardBtn = document.getElementById('hp-pm-discard-btn');
-  var stagedTitle = document.getElementById('hp-pm-staged-title');
+  var stagedSection = document.getElementById('hp-pm-staged-section');
   var stagedTable = document.getElementById('hp-pm-staged-table');
   var stagedBody = stagedTable ? stagedTable.querySelector('tbody') : null;
 
@@ -498,9 +498,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function renderStaged() {
-    var staged = readStaged(); if (!stagedBody || !stagedTable) return;
+    var staged = readStaged(); if (!stagedBody || !stagedSection) return;
     stagedBody.innerHTML = ''; var keys = Object.keys(staged);
-    stagedTable.style.display = keys.length ? '' : 'none';
+    stagedSection.style.display = keys.length ? '' : 'none';
     applyBtn.disabled = keys.length === 0;
     discardBtn.disabled = keys.length === 0;
 

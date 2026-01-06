@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.77
+ * Version: 0.5.78
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.77';
+    const VERSION = '0.5.78';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -609,13 +609,15 @@ final class HP_Products_Manager {
                             </div>
                         </div>
                     </div>
-                    <div id="hp-pm-staged-table" class="hp-pm-staged" style="display:none; margin-top: 15px; border-top: 1px solid #dcdcde; padding-top: 15px;">
-                        <h3 id="hp-pm-staged-title" style="margin-top:0;"><?php esc_html_e('Staged Changes', 'hp-products-manager'); ?></h3>
-                        <table class="widefat striped">
+                    <details id="hp-pm-staged-section" class="hp-pm-staged" style="display:none; margin-top: 15px; border-top: 1px solid #dcdcde; padding-top: 15px;" open>
+                        <summary style="cursor: pointer; font-weight: 600; font-size: 1.1em; outline: none; margin-bottom: 10px;">
+                            <span id="hp-pm-staged-title"><?php esc_html_e('Staged Changes', 'hp-products-manager'); ?></span>
+                        </summary>
+                        <table id="hp-pm-staged-table" class="widefat striped">
                             <thead><tr><th>Field</th><th>From</th><th>To</th><th>Action</th></tr></thead>
                             <tbody></tbody>
                         </table>
-                    </div>
+                    </details>
                 </div>
 
                 <h2 class="nav-tab-wrapper hp-pm-nav-tabs">

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.73
+ * Version: 0.5.74
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.73';
+    const VERSION = '0.5.74';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -948,28 +948,15 @@ final class HP_Products_Manager {
                     </div>
 
                     <div class="hp-pm-staging-actions">
-                        <button id="hp-pm-stage-btn" class="button button-primary"></button>
-                        <button id="hp-pm-apply-btn" class="button" disabled></button>
-                        <button id="hp-pm-discard-btn" class="button"></button>
+                        <button id="hp-pm-stage-btn" class="button button-primary"><?php esc_html_e('Stage Changes', 'hp-products-manager'); ?></button>
+                        <button id="hp-pm-apply-btn" class="button" disabled><?php esc_html_e('Apply All', 'hp-products-manager'); ?></button>
+                        <button id="hp-pm-discard-btn" class="button" disabled><?php esc_html_e('Discard All', 'hp-products-manager'); ?></button>
                     </div>
 
-                    <?php $hp_pm_show_debug = current_user_can('manage_woocommerce') && isset($_GET['hp_pm_debug']); if ($hp_pm_show_debug) : ?>
-                    <div class="hp-pm-debug card" style="margin-top:10px; padding:10px; border:1px dashed #ccd0d4;">
-                        <strong><?php esc_html_e('ERP Debug', 'hp-products-manager'); ?></strong>
-                        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-                            <button id="hp-pm-debug-setstock" class="button"><?php esc_html_e('Log set_stock', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-debug-reduce" class="button"><?php esc_html_e('Log reduce_order_stock', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-debug-restore" class="button"><?php esc_html_e('Log restore_order_stock', 'hp-products-manager'); ?></button>
-                            <button id="hp-pm-debug-showlogs" class="button"><?php esc_html_e('Show recent logs', 'hp-products-manager'); ?></button>
-                        </div>
-                        <p style="margin-top:6px; color:#666;">&nbsp;</p>
-                    </div>
-                    <?php endif; ?>
-
-                    <div class="hp-pm-staged">
-                        <h3 id="hp-pm-staged-title"></h3>
-                        <table class="widefat fixed striped" id="hp-pm-staged-table" style="display:none;">
-                            <thead><tr><th><?php esc_html_e('Field', 'hp-products-manager'); ?></th><th><?php esc_html_e('From', 'hp-products-manager'); ?></th><th><?php esc_html_e('To', 'hp-products-manager'); ?></th><th></th></tr></thead>
+                    <div id="hp-pm-staged-table" class="hp-pm-staged" style="display:none;">
+                        <h3 id="hp-pm-staged-title"><?php esc_html_e('Staged Changes', 'hp-products-manager'); ?></h3>
+                        <table class="widefat striped">
+                            <thead><tr><th>Field</th><th>From</th><th>To</th><th>Action</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>

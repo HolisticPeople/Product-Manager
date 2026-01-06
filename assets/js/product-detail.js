@@ -64,7 +64,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!options) return [select.value];
     for (var i = 0, iLen = options.length; i < iLen; i++) {
       if (options[i].selected) {
-        result.push(options[i].value || options[i].text);
+        // Don't fall back to text if value is empty string
+        result.push(options[i].value);
       }
     }
     return select.multiple ? result : (result[0] || '');
@@ -476,18 +477,33 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       
       var orig = original[k];
+
+      // Normalize for comparison
+      var normVal = val;
+      var normOrig = orig;
+
+      if (el.tagName === 'TEXTAREA') {
+        normVal = (val || '').replace(/\r\n/g, '\n').trim();
+        normOrig = (orig || '').replace(/\r\n/g, '\n').trim();
+      }
       
       // Compare arrays for multiselect
       if (Array.isArray(val)) {
         var a = (val || []).slice().sort();
-        var b = (Array.isArray(orig) ? orig : (orig ? [orig] : [])).slice().sort();
+        var b = (Array.isArray(orig) ? orig : (typeof orig === 'string' ? orig.split(',').map(function(s){return s.trim();}).filter(Boolean) : (orig ? [orig] : []))).slice().sort();
         if (JSON.stringify(a) !== JSON.stringify(b)) {
           c[k] = val;
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:gatherChanges_acf_array',message:'ACF Array Change Detected',data:{key:k, val:a, orig:b},timestamp:Date.now(),hypothesisId:'redundant_changes'})}).catch(()=>{});
+          // #endregion
         }
       } else {
         // Simple comparison for strings/numbers
-        if (String(val || '') !== String(orig || '')) {
+        if (String(normVal || '') !== String(normOrig || '')) {
           c[k] = val;
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/fdc1e251-7d8c-4076-b3bd-ed8c4301842f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'product-detail.js:gatherChanges_acf_simple',message:'ACF Simple Change Detected',data:{key:k, val:normVal, orig:normOrig},timestamp:Date.now(),hypothesisId:'redundant_changes'})}).catch(()=>{});
+          // #endregion
         }
       }
     });

@@ -13,8 +13,11 @@ document.addEventListener('DOMContentLoaded', function () {
   var priceEl = document.getElementById('hp-pm-pd-price');
   var salePriceEl = document.getElementById('hp-pm-pd-sale-price');
   var statusEl = document.getElementById('hp-pm-pd-status');
+  var shortDescEl = document.getElementById('hp-pm-pd-short-description');
   var visibilityEl = document.getElementById('hp-pm-pd-visibility');
   var costEl = document.getElementById('hp-pm-pd-cost');
+  var taxStatusEl = document.getElementById('hp-pm-pd-tax-status');
+  var taxClassEl = document.getElementById('hp-pm-pd-tax-class');
   var weightEl = document.getElementById('hp-pm-pd-weight');
   var lengthEl = document.getElementById('hp-pm-pd-length');
   var widthEl = document.getElementById('hp-pm-pd-width');
@@ -22,6 +25,10 @@ document.addEventListener('DOMContentLoaded', function () {
   var shipClassEl = document.getElementById('hp-pm-pd-ship-class');
   var manageStockEl = document.getElementById('hp-pm-pd-manage-stock');
   var stockQtyEl = document.getElementById('hp-pm-pd-stock-qty');
+  var soldIndividuallyEl = document.getElementById('hp-pm-pd-sold-individually');
+  var yoastFocusKwEl = document.getElementById('hp-pm-pd-yoast-focuskw');
+  var yoastTitleEl = document.getElementById('hp-pm-pd-yoast-title');
+  var yoastMetaDescEl = document.getElementById('hp-pm-pd-yoast-metadesc');
   var imgEl = document.getElementById('hp-pm-pd-image');
   var galleryEl = document.getElementById('hp-pm-pd-gallery');
   var editLink = document.getElementById('hp-pm-pd-edit');
@@ -106,15 +113,22 @@ document.addEventListener('DOMContentLoaded', function () {
   setValue(priceEl, original.price);
   setValue(salePriceEl, original.sale_price);
   setValue(statusEl, original.status);
+  setValue(shortDescEl, original.short_description);
   setValue(visibilityEl, original.visibility);
   setValue(costEl, original.cost);
+  setValue(taxStatusEl, original.tax_status);
+  setValue(taxClassEl, original.tax_class);
   setValue(weightEl, original.weight);
   setValue(lengthEl, original.length);
   setValue(widthEl, original.width);
   setValue(heightEl, original.height);
   if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
   setValue(stockQtyEl, original.stock_quantity);
+  if (soldIndividuallyEl) soldIndividuallyEl.checked = !!original.sold_individually;
   setRadioValue('backorders', original.backorders || 'no');
+  setValue(yoastFocusKwEl, original.yoast_focuskw);
+  setValue(yoastTitleEl, original.yoast_title);
+  setValue(yoastMetaDescEl, original.yoast_metadesc);
 
   // Initialize ACF fields
   metaKeys.forEach(function(k) {
@@ -191,6 +205,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  if (taxClassEl && Array.isArray(data.taxClasses)) {
+    data.taxClasses.forEach(function (t) {
+      var opt = document.createElement('option');
+      opt.value = t.slug; opt.textContent = t.name;
+      if (original.tax_class === t.slug) opt.selected = true;
+      taxClassEl.appendChild(opt);
+    });
+  }
+
   // Tokens (brands/categories/tags)
   function setupTokens(prefix, list, current) {
     var tokens = document.getElementById('hp-pm-pd-' + prefix + '-tokens');
@@ -262,6 +285,72 @@ document.addEventListener('DOMContentLoaded', function () {
   var brandsTk = setupTokens('brands', data.brands || [], original.brands || []);
   var catsTk = setupTokens('categories', data.categories || [], original.categories || []);
   var tagsTk = setupTokens('tags', data.tags || [], original.tags || []);
+
+  var allProductsList = document.getElementById('hp-pm-all-products-list');
+  if (allProductsList && Array.isArray(data.allProducts)) {
+    data.allProducts.forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p.name + ' (' + (p.sku || 'no SKU') + ')';
+      opt.setAttribute('data-id', p.id);
+      allProductsList.appendChild(opt);
+    });
+  }
+
+  function setupProductTokens(prefix, currentIds) {
+    var tokens = document.getElementById('hp-pm-pd-' + prefix + '-tokens');
+    var input = document.getElementById('hp-pm-pd-' + prefix + '-input');
+    var datalist = allProductsList;
+    var current = (currentIds || []).map(function(id) {
+      var p = (data.allProducts || []).find(function(item){ return item.id == id; });
+      return p ? { id: p.id, label: p.name } : { id: id, label: 'ID: ' + id };
+    });
+
+    function render() {
+      if (!tokens) return;
+      tokens.innerHTML = '';
+      current.forEach(function(item, index) {
+        var t = document.createElement('span');
+        t.className = 'hp-pm-token';
+        t.textContent = item.label;
+        var del = document.createElement('span');
+        del.className = 'hp-pm-token-remove';
+        del.innerHTML = '&times;';
+        del.onclick = function() { current.splice(index, 1); render(); };
+        t.appendChild(del);
+        tokens.appendChild(t);
+      });
+    }
+
+    if (input && datalist) {
+      input.addEventListener('input', function() {
+        var val = input.value;
+        var opt = Array.from(datalist.options).find(function(o){ return o.value === val; });
+        if (opt) {
+          var id = opt.getAttribute('data-id');
+          if (id && !current.find(function(i){ return i.id == id; })) {
+            current.push({ id: id, label: val });
+            render();
+          }
+          input.value = '';
+        }
+      });
+    }
+
+    render();
+    return {
+      get: function() { return current.map(function(i){ return i.id; }); },
+      set: function(ids) {
+        current = (ids || []).map(function(id) {
+          var p = (data.allProducts || []).find(function(item){ return item.id == id; });
+          return p ? { id: p.id, label: p.name } : { id: id, label: 'ID: ' + id };
+        });
+        render();
+      }
+    };
+  }
+
+  var upsellsTk = setupProductTokens('upsells', original.upsell_ids);
+  var crosssellsTk = setupProductTokens('crosssells', original.crosssell_ids);
 
   // Gallery
   var currentImageId = original.image_id || null;
@@ -423,9 +512,18 @@ document.addEventListener('DOMContentLoaded', function () {
   function readStaged() { try { return JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (e) { return {}; } }
   function writeStaged(obj) { localStorage.setItem(storageKey, JSON.stringify(obj || {})); renderStaged(); }
 
+  function deepNormalize(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/[\r\n\t]+/g, ' ')  // Turn all newlines/tabs into spaces
+      .replace(/>\s+</g, '><')    // Remove whitespace between tags
+      .replace(/\s+/g, ' ')       // Collapse multiple spaces to one
+      .trim();
+  }
+
   function gatherChanges() {
     // Auto-tokenize non-empty inputs
-    [brandsTk, catsTk, tagsTk].forEach(function(tk){
+    [brandsTk, catsTk, tagsTk, upsellsTk, crosssellsTk].forEach(function(tk){
       if (tk && tk.input && tk.input.value.trim() !== '') {
         var val = tk.input.value.trim();
         var cur = tk.get();
@@ -443,6 +541,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (priceEl && String(priceEl.value || '') !== String(original.price || '')) c.price = priceEl.value;
     if (salePriceEl && String(salePriceEl.value || '') !== String(original.sale_price || '')) c.sale_price = salePriceEl.value;
     if (statusEl && statusEl.value !== original.status) c.status = statusEl.value;
+    if (shortDescEl && deepNormalize(shortDescEl.value) !== deepNormalize(original.short_description)) c.short_description = shortDescEl.value;
     if (visibilityEl && visibilityEl.value !== original.visibility) c.visibility = visibilityEl.value;
 
     var selBrands = brandsTk.get ? brandsTk.get() : [];
@@ -452,7 +551,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var selTags = tagsTk.get ? tagsTk.get() : [];
     if (JSON.stringify((selTags.slice().sort())) !== JSON.stringify((original.tags || []).slice().sort())) c.tags = selTags;
 
+    var selUpsells = upsellsTk.get ? upsellsTk.get() : [];
+    if (JSON.stringify((selUpsells.slice().sort())) !== JSON.stringify((original.upsell_ids || []).slice().sort())) c.upsell_ids = selUpsells;
+    var selCrosssells = crosssellsTk.get ? crosssellsTk.get() : [];
+    if (JSON.stringify((selCrosssells.slice().sort())) !== JSON.stringify((original.crosssell_ids || []).slice().sort())) c.crosssell_ids = selCrosssells;
+
     if (costEl && String(costEl.value || '') !== String(original.cost || '')) c.cost = costEl.value;
+    if (taxStatusEl && taxStatusEl.value !== original.tax_status) c.tax_status = taxStatusEl.value;
+    if (taxClassEl && taxClassEl.value !== original.tax_class) c.tax_class = taxClassEl.value;
     if (weightEl && String(weightEl.value || '') !== String(original.weight || '')) c.weight = weightEl.value;
     if (lengthEl && String(lengthEl.value || '') !== String(original.length || '')) c.length = lengthEl.value;
     if (widthEl && String(widthEl.value || '') !== String(original.width || '')) c.width = widthEl.value;
@@ -461,8 +567,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (manageStockEl && manageStockEl.checked !== !!original.manage_stock) c.manage_stock = manageStockEl.checked;
     if (stockQtyEl && String(stockQtyEl.value || '') !== String(original.stock_quantity == null ? '' : original.stock_quantity)) c.stock_quantity = stockQtyEl.value;
+    if (soldIndividuallyEl && soldIndividuallyEl.checked !== !!original.sold_individually) c.sold_individually = soldIndividuallyEl.checked;
     var backorders = Array.from(document.getElementsByName('backorders')).find(function(r){return r.checked;});
     if (backorders && backorders.value !== (original.backorders || 'no')) c.backorders = backorders.value;
+
+    if (yoastFocusKwEl && yoastFocusKwEl.value !== original.yoast_focuskw) c.yoast_focuskw = yoastFocusKwEl.value;
+    if (yoastTitleEl && yoastTitleEl.value !== original.yoast_title) c.yoast_title = yoastTitleEl.value;
+    if (yoastMetaDescEl && deepNormalize(yoastMetaDescEl.value) !== deepNormalize(original.yoast_metadesc)) c.yoast_metadesc = yoastMetaDescEl.value;
+
+    // Images: include if dirty or different
+    if (imageDirty || (currentImageId !== (original.image_id || null))) c.image_id = currentImageId;
+    if (galleryDirty || JSON.stringify(currentGallery) !== JSON.stringify(original.gallery_ids || [])) c.gallery_ids = currentGallery;
 
     // ACF Fields
     metaKeys.forEach(function(k) {
@@ -481,15 +596,6 @@ document.addEventListener('DOMContentLoaded', function () {
       // Normalize for comparison
       var normVal = val;
       var normOrig = orig;
-
-      function deepNormalize(s) {
-        if (!s) return '';
-        return String(s)
-          .replace(/[\r\n\t]+/g, ' ')  // Turn all newlines/tabs into spaces
-          .replace(/>\s+</g, '><')    // Remove whitespace between tags
-          .replace(/\s+/g, ' ')       // Collapse multiple spaces to one
-          .trim();
-      }
 
       if (el.tagName === 'TEXTAREA' || typeof val === 'string') {
         normVal = deepNormalize(val);
@@ -515,9 +621,6 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // Images: include if dirty or different
-    if (imageDirty || (currentImageId !== (original.image_id || null))) c.image_id = currentImageId;
-    if (galleryDirty || JSON.stringify(currentGallery) !== JSON.stringify(original.gallery_ids || [])) c.gallery_ids = currentGallery;
     return c;
   }
 
@@ -588,21 +691,30 @@ document.addEventListener('DOMContentLoaded', function () {
     if (rm === 'brands' && brandsTk.set) brandsTk.set(original.brands || []);
     if (rm === 'categories' && catsTk.set) catsTk.set(original.categories || []);
     if (rm === 'tags' && tagsTk.set) tagsTk.set(original.tags || []);
+    if (rm === 'upsell_ids' && upsellsTk.set) upsellsTk.set(original.upsell_ids || []);
+    if (rm === 'crosssell_ids' && crosssellsTk.set) crosssellsTk.set(original.crosssell_ids || []);
     if (rm === 'name') setValue(nameEl, original.name);
     if (rm === 'sku') setValue(skuEl, original.sku);
     if (rm === 'price') setValue(priceEl, original.price);
     if (rm === 'sale_price') setValue(salePriceEl, original.sale_price);
     if (rm === 'status') setValue(statusEl, original.status);
+    if (rm === 'short_description') setValue(shortDescEl, original.short_description);
     if (rm === 'visibility') setValue(visibilityEl, original.visibility);
     if (rm === 'cost') setValue(costEl, original.cost);
+    if (rm === 'tax_status') setValue(taxStatusEl, original.tax_status);
+    if (rm === 'tax_class') setValue(taxClassEl, original.tax_class);
     if (rm === 'weight') setValue(weightEl, original.weight);
     if (rm === 'length') setValue(lengthEl, original.length);
     if (rm === 'width') setValue(widthEl, original.width);
     if (rm === 'height') setValue(heightEl, original.height);
     if (rm === 'shipping_class') setValue(shipClassEl, original.shipping_class || '');
-    if (rm === 'manage_stock') { if (manageStockEl) manageStockEl.checked = !!original.manage_stock; }
+    if (rm === 'manage_stock') { if (manageStockEl) { manageStockEl.checked = !!original.manage_stock; } }
     if (rm === 'stock_quantity') setValue(stockQtyEl, original.stock_quantity);
+    if (rm === 'sold_individually') { if (soldIndividuallyEl) soldIndividuallyEl.checked = !!original.sold_individually; }
     if (rm === 'backorders') setRadioValue('backorders', original.backorders || 'no');
+    if (rm === 'yoast_focuskw') setValue(yoastFocusKwEl, original.yoast_focuskw);
+    if (rm === 'yoast_title') setValue(yoastTitleEl, original.yoast_title);
+    if (rm === 'yoast_metadesc') setValue(yoastMetaDescEl, original.yoast_metadesc);
     if (metaKeys.indexOf(rm) !== -1) {
       var val = original[rm];
       var el = metaEls[rm];
@@ -627,16 +739,21 @@ document.addEventListener('DOMContentLoaded', function () {
         original = payload;
         setValue(nameEl, original.name); setValue(skuEl, original.sku);
         setValue(priceEl, original.price); setValue(salePriceEl, original.sale_price);
-        setValue(statusEl, original.status); setValue(visibilityEl, original.visibility);
+        setValue(statusEl, original.status); setValue(shortDescEl, original.short_description); setValue(visibilityEl, original.visibility);
         brandsTk.set && brandsTk.set(original.brands || []);
         catsTk.set && catsTk.set(original.categories || []);
         tagsTk.set && tagsTk.set(original.tags || []);
-        setValue(costEl, original.cost); setValue(weightEl, original.weight);
+        upsellsTk.set && upsellsTk.set(original.upsell_ids || []);
+        crosssellsTk.set && crosssellsTk.set(original.crosssell_ids || []);
+        setValue(costEl, original.cost); setValue(taxStatusEl, original.tax_status); setValue(taxClassEl, original.tax_class);
+        setValue(weightEl, original.weight);
         setValue(lengthEl, original.length); setValue(widthEl, original.width);
         setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
         if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
         setValue(stockQtyEl, original.stock_quantity);
+        if (soldIndividuallyEl) soldIndividuallyEl.checked = !!original.sold_individually;
         setRadioValue('backorders', original.backorders || 'no');
+        setValue(yoastFocusKwEl, original.yoast_focuskw); setValue(yoastTitleEl, original.yoast_title); setValue(yoastMetaDescEl, original.yoast_metadesc);
         metaKeys.forEach(function(k) {
           var val = original[k];
           var el = metaEls[k];
@@ -686,12 +803,16 @@ document.addEventListener('DOMContentLoaded', function () {
       if (payload && payload.id) {
         original = payload;
         setValue(nameEl, original.name); setValue(skuEl, original.sku); setValue(priceEl, original.price); setValue(salePriceEl, original.sale_price);
-        setValue(statusEl, original.status); setValue(visibilityEl, original.visibility);
+        setValue(statusEl, original.status); setValue(shortDescEl, original.short_description); setValue(visibilityEl, original.visibility);
         brandsTk.set && brandsTk.set(original.brands || []); catsTk.set && catsTk.set(original.categories || []); tagsTk.set && tagsTk.set(original.tags || []);
-        setValue(costEl, original.cost); setValue(weightEl, original.weight); setValue(lengthEl, original.length); setValue(widthEl, original.width); setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
+        upsellsTk.set && upsellsTk.set(original.upsell_ids || []); crosssellsTk.set && crosssellsTk.set(original.crosssell_ids || []);
+        setValue(costEl, original.cost); setValue(taxStatusEl, original.tax_status); setValue(taxClassEl, original.tax_class);
+        setValue(weightEl, original.weight); setValue(lengthEl, original.length); setValue(widthEl, original.width); setValue(heightEl, original.height); setValue(shipClassEl, original.shipping_class || '');
         if (manageStockEl) manageStockEl.checked = !!original.manage_stock;
         setValue(stockQtyEl, original.stock_quantity);
+        if (soldIndividuallyEl) soldIndividuallyEl.checked = !!original.sold_individually;
         setRadioValue('backorders', original.backorders || 'no');
+        setValue(yoastFocusKwEl, original.yoast_focuskw); setValue(yoastTitleEl, original.yoast_title); setValue(yoastMetaDescEl, original.yoast_metadesc);
         if (imgEl) imgEl.src = original.image || ''; currentImageId = original.image_id || null; currentGallery = (original.gallery_ids || []).slice(); galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; }); renderGallery(); imageDirty=false; galleryDirty=false;
       }
       writeStaged({}); showNotice(data.i18n.applied, 'success');
@@ -721,6 +842,44 @@ document.addEventListener('DOMContentLoaded', function () {
         alert('Duplicate failed: ' + e.message);
         duplicateBtn.disabled = false;
       });
+    });
+  }
+
+  // SEO Audit Button
+  var seoAuditBtn = document.getElementById('hp-pm-seo-audit-btn');
+  var seoAuditResults = document.getElementById('hp-pm-seo-audit-results');
+  if (seoAuditBtn && seoAuditResults) {
+    seoAuditBtn.addEventListener('click', function() {
+      seoAuditBtn.disabled = true;
+      seoAuditBtn.textContent = 'Auditing...';
+      fetch(data.restBase + '/seo-audit', { headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          seoAuditBtn.disabled = false;
+          seoAuditBtn.textContent = 'Run SEO Audit';
+          seoAuditResults.style.display = '';
+          var list = seoAuditResults.querySelector('.hp-pm-seo-audit-list');
+          list.innerHTML = '';
+          if (res.results && res.results.length) {
+            res.results.forEach(function(item) {
+              var div = document.createElement('div');
+              div.style.padding = '8px';
+              div.style.marginBottom = '4px';
+              div.style.borderRadius = '4px';
+              div.style.borderLeft = '4px solid';
+              if (item.level === 'good') { div.style.background = '#e7f7eb'; div.style.borderColor = '#00a32a'; }
+              else if (item.level === 'warning') { div.style.background = '#fff8e5'; div.style.borderColor = '#dba617'; }
+              else { div.style.background = '#fcf0f1'; div.style.borderColor = '#d63638'; }
+              div.textContent = item.msg;
+              list.appendChild(div);
+            });
+          }
+        })
+        .catch(function(e) {
+          alert('Audit failed: ' + e.message);
+          seoAuditBtn.disabled = false;
+          seoAuditBtn.textContent = 'Run SEO Audit';
+        });
     });
   }
 

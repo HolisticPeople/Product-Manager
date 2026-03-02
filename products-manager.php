@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.65
+ * Version: 0.5.66
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -33,7 +33,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.65';
+    const VERSION = '0.5.66';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1950,7 +1950,14 @@ final class HP_Products_Manager {
                     $status = $order->get_status();
                     if ($status === 'refunded' || $status === 'cancelled') {
                         $type = 'restore';
-                    } elseif (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing','completed'], true)) {
+                    } elseif (
+                        // 'on-account' orders have been physically dispatched without payment —
+                        // stock is gone, so treat as a sale movement in the ERP ledger.
+                        // is_paid() intentionally returns false for 'on-account' (no payment received),
+                        // so we must check it explicitly here alongside the standard paid statuses.
+                        in_array($status, ['on-account'], true) ||
+                        (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
+                    ) {
                         $type = 'sale';
                     } else {
                         $type = '';

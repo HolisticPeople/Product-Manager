@@ -3,10 +3,12 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.88
+ * Version: 0.5.89
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
+ * WC requires at least: 8.0
+ * WC tested up to:   10.5
  *
  * @package HP_Products_Manager
  */
@@ -18,13 +20,20 @@ if (!defined('ABSPATH')) {
 // Note: WP_Query, WP_Post, WP_REST_Request, WP_REST_Server, WC_Product are global classes
 // No 'use' statements needed - they were causing PHP warnings
 
+// Declare WooCommerce feature compatibility (HPOS)
+add_action('before_woocommerce_init', function () {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+    }
+});
+
 /**
  * Bootstrap class for the Products Manager plugin.
  */
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.88';
+    const VERSION = '0.5.89';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -508,7 +517,7 @@ final class HP_Products_Manager {
                     'yoast_focuskw' => get_post_meta($product_id, '_yoast_wpseo_focuskw', true),
                     'yoast_title' => get_post_meta($product_id, '_yoast_wpseo_title', true),
                     'yoast_metadesc' => get_post_meta($product_id, '_yoast_wpseo_metadesc', true),
-                    'brands'     => $this->extract_term_slugs(wc_get_product_terms($product_id, 'yith_product_brand', ['fields' => 'all'])),
+                    'brands'     => $this->extract_term_slugs($this->get_product_brand_terms($product_id)),
                     'categories' => $this->extract_term_slugs(wc_get_product_terms($product_id, 'product_cat', ['fields' => 'all'])),
                     'tags'       => $this->extract_term_slugs(wc_get_product_terms($product_id, 'product_tag', ['fields' => 'all'])),
                     'shipping_class' => (function() use ($product_id) {
@@ -1472,7 +1481,7 @@ final class HP_Products_Manager {
         if (!empty($query->posts)) {
             update_meta_cache('post', $query->posts);
             if (function_exists('update_object_term_cache')) {
-                update_object_term_cache($query->posts, ['yith_product_brand', 'product_visibility']);
+                update_object_term_cache($query->posts, array_values(array_filter([$this->get_active_brand_taxonomy(), 'product_visibility'])));
             }
             // Compute reserved quantities for the set we are about to render
             $this->reserved_quantities_map = $this->get_reserved_quantities($query->posts);
@@ -1564,10 +1573,13 @@ final class HP_Products_Manager {
         $product_id = $product->get_id();
         $names = [];
 
-        $taxonomies = (array) apply_filters(
-            'hp_products_manager_brand_taxonomies',
-            ['yith_product_brand']
-        );
+        $taxonomies = array_values(array_unique(array_merge(
+            ['product_brand'],
+            (array) apply_filters(
+                'hp_products_manager_brand_taxonomies',
+                ['product_brand', 'yith_product_brand']
+            )
+        )));
 
         foreach ($taxonomies as $taxonomy) {
             if (!taxonomy_exists($taxonomy)) {
@@ -2380,7 +2392,10 @@ final class HP_Products_Manager {
                     $status = $order->get_status();
                     if ($status === 'refunded' || $status === 'cancelled') {
                         $type = 'restore';
-                    } elseif (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing','completed'], true)) {
+                    } elseif (
+                        in_array($status, ['on-account'], true) ||
+                        (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
+                    ) {
                         $type = 'sale';
                     } else {
                         $type = '';
@@ -2494,7 +2509,10 @@ final class HP_Products_Manager {
                 $status = $order->get_status();
                 if ($status === 'refunded' || $status === 'cancelled') {
                     $type = 'restore';
-                } elseif (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing','completed'], true)) {
+                } elseif (
+                    in_array($status, ['on-account'], true) ||
+                    (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
+                ) {
                     $type = 'sale';
                 } else {
                     continue;
@@ -2683,7 +2701,7 @@ final class HP_Products_Manager {
     }
 
     private function get_brand_options(): array {
-        $taxonomies = array_filter(['yith_product_brand'], 'taxonomy_exists');
+        $taxonomies = array_filter([$this->get_active_brand_taxonomy()], 'taxonomy_exists');
 
         if (empty($taxonomies)) {
             return [];
@@ -2711,6 +2729,53 @@ final class HP_Products_Manager {
         return $options;
     }
 
+    private function get_active_brand_taxonomy(): string {
+        $taxonomies = array_values(array_unique(array_merge(
+            ['product_brand'],
+            (array) apply_filters(
+                'hp_products_manager_brand_taxonomies',
+                ['product_brand', 'yith_product_brand']
+            )
+        )));
+
+        foreach ($taxonomies as $taxonomy) {
+            if (!taxonomy_exists($taxonomy)) {
+                continue;
+            }
+
+            $terms = get_terms([
+                'taxonomy'   => $taxonomy,
+                'hide_empty' => false,
+                'fields'     => 'ids',
+                'number'     => 1,
+            ]);
+
+            if (!is_wp_error($terms) && !empty($terms)) {
+                return $taxonomy;
+            }
+        }
+
+        foreach ($taxonomies as $taxonomy) {
+            if (taxonomy_exists($taxonomy)) {
+                return $taxonomy;
+            }
+        }
+
+        return '';
+    }
+
+    private function get_product_brand_terms(int $product_id): array {
+        $taxonomy = $this->get_active_brand_taxonomy();
+
+        if (!$taxonomy) {
+            return [];
+        }
+
+        $terms = wc_get_product_terms($product_id, $taxonomy, ['fields' => 'all']);
+
+        return is_wp_error($terms) ? [] : (array) $terms;
+    }
+
     /**
      * REST: Get single product detail
      */
@@ -2721,7 +2786,7 @@ final class HP_Products_Manager {
             return new \WP_Error('not_found', __('Product not found', 'hp-products-manager'), ['status' => 404]);
         }
 
-        $terms = wc_get_product_terms($id, 'yith_product_brand', ['fields' => 'all']);
+        $terms = $this->get_product_brand_terms($id);
         return rest_ensure_response([
             'id'         => $product->get_id(),
             'name'       => $product->get_name(),
@@ -2935,8 +3000,9 @@ final class HP_Products_Manager {
         }
         if (isset($apply['brands']) && is_array($apply['brands'])) {
             $slugs = array_values(array_filter(array_map('sanitize_title', $apply['brands'])));
-            if (taxonomy_exists('yith_product_brand')) {
-                wp_set_object_terms($id, $slugs, 'yith_product_brand', false);
+            $brand_taxonomy = $this->get_active_brand_taxonomy();
+            if ($brand_taxonomy) {
+                wp_set_object_terms($id, $slugs, $brand_taxonomy, false);
             }
         }
         if (isset($apply['categories']) && is_array($apply['categories'])) {
@@ -3003,7 +3069,7 @@ final class HP_Products_Manager {
         $this->flush_metrics_cache();
 
         // Build fresh snapshot inline to avoid any WP_REST_Request quirks
-        $terms_brand = wc_get_product_terms($id, 'yith_product_brand', ['fields' => 'all']);
+        $terms_brand = $this->get_product_brand_terms($id);
         $snapshot = [
             'id'         => $product->get_id(),
             'name'       => $product->get_name(),
@@ -3126,7 +3192,7 @@ final class HP_Products_Manager {
             }
 
             // Sync terms (taxonomies) which are not automatically copied by clone for a new ID
-            $taxonomies = ['yith_product_brand', 'product_cat', 'product_tag', 'product_shipping_class'];
+            $taxonomies = array_values(array_unique(array_filter([$this->get_active_brand_taxonomy(), 'product_cat', 'product_tag', 'product_shipping_class'])));
             foreach ($taxonomies as $tax) {
                 // Use wp_get_object_terms directly on the ID
                 $terms = wp_get_object_terms($id, $tax, ['fields' => 'ids']);

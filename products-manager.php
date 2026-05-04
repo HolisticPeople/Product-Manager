@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.89
+ * Version: 0.5.90
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: hp-products-manager
@@ -33,7 +33,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.89';
+    const VERSION = '0.5.90';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -3230,7 +3230,7 @@ final class HP_Products_Manager {
      * @param array<int>|null $limit_ids
      * @return array<int,int>
      */
-    private function get_reserved_quantities(array $limit_ids = null): array {
+    private function get_reserved_quantities(?array $limit_ids = null): array {
         $map = [];
 
         $orders = wc_get_orders([

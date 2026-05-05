@@ -3,9 +3,9 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 0.5.90
+ * Version: 1.0.0
  * Requires at least: 6.0
- * Requires PHP: 7.4
+ * Requires PHP: 8.5
  * Text Domain: hp-products-manager
  * WC requires at least: 8.0
  * WC tested up to:   10.5
@@ -15,6 +15,12 @@
 
 if (!defined('ABSPATH')) {
     exit;
+}
+if (PHP_VERSION_ID < 80500) {
+    add_action('admin_notices', static function (): void {
+        echo '<div class="notice notice-error"><p>' . esc_html(sprintf('Products Manager requires PHP 8.5 or higher. Current PHP version: %s.', PHP_VERSION)) . '</p></div>';
+    });
+    return;
 }
 
 // Note: WP_Query, WP_Post, WP_REST_Request, WP_REST_Server, WC_Product are global classes
@@ -33,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '0.5.90';
+    const VERSION = '1.0.0';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -1724,7 +1730,7 @@ final class HP_Products_Manager {
     // More tolerant parsing for legacy values (e.g., '$12.34' or '12,34')
     private function parse_decimal_relaxed($value): ?float {
         if (is_array($value)) {
-            $value = reset($value);
+            $value = array_first($value);
         }
         if ($value === '' || $value === null) {
             return null;
@@ -2661,7 +2667,7 @@ final class HP_Products_Manager {
 
     private function parse_decimal($value): ?float {
         if (is_array($value)) {
-            $value = reset($value);
+            $value = array_first($value);
         }
 
         if ($value === '' || $value === null) {
@@ -2863,7 +2869,7 @@ final class HP_Products_Manager {
         $filtered = [];
         foreach ($all as $k => $vals) {
             if (stripos($k, 'cog') !== false || stripos($k, 'cogs') !== false || stripos($k, 'cost') !== false || stripos($k, 'purchase') !== false) {
-                $v = is_array($vals) ? end($vals) : $vals;
+                $v = is_array($vals) ? array_last($vals) : $vals;
                 $filtered[$k] = $v;
             }
         }
@@ -3019,7 +3025,7 @@ final class HP_Products_Manager {
         }
         if (isset($apply['image_id'])) {
             // Accept string or int; normalize
-            $img = is_array($apply['image_id']) ? reset($apply['image_id']) : $apply['image_id'];
+            $img = is_array($apply['image_id']) ? array_first($apply['image_id']) : $apply['image_id'];
             $img = (int) $img;
             if ($img > 0) { $product->set_image_id($img); } else { $product->set_image_id(''); }
         }

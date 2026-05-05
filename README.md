@@ -26,3 +26,7 @@ This repository reuses the HolisticPeople organization secrets:
 | `KINSTAPROD_PLUGINS_BASE` | Base production plugins directory (workflow appends `/products-manager`) |
 
 Ensure the associated public SSH keys are installed on both Kinsta environments.
+
+## Runtime Requirements
+
+- PHP 8.5+

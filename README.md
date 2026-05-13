@@ -30,3 +30,9 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 ## Runtime Requirements
 
 - PHP 8.5+
+
+## Release Notes
+
+### 2.0.0
+
+- Major production promotion for the PHP 8.5 baseline and staged Product Manager compatibility work.

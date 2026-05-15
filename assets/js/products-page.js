@@ -9,6 +9,33 @@ document.addEventListener('DOMContentLoaded', function () {
     var locale = (config.locale || navigator.language || 'en-US').replace(/_/g, '-');
     var currencyCode = config.currency || 'USD';
 
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function safeImageUrl(value) {
+        if (!value) {
+            return '';
+        }
+        if (/[<>"']/.test(String(value))) {
+            return '';
+        }
+        try {
+            var parsed = new URL(String(value), window.location && window.location.origin ? window.location.origin : undefined);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                return '';
+            }
+            return parsed.href;
+        } catch (e) {
+            return '';
+        }
+    }
+
     var columns = [
         {
             formatter: 'rowSelection',
@@ -25,9 +52,9 @@ document.addEventListener('DOMContentLoaded', function () {
             hozAlign: 'center',
             cssClass: 'hp-pm-cell-thumb',
             formatter: function (cell) {
-                var url = cell.getValue();
+                var url = safeImageUrl(cell.getValue());
                 if (url) {
-                    return '<img src="' + url + '" alt="" loading="lazy" decoding="async" class="hp-pm-thumb">';
+                    return '<img src="' + escapeHtml(url) + '" alt="" loading="lazy" decoding="async" class="hp-pm-thumb">';
                 }
                 return '<div class="hp-pm-thumb hp-pm-thumb--placeholder"></div>';
             },
@@ -348,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!value) {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
         }
-        return value;
+        return escapeHtml(value);
     }
 
     function nameLinkFormatter(cell) {
@@ -358,10 +385,10 @@ document.addEventListener('DOMContentLoaded', function () {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
         }
         if (!data || !data.id || !config.productUrlBase) {
-            return value;
+            return escapeHtml(value);
         }
         var href = config.productUrlBase + encodeURIComponent(data.id);
-        return '<a href="' + href + '">' + value + '</a>';
+        return '<a href="' + escapeHtml(href) + '">' + escapeHtml(value) + '</a>';
     }
 
     function currencyFormatter(cell) {

@@ -26,3 +26,17 @@ This repository reuses the HolisticPeople organization secrets:
 | `KINSTAPROD_PLUGINS_BASE` | Base production plugins directory (workflow appends `/products-manager`) |
 
 Ensure the associated public SSH keys are installed on both Kinsta environments.
+
+## Runtime Requirements
+
+- PHP 8.5+
+
+## Release Notes
+
+### 2.0.1
+
+- Harden Product Manager admin rendering so catalog and ERP values are escaped or assigned through text/attribute APIs instead of concatenated into HTML.
+
+### 2.0.0
+
+- Major production promotion for the PHP 8.5 baseline and staged Product Manager compatibility work.

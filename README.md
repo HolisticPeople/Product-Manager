@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.0.2
+
+- Opts Product Manager list and product detail admin screens into the shared HP-Zen admin runtime.
+
 ### 2.0.1
 
 - Harden Product Manager admin rendering so catalog and ERP values are escaped or assigned through text/attribute APIs instead of concatenated into HTML.

@@ -14,3 +14,6 @@ Codex12 research can produce supplier-product candidates and source notes, but P
 - Codex12 must not create Woo products automatically.
 - Product Manager should treat Codex12 product findings as candidate review inputs, not approved catalog changes.
 - HP-Protocol product collections should reference carried Woo products; they should not become Woo catalog authority.
+- Codex12 findings are research-only until Product/Woo owner review.
+- Do not build HP-Profile, HP-Media, HP-Protocol, HP-Events, HP-Card, or HP-Zen
+  source behavior in this repo unless explicitly assigned.

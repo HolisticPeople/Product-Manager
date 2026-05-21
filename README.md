@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.0.3
+
+- Bound Product Manager apply-endpoint enum fields to known WooCommerce status, visibility, backorder, and tax-status values.
+
 ### 2.0.2
 
 - Opts Product Manager list and product detail admin screens into the shared HP-Zen admin runtime.

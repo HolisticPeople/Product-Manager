@@ -22,3 +22,11 @@ Before planning supplier-brand product candidate review, native Woo `product_bra
 HolisticPeople/HP-Codex-Skills/skills/hp-roadmap/references/roadmaps/supplier-brand-profile-media-visual-completion-handover-2026-05-24.md
 
 This handover defines the current 49 supplier-brand fixtures and product-candidate boundary. Product Manager/Woo owns product truth, SKU/product creation review, catalog data integrity, and native `product_brand` membership; it must not treat Codex12 candidate products as imported Woo products without separate review.
+
+## HP-Roadmap HP-Zen Shared Design Pattern Handover
+
+Before planning Product Manager admin UI, catalog review panels, product-media inspection, card-like product review surfaces, HP-Zen visual states, or reusable shared design patterns, read:
+
+HolisticPeople/HP-Codex-Skills/skills/hp-roadmap/references/roadmaps/hp-zen-shared-design-pattern-handover-2026-05-19.md
+
+Product Manager may consume HP-Zen shared visual language for admin/review surfaces, but it owns Woo/product review data and must not implement HP-Zen runtime primitives or mutate HP-Card/HP-Media/HP-Profile source data unless explicitly assigned.

@@ -17,3 +17,12 @@ Codex12 research can produce supplier-product candidates and source notes, but P
 - Codex12 findings are research-only until Product/Woo owner review.
 - Do not build HP-Profile, HP-Media, HP-Protocol, HP-Events, HP-Card, or HP-Zen
   source behavior in this repo unless explicitly assigned.
+
+## HP-Roadmap Shared Design And Supplier Visual Completion
+
+Before planning Product Manager surfaces that consume HP-Zen shared design
+patterns or supplier-brand visual completion evidence, also read:
+
+`HolisticPeople/HP-Codex-Skills/skills/hp-roadmap/references/roadmaps/hp-zen-shared-design-pattern-handover-2026-05-19.md`
+
+`HolisticPeople/HP-Codex-Skills/skills/hp-roadmap/references/roadmaps/supplier-brand-profile-media-visual-completion-handover-2026-05-24.md`

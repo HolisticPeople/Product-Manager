@@ -36,6 +36,7 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 ### 2.0.3
 
 - Bound Product Manager apply-endpoint enum fields to known WooCommerce status, visibility, backorder, and tax-status values.
+- Retire legacy ERP movement persistence and rebuild endpoints once HP Inventory marks Product-Manager demand history as migrated.
 
 ### 2.0.2
 

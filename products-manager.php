@@ -50,12 +50,24 @@ final class HP_Products_Manager {
     // ERP feature flag (enabled by default now)
     private const ERP_ENABLED       = true;
 
+    private function is_hp_inventory_erp_migrated(): bool {
+        $migrated = get_option('hp_inventory_product_manager_erp_migrated') === 'yes';
+        return (bool) apply_filters('hp_pm_erp_retired_by_hp_inventory', $migrated);
+    }
+
     private function is_erp_enabled(): bool {
         // Allow enabling via filter without editing plugin
-        return (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
+        return !$this->is_hp_inventory_erp_migrated() && (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
     }
 
     private function is_erp_persist_enabled(): bool {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Product-Manager ERP persistence is retired because HP Inventory owns demand and movement history.');
+            }
+            return false;
+        }
+
         // Separate flag for DB writes to movements/state (now ON by default, overrideable)
         return (bool) apply_filters('hp_pm_erp_persist_enabled', true);
     }
@@ -1897,6 +1909,7 @@ final class HP_Products_Manager {
     public function maybe_install_tables(): void {
         // Create/upgrade ERP tables if missing
         if (!current_user_can('manage_woocommerce')) return;
+        if ($this->is_hp_inventory_erp_migrated()) return;
         global $wpdb;
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         $charset = $wpdb->get_charset_collate();
@@ -2353,7 +2366,19 @@ final class HP_Products_Manager {
         update_option('hp_pm_rebuild_all_state', $state, false);
     }
 
+    private function rest_erp_retired_response() {
+        return new \WP_Error(
+            'hp_pm_erp_retired',
+            'Product-Manager ERP persistence is retired because HP Inventory owns demand and movement history.',
+            ['status' => 410]
+        );
+    }
+
     public function rest_rebuild_all_start(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         global $wpdb;
         $mov = $this->table_movements();
         // Reset movements
@@ -2375,6 +2400,10 @@ final class HP_Products_Manager {
         return rest_ensure_response($state);
     }
     public function rest_rebuild_all_step(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         try {
             global $wpdb;
             $state = $this->get_rebuild_all_state();
@@ -2440,10 +2469,18 @@ final class HP_Products_Manager {
         }
     }
     public function rest_rebuild_all_status(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         return rest_ensure_response($this->get_rebuild_all_state());
     }
 
     public function rest_rebuild_all_abort(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         $state = $this->get_rebuild_all_state();
         if (!empty($state)) {
             $state['status'] = 'aborted';

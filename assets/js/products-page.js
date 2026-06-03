@@ -131,6 +131,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var filterForm = document.getElementById('hp-products-filters');
     var resetButton = document.getElementById('hp-pm-filters-reset');
 
+    if (filterForm) {
+        filterForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            applyFilters();
+        });
+    }
+
     if (resetButton) {
         resetButton.addEventListener('click', function () {
             if (filterForm) {

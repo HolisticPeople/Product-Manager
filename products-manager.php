@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Products Manager
- * Description: Adds a persistent blue Products shortcut after the Create New Order button in the admin top actions.
+ * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.0.1
+ * Version: 2.0.4
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.0.1';
+    const VERSION = '2.0.4';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -50,12 +50,24 @@ final class HP_Products_Manager {
     // ERP feature flag (enabled by default now)
     private const ERP_ENABLED       = true;
 
+    private function is_hp_inventory_erp_migrated(): bool {
+        $migrated = get_option('hp_inventory_product_manager_erp_migrated') === 'yes';
+        return (bool) apply_filters('hp_pm_erp_retired_by_hp_inventory', $migrated);
+    }
+
     private function is_erp_enabled(): bool {
         // Allow enabling via filter without editing plugin
-        return (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
+        return !$this->is_hp_inventory_erp_migrated() && (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
     }
 
     private function is_erp_persist_enabled(): bool {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Product-Manager ERP persistence is retired because HP Inventory owns demand and movement history.');
+            }
+            return false;
+        }
+
         // Separate flag for DB writes to movements/state (now ON by default, overrideable)
         return (bool) apply_filters('hp_pm_erp_persist_enabled', true);
     }
@@ -136,6 +148,12 @@ final class HP_Products_Manager {
         );
 
         $is_products_page = $hook_suffix === 'woocommerce_page_hp-products-manager';
+        $is_product_detail_page = $hook_suffix === 'woocommerce_page_hp-products-manager-product'
+            || (isset($_GET['page']) && sanitize_key(wp_unslash($_GET['page'])) === 'hp-products-manager-product');
+
+        if ($is_products_page || $is_product_detail_page) {
+            do_action('hp_zen_enqueue_admin_surface', 'hp-products-manager');
+        }
 
         if (!$is_products_page) {
             return;
@@ -1891,6 +1909,7 @@ final class HP_Products_Manager {
     public function maybe_install_tables(): void {
         // Create/upgrade ERP tables if missing
         if (!current_user_can('manage_woocommerce')) return;
+        if ($this->is_hp_inventory_erp_migrated()) return;
         global $wpdb;
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         $charset = $wpdb->get_charset_collate();
@@ -2347,7 +2366,19 @@ final class HP_Products_Manager {
         update_option('hp_pm_rebuild_all_state', $state, false);
     }
 
+    private function rest_erp_retired_response() {
+        return new \WP_Error(
+            'hp_pm_erp_retired',
+            'Product-Manager ERP persistence is retired because HP Inventory owns demand and movement history.',
+            ['status' => 410]
+        );
+    }
+
     public function rest_rebuild_all_start(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         global $wpdb;
         $mov = $this->table_movements();
         // Reset movements
@@ -2369,6 +2400,10 @@ final class HP_Products_Manager {
         return rest_ensure_response($state);
     }
     public function rest_rebuild_all_step(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         try {
             global $wpdb;
             $state = $this->get_rebuild_all_state();
@@ -2434,10 +2469,18 @@ final class HP_Products_Manager {
         }
     }
     public function rest_rebuild_all_status(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         return rest_ensure_response($this->get_rebuild_all_state());
     }
 
     public function rest_rebuild_all_abort(WP_REST_Request $request) {
+        if ($this->is_hp_inventory_erp_migrated()) {
+            return $this->rest_erp_retired_response();
+        }
+
         $state = $this->get_rebuild_all_state();
         if (!empty($state)) {
             $state['status'] = 'aborted';
@@ -2706,6 +2749,30 @@ final class HP_Products_Manager {
         return (float) $filtered;
     }
 
+    private function normalize_product_status($value): ?string {
+        $status = sanitize_key((string) $value);
+
+        return in_array($status, ['publish', 'draft', 'pending', 'private'], true) ? $status : null;
+    }
+
+    private function normalize_catalog_visibility($value): ?string {
+        $visibility = sanitize_key((string) $value);
+
+        return in_array($visibility, ['visible', 'catalog', 'search', 'hidden'], true) ? $visibility : null;
+    }
+
+    private function normalize_backorders($value): ?string {
+        $backorders = sanitize_key((string) $value);
+
+        return in_array($backorders, ['no', 'notify', 'yes'], true) ? $backorders : null;
+    }
+
+    private function normalize_tax_status($value): ?string {
+        $tax_status = sanitize_key((string) $value);
+
+        return in_array($tax_status, ['taxable', 'shipping', 'none'], true) ? $tax_status : null;
+    }
+
     private function get_brand_options(): array {
         $taxonomies = array_filter([$this->get_active_brand_taxonomy()], 'taxonomy_exists');
 
@@ -2946,7 +3013,10 @@ final class HP_Products_Manager {
             $product->set_stock_quantity($apply['stock_quantity'] === '' ? null : (int) $apply['stock_quantity']);
         }
         if (isset($apply['backorders'])) {
-            $product->set_backorders(sanitize_key((string) $apply['backorders']));
+            $backorders = $this->normalize_backorders($apply['backorders']);
+            if ($backorders !== null) {
+                $product->set_backorders($backorders);
+            }
         }
 
         if (isset($apply['sale_price'])) {
@@ -2970,18 +3040,25 @@ final class HP_Products_Manager {
             if (method_exists($product, 'set_height')) $product->set_height($v !== null ? (string) $v : '');
         }
         if (isset($apply['status'])) {
-            $status = sanitize_key((string) $apply['status']);
-            $product->set_status($status);
+            $status = $this->normalize_product_status($apply['status']);
+            if ($status !== null) {
+                $product->set_status($status);
+            }
         }
         if (isset($apply['visibility'])) {
-            $vis = sanitize_key((string) $apply['visibility']);
-            $product->set_catalog_visibility($vis);
+            $visibility = $this->normalize_catalog_visibility($apply['visibility']);
+            if ($visibility !== null) {
+                $product->set_catalog_visibility($visibility);
+            }
         }
         if (isset($apply['short_description'])) {
             $product->set_short_description(wp_kses_post($apply['short_description']));
         }
         if (isset($apply['tax_status'])) {
-            $product->set_tax_status(sanitize_key($apply['tax_status']));
+            $tax_status = $this->normalize_tax_status($apply['tax_status']);
+            if ($tax_status !== null) {
+                $product->set_tax_status($tax_status);
+            }
         }
         if (isset($apply['tax_class'])) {
             $product->set_tax_class(sanitize_key($apply['tax_class']));
@@ -3380,4 +3457,3 @@ final class HP_Products_Manager {
 register_uninstall_hook(__FILE__, ['HP_Products_Manager', 'on_uninstall']);
 
 HP_Products_Manager::instance();
-

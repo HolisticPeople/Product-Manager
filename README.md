@@ -1,6 +1,6 @@
 # Products Manager
 
-Lightweight WooCommerce admin helper that adds a blue **Products** quick-access button next to the _Create New Order_ action on the Orders Summary screen. The plugin only loads on wp-admin to avoid front-end overhead.
+Lightweight WooCommerce admin helper that adds a blue **Products** quick-access button next to the _Inventory_ action in the admin toolbar. The plugin only loads on wp-admin to avoid front-end overhead.
 
 ## Development
 
@@ -32,6 +32,19 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 - PHP 8.5+
 
 ## Release Notes
+
+### 2.0.4
+
+- Keep the Products toolbar shortcut positioned after the renamed Inventory button while preserving rollout compatibility with the old Create New Order label.
+
+### 2.0.3
+
+- Bound Product Manager apply-endpoint enum fields to known WooCommerce status, visibility, backorder, and tax-status values.
+- Retire legacy ERP movement persistence and rebuild endpoints once HP Inventory marks Product-Manager demand history as migrated.
+
+### 2.0.2
+
+- Opts Product Manager list and product detail admin screens into the shared HP-Zen admin runtime.
 
 ### 2.0.1
 

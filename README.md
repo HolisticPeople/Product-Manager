@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.0.5
+
+- Prevent the Products Manager filter form from leaving the admin page when search is submitted with Enter.
+
 ### 2.0.4
 
 - Keep the Products toolbar shortcut positioned after the renamed Inventory button while preserving rollout compatibility with the old Create New Order label.

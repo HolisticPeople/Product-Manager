@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.0.5
+ * Version: 2.0.6
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.0.5';
+    const VERSION = '2.0.6';
     const HANDLE  = 'hp-products-manager';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
@@ -49,6 +49,7 @@ final class HP_Products_Manager {
     private const COST_META_KEY     = '_cogs_total_value';
     // ERP feature flag (enabled by default now)
     private const ERP_ENABLED       = true;
+    private const ERP_SCHEMA_VERSION = '1';
 
     private function is_hp_inventory_erp_migrated(): bool {
         $migrated = get_option('hp_inventory_product_manager_erp_migrated') === 'yes';
@@ -111,7 +112,7 @@ final class HP_Products_Manager {
         add_action('save_post_product', [$this, 'flush_metrics_cache'], 10, 1);
         add_action('deleted_post', [$this, 'maybe_flush_deleted_product_cache'], 10, 2);
         add_action('woocommerce_update_product', [$this, 'flush_metrics_cache'], 10, 1);
-        // First risky step: automatically ensure tables exist on admin load (dbDelta is idempotent)
+        // Ensure legacy ERP tables once per schema version.
         add_action('admin_init', [$this, 'maybe_install_tables']);
 
         // ERP minimal: register a single logging hook behind a feature flag
@@ -1906,10 +1907,16 @@ final class HP_Products_Manager {
         return $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
     }
 
-    public function maybe_install_tables(): void {
-        // Create/upgrade ERP tables if missing
-        if (!current_user_can('manage_woocommerce')) return;
+    public function maybe_install_tables(bool $force = false): void {
+        // Create/upgrade ERP tables when the schema version changes.
+        if (!$force && !current_user_can('manage_woocommerce')) return;
         if ($this->is_hp_inventory_erp_migrated()) return;
+
+        $installed_version = (string) get_option('hp_pm_erp_schema_version', '');
+        if (!$force && $installed_version === self::ERP_SCHEMA_VERSION) {
+            return;
+        }
+
         global $wpdb;
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         $charset = $wpdb->get_charset_collate();
@@ -1952,6 +1959,24 @@ final class HP_Products_Manager {
         dbDelta($sqlLog);
         dbDelta($sqlMov);
         dbDelta($sqlState);
+
+        $tables_installed = true;
+        foreach ([$elog, $movements, $state] as $table) {
+            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+                $tables_installed = false;
+                break;
+            }
+        }
+
+        if ($tables_installed) {
+            update_option('hp_pm_erp_schema_version', self::ERP_SCHEMA_VERSION, false);
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('hp_pm.erp_schema.installed version=' . self::ERP_SCHEMA_VERSION);
+            }
+        } elseif (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('hp_pm.erp_schema.install_failed version=' . self::ERP_SCHEMA_VERSION);
+        }
     }
 
     private function erp_log_event(string $event, array $payload = []): void {
@@ -3362,6 +3387,13 @@ final class HP_Products_Manager {
     }
 
     /**
+     * Plugin activation: install or upgrade legacy ERP schema once.
+     */
+    public static function on_activation(): void {
+        self::instance()->maybe_install_tables(true);
+    }
+
+    /**
      * Plugin uninstall cleanup: drop custom tables and remove options.
      */
     public static function on_uninstall(): void {
@@ -3372,6 +3404,7 @@ final class HP_Products_Manager {
         $wpdb->query("DROP TABLE IF EXISTS {$elog}");
         $wpdb->query("DROP TABLE IF EXISTS {$mov}");
         $wpdb->query("DROP TABLE IF EXISTS {$state}");
+        delete_option('hp_pm_erp_schema_version');
         delete_option('hp_pm_rebuild_all_state');
         // Best-effort clear cache group
         if (function_exists('wp_cache_flush_group')) {
@@ -3454,6 +3487,7 @@ final class HP_Products_Manager {
 }
 
 // Register uninstall hook to fully purge plugin data when removed
+register_activation_hook(__FILE__, ['HP_Products_Manager', 'on_activation']);
 register_uninstall_hook(__FILE__, ['HP_Products_Manager', 'on_uninstall']);
 
 HP_Products_Manager::instance();

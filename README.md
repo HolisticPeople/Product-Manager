@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.0.6
+
+- Guard legacy ERP schema installs with a stored schema version to avoid repeated `dbDelta()` ALTER work on admin requests.
+
 ### 2.0.5
 
 - Prevent the Products Manager filter form from leaving the admin page when search is submitted with Enter.

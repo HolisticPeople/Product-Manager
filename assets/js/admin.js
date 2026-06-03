@@ -31,15 +31,16 @@
             return;
         }
 
-        var createAnchor = null;
+        var placementAnchor = null;
         ADMIN_BAR.querySelectorAll('li > a').forEach(function (anchor) {
-            if (normalize(anchor.textContent) === 'create new order') {
-                createAnchor = anchor;
+            var label = normalize(anchor.textContent);
+            if (label === 'inventory' || label === 'create new order') {
+                placementAnchor = anchor;
             }
         });
 
-        if (createAnchor) {
-            var targetLi = createAnchor.closest('li');
+        if (placementAnchor) {
+            var targetLi = placementAnchor.closest('li');
             if (targetLi && targetLi.parentNode) {
                 targetLi.parentNode.insertBefore(productNode, targetLi.nextSibling);
             }

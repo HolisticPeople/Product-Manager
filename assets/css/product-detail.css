@@ -22,12 +22,14 @@
 .hp-pm-form input[type="search"],
 .hp-pm-form input[type="number"],
 .hp-pm-form input[type="url"],
+.hp-pm-form input:not([type]),
 .hp-pm-form select,
 .hp-pm-form textarea,
 .hp-pm-tab-pane input[type="text"],
 .hp-pm-tab-pane input[type="search"],
 .hp-pm-tab-pane input[type="number"],
 .hp-pm-tab-pane input[type="url"],
+.hp-pm-tab-pane input:not([type]),
 .hp-pm-tab-pane select,
 .hp-pm-tab-pane textarea {
     min-height: var(--hp-admin-control-height, 38px);
@@ -108,20 +110,32 @@
 }
 
 .hp-pm-nav-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: flex-end !important;
+    gap: 0 8px !important;
     margin-bottom: 0 !important;
     background: transparent !important;
     border-bottom: none !important;
     padding-left: 10px !important;
+    line-height: 1.2 !important;
 }
 
 .hp-pm-nav-tabs .nav-tab {
-    margin-right: 4px !important;
+    float: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 38px !important;
+    margin: 0 !important;
+    padding: 9px 12px !important;
     border: var(--hp-admin-card-border, 1px solid rgba(255, 255, 255, 0.08)) !important;
     border-bottom: none !important;
     border-radius: var(--hp-admin-tab-radius, 12px) var(--hp-admin-tab-radius, 12px) 0 0 !important;
     background: var(--hp-admin-tab-bg, rgba(255, 255, 255, 0.06)) !important;
     color: var(--hp-admin-muted, rgba(246, 241, 232, 0.78)) !important;
     box-shadow: none !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
 }
 
 .hp-pm-nav-tabs .nav-tab:hover,
@@ -131,7 +145,7 @@
     border-color: var(--hp-admin-input-focus-border, rgba(241, 209, 138, 0.34)) !important;
     border-bottom: 1px solid var(--hp-admin-card-bg-solid, #12130f) !important;
     color: var(--hp-admin-heading, #fffaf0) !important;
-    margin-bottom: -1px;
+    margin-bottom: 0 !important;
     z-index: 10;
 }
 

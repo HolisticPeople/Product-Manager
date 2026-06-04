@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.0.8
+
+- Cover list-backed product search inputs without explicit input types and stabilize wrapped product-detail tabs under HP-Zen styling.
+
 ### 2.0.7
 
 - Align Product Manager product-edit tabs, inputs, selects, and filter controls with the HP-Zen admin runtime instead of hard-coded light backgrounds.

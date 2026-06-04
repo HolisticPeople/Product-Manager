@@ -1,7 +1,7 @@
 .hp-pm-card .hp-pm-staging-actions {
     margin-top: 20px;
     padding-top: 20px;
-    border-top: 1px solid #dcdcde;
+    border-top: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.1));
     display: flex;
     gap: 8px;
     align-items: center;
@@ -9,13 +9,60 @@
 
 .hp-pm-staged {
     margin-top: 20px;
-    background: #fdfdfd;
+    background: var(--hp-admin-card-bg-solid, rgba(18, 19, 15, 0.97));
+    color: var(--hp-admin-text, #f6f1e8);
     padding: 12px;
-    border: 1px dashed #c3c4c7;
-    border-radius: 4px;
+    border: 1px dashed var(--hp-admin-divider, rgba(255, 255, 255, 0.14));
+    border-radius: var(--hp-admin-input-radius, 12px);
 }
 
-.hp-pm-staged-table th { background: #f0f0f1; }
+.hp-pm-staged-table th { background: var(--hp-admin-table-header-bg, rgba(255, 255, 255, 0.08)); }
+
+.hp-pm-form input[type="text"],
+.hp-pm-form input[type="search"],
+.hp-pm-form input[type="number"],
+.hp-pm-form input[type="url"],
+.hp-pm-form input:not([type]),
+.hp-pm-form select,
+.hp-pm-form textarea,
+.hp-pm-tab-pane input[type="text"],
+.hp-pm-tab-pane input[type="search"],
+.hp-pm-tab-pane input[type="number"],
+.hp-pm-tab-pane input[type="url"],
+.hp-pm-tab-pane input:not([type]),
+.hp-pm-tab-pane select,
+.hp-pm-tab-pane textarea {
+    min-height: var(--hp-admin-control-height, 38px);
+    border: var(--hp-admin-input-border, 1px solid rgba(255, 255, 255, 0.12)) !important;
+    border-radius: var(--hp-admin-input-radius, 12px) !important;
+    background: var(--hp-admin-input-bg, rgba(5, 7, 5, 0.92)) !important;
+    color: var(--hp-admin-text, #f6f1e8) !important;
+    box-shadow: var(--hp-admin-input-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.04)) !important;
+}
+
+.hp-pm-form select option,
+.hp-pm-tab-pane select option {
+    background: var(--hp-admin-card-bg-solid, #12130f);
+    color: var(--hp-admin-text, #f6f1e8);
+}
+
+.hp-pm-form input::placeholder,
+.hp-pm-form textarea::placeholder,
+.hp-pm-tab-pane input::placeholder,
+.hp-pm-tab-pane textarea::placeholder {
+    color: var(--hp-admin-soft, rgba(246, 241, 232, 0.55));
+}
+
+.hp-pm-form input:focus,
+.hp-pm-form select:focus,
+.hp-pm-form textarea:focus,
+.hp-pm-tab-pane input:focus,
+.hp-pm-tab-pane select:focus,
+.hp-pm-tab-pane textarea:focus {
+    border-color: var(--hp-admin-input-focus-border, rgba(241, 209, 138, 0.38)) !important;
+    box-shadow: var(--hp-admin-input-focus-shadow, 0 0 0 1px rgba(241, 209, 138, 0.22)) !important;
+    outline: none;
+}
 
 .hp-pm-form select[multiple] {
     min-height: 90px;
@@ -43,7 +90,7 @@
     height: auto;
     border: 2px solid #2271b1;
     border-radius: 4px;
-    background: #fff;
+    background: var(--hp-admin-card-bg-solid, #12130f);
 }
 
 .hp-pm-gallery {
@@ -63,27 +110,47 @@
 }
 
 .hp-pm-nav-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: flex-end !important;
+    gap: 0 8px !important;
     margin-bottom: 0 !important;
     background: transparent !important;
     border-bottom: none !important;
     padding-left: 10px !important;
+    line-height: 1.2 !important;
 }
 
 .hp-pm-nav-tabs .nav-tab {
-    margin-right: 4px !important;
+    float: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    min-height: 38px !important;
+    margin: 0 !important;
+    padding: 9px 12px !important;
+    border: var(--hp-admin-card-border, 1px solid rgba(255, 255, 255, 0.08)) !important;
     border-bottom: none !important;
-    background: #e0e0e0;
+    border-radius: var(--hp-admin-tab-radius, 12px) var(--hp-admin-tab-radius, 12px) 0 0 !important;
+    background: var(--hp-admin-tab-bg, rgba(255, 255, 255, 0.06)) !important;
+    color: var(--hp-admin-muted, rgba(246, 241, 232, 0.78)) !important;
+    box-shadow: none !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
 }
 
+.hp-pm-nav-tabs .nav-tab:hover,
+.hp-pm-nav-tabs .nav-tab:focus,
 .hp-pm-nav-tabs .nav-tab-active {
-    background: #fff !important;
-    border-bottom: 1px solid #fff !important;
-    margin-bottom: -1px;
+    background: var(--hp-admin-tab-active-bg, rgba(241, 209, 138, 0.14)) !important;
+    border-color: var(--hp-admin-input-focus-border, rgba(241, 209, 138, 0.34)) !important;
+    border-bottom: 1px solid var(--hp-admin-card-bg-solid, #12130f) !important;
+    color: var(--hp-admin-heading, #fffaf0) !important;
+    margin-bottom: 0 !important;
     z-index: 10;
 }
 
 .hp-pm-tabs-card {
-    border-top: 1px solid #c3c4c7 !important;
+    border-top: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.1)) !important;
     border-top-left-radius: 0 !important;
     padding: 20px !important;
 }
@@ -153,29 +220,30 @@ textarea.auto-expand {
     position: relative;
     width: 80px;
     height: 80px;
-    border: 1px solid #dcdcde;
+    border: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.12));
     border-radius: 3px;
     overflow: hidden;
-    background: #fff;
+    background: var(--hp-admin-card-bg-solid, #12130f);
 }
 .hp-pm-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .hp-pm-thumb .hp-pm-thumb-remove {
-    position: absolute; top: 2px; right: 2px; background: #fff; border: 1px solid #dcdcde; border-radius: 2px; padding: 0 4px; cursor: pointer;
+    position: absolute; top: 2px; right: 2px; background: var(--hp-admin-button-bg, rgba(255, 255, 255, 0.08)); border: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.14)); border-radius: 2px; padding: 0 4px; cursor: pointer;
+    color: var(--hp-admin-text, #f6f1e8);
     z-index: 10;
 }
 .hp-pm-thumb .hp-pm-thumb-main-btn {
-    position: absolute; bottom: 2px; right: 2px; background: rgba(255,255,255,0.8); border: 1px solid #dcdcde; border-radius: 2px; padding: 0 4px; cursor: pointer;
-    font-size: 14px; line-height: 1; color: #646970;
+    position: absolute; bottom: 2px; right: 2px; background: var(--hp-admin-button-bg, rgba(255, 255, 255, 0.08)); border: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.14)); border-radius: 2px; padding: 0 4px; cursor: pointer;
+    font-size: 14px; line-height: 1; color: var(--hp-admin-muted, rgba(246, 241, 232, 0.78));
     z-index: 10;
 }
-.hp-pm-thumb .hp-pm-thumb-main-btn:hover { color: #2271b1; background: #fff; }
-.hp-pm-thumb-add { display: flex; justify-content:center; align-items:center; font-size: 20px; color:#555; cursor:pointer; }
+.hp-pm-thumb .hp-pm-thumb-main-btn:hover { color: var(--hp-admin-link, #f1d18a); background: var(--hp-admin-button-hover-bg, rgba(255, 255, 255, 0.12)); }
+.hp-pm-thumb-add { display: flex; justify-content:center; align-items:center; font-size: 20px; color: var(--hp-admin-muted, #555); cursor:pointer; }
 
-.hp-pm-back-btn { background: #f6f7f7 !important; border-color: #dcdcde !important; color: #2271b1 !important; }
-.hp-pm-back-btn:hover { background: #f0f0f1 !important; border-color: #c3c4c7 !important; }
+.hp-pm-back-btn { background: var(--hp-admin-button-bg, #f6f7f7) !important; border-color: var(--hp-admin-button-border, #dcdcde) !important; color: var(--hp-admin-button-text, #2271b1) !important; }
+.hp-pm-back-btn:hover { background: var(--hp-admin-button-hover-bg, #f0f0f1) !important; border-color: var(--hp-admin-button-hover-border, #c3c4c7) !important; color: var(--hp-admin-heading, #1d2327) !important; }
 
 .hp-pm-tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.hp-pm-token { background:#f0f2f4; border:1px solid #dcdcde; border-radius: 12px; padding:2px 8px; display:flex; align-items:center; gap:6px; }
+.hp-pm-token { background: var(--hp-admin-accent-soft, rgba(241, 209, 138, 0.14)); border:1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.12)); border-radius: 12px; color: var(--hp-admin-heading, #fffaf0); padding:2px 8px; display:flex; align-items:center; gap:6px; }
 .hp-pm-token .x { cursor:pointer; }
 
 /* ERP metrics styling */
@@ -187,16 +255,17 @@ textarea.auto-expand {
     margin: 10px 0;
 }
 .hp-pm-metric {
-    background: #fff;
-    border: 1px solid #dcdcde;
+    background: var(--hp-admin-card-bg-solid, rgba(18, 19, 15, 0.97));
+    border: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.1));
     border-radius: 8px;
+    color: var(--hp-admin-text, #f6f1e8);
     padding: 10px 12px;
 }
 .hp-pm-metric-label {
     display: block;
     font-size: 12px;
     text-transform: uppercase;
-    color: #646970;
+    color: var(--hp-admin-muted, rgba(246, 241, 232, 0.78));
     margin-bottom: 4px;
 }
 .hp-pm-metric-value {

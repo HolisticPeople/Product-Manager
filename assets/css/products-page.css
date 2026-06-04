@@ -41,7 +41,7 @@
 .hp-pm-version {
     margin: 4px 0;
     font-size: 12px;
-    color: #646970;
+    color: var(--hp-admin-muted, #646970);
 }
 
 .hp-pm-header-actions .button {
@@ -53,9 +53,9 @@
     flex-wrap: wrap;
     gap: 16px;
     align-items: flex-end;
-    background: #fff;
+    background: var(--hp-admin-card-bg, #fff);
     padding: 16px;
-    border: 1px solid #dcdcde;
+    border: var(--hp-admin-card-border, 1px solid #dcdcde);
     border-radius: 8px;
     margin-bottom: 20px;
 }
@@ -64,13 +64,35 @@
     display: flex;
     flex-direction: column;
     font-size: 13px;
-    color: #3c434a;
+    color: var(--hp-admin-muted, #3c434a);
 }
 
 .hp-pm-filter-group input,
 .hp-pm-filter-group select {
     margin-top: 6px;
     min-width: 180px;
+    min-height: var(--hp-admin-control-height, 38px);
+    border: var(--hp-admin-input-border, 1px solid #8c8f94) !important;
+    border-radius: var(--hp-admin-input-radius, 12px) !important;
+    background: var(--hp-admin-input-bg, #fff) !important;
+    color: var(--hp-admin-text, #2c3338) !important;
+    box-shadow: var(--hp-admin-input-shadow, none) !important;
+}
+
+.hp-pm-filter-group select option {
+    background: var(--hp-admin-card-bg-solid, #fff);
+    color: var(--hp-admin-text, #2c3338);
+}
+
+.hp-pm-filter-group input::placeholder {
+    color: var(--hp-admin-soft, #8c8f94);
+}
+
+.hp-pm-filter-group input:focus,
+.hp-pm-filter-group select:focus {
+    border-color: var(--hp-admin-input-focus-border, #2271b1) !important;
+    box-shadow: var(--hp-admin-input-focus-shadow, 0 0 0 1px #2271b1) !important;
+    outline: none;
 }
 
 /* Keep checkboxes compact and inline with their labels */
@@ -129,8 +151,8 @@
 }
 
 .hp-pm-metric {
-    background: #fff;
-    border: 1px solid #dcdcde;
+    background: var(--hp-admin-card-bg, #fff);
+    border: var(--hp-admin-card-border, 1px solid #dcdcde);
     border-radius: 8px;
     padding: 12px 16px;
 }
@@ -139,7 +161,7 @@
     display: block;
     font-size: 12px;
     text-transform: uppercase;
-    color: #646970;
+    color: var(--hp-admin-muted, #646970);
     margin-bottom: 4px;
 }
 

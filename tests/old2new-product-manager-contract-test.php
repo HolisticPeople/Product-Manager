@@ -14,11 +14,13 @@ function hp_pm_old2new_assert(bool $condition, string $message): void
 $plugin = (string) file_get_contents($root . '/products-manager.php');
 $contract = (string) file_get_contents($root . '/hp-contract.json');
 $readme = (string) file_get_contents($root . '/README.md');
+$parking_lot = (string) file_get_contents($root . '/docs/plan/parking-lot.md');
 
 $files = [
     'assets/css/old2new-product-block.css',
     'assets/css/old2new-admin.css',
     'assets/js/old2new-admin.js',
+    'docs/plan/old2new-product-lifecycle-roadmap.md',
 ];
 
 foreach ($files as $file) {
@@ -28,6 +30,7 @@ foreach ($files as $file) {
 $frontend_css = (string) file_get_contents($root . '/assets/css/old2new-product-block.css');
 $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css');
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
+$roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
 hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.0.9'), 'Product Manager plugin header must bump to 2.0.9.');
 hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.0.9'"), 'Product Manager VERSION constant must bump to 2.0.9.');
@@ -59,6 +62,10 @@ hp_pm_old2new_assert(str_contains($frontend_css, '60px'), 'Old2New frontend card
 hp_pm_old2new_assert(str_contains($frontend_css, '-webkit-line-clamp: 2'), 'Old2New frontend titles must clamp to 2 lines.');
 hp_pm_old2new_assert(str_contains($frontend_css, '260px'), 'Old2New frontend cards must cap around 260px.');
 hp_pm_old2new_assert(str_contains($frontend_css, '--hp-zen-'), 'Old2New frontend CSS must use HP-Zen token fallbacks.');
+hp_pm_old2new_assert(str_contains($frontend_css, 'grid-template-columns: minmax(220px, 1fr) minmax(420px, auto)'), 'Old2New banner must keep desktop copy-left/product-flow-right layout.');
+hp_pm_old2new_assert(str_contains($frontend_css, 'justify-content: end'), 'Old2New product flow must align to the right on desktop.');
+hp_pm_old2new_assert(str_contains($plugin, '&rarr;'), 'Old2New CTA must be arrow-only.');
+hp_pm_old2new_assert(!str_contains($plugin, 'Click here'), 'Old2New CTA copy must not reintroduce Click here text.');
 
 hp_pm_old2new_assert(str_contains($admin_js, 'hp-old2new-table'), 'Old2New admin JS must render the packet table.');
 hp_pm_old2new_assert(str_contains($admin_js, 'old_product') && str_contains($admin_js, 'new_products'), 'Old2New admin JS must render old/new product columns.');
@@ -71,5 +78,13 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($readme, '2.0.9'), 'README release notes must include 2.0.9.');
+hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
+hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
+hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');
+hp_pm_old2new_assert(str_contains($roadmap, 'replace') && str_contains($roadmap, 'discontinue') && str_contains($roadmap, 'hard_redirect'), 'Old2New lifecycle roadmap must capture all lifecycle statuses.');
+hp_pm_old2new_assert(str_contains($roadmap, 'canonical') && str_contains($roadmap, '301'), 'Old2New lifecycle roadmap must capture future canonical and 301 behavior.');
+hp_pm_old2new_assert(str_contains($roadmap, 'total_sales'), 'Old2New lifecycle roadmap must capture total_sales target selection.');
+hp_pm_old2new_assert(str_contains($roadmap, '90 days'), 'Old2New lifecycle roadmap must capture the 90-day new-product banner window.');
+hp_pm_old2new_assert(str_contains($roadmap, 'Fibo/search') && str_contains($roadmap, 'category list'), 'Old2New lifecycle roadmap must capture future search and category-list visibility slices.');
 
 echo "Old2New Product Manager contract passed\n";

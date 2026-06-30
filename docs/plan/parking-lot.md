@@ -26,3 +26,13 @@ patterns or supplier-brand visual completion evidence, also read:
 `HolisticPeople/HP-Codex-Skills/skills/hp-roadmap/references/roadmaps/hp-zen-shared-design-pattern-handover-2026-05-19.md`
 
 `HolisticPeople/HP-Codex-Skills/skills/hp-roadmap/references/roadmaps/supplier-brand-profile-media-visual-completion-handover-2026-05-24.md`
+
+## Old2New Product Lifecycle
+
+Before planning Old2New replacement banner, canonical, redirect, search, or
+category-list work, read:
+
+`docs/plan/old2new-product-lifecycle-roadmap.md`
+
+Product Manager owns Old2New packets, admin editing, lifecycle policy, and the
+`[old2new_product_block]` shortcode. HP-UI is no longer the Old2New owner.

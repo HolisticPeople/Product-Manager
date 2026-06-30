@@ -191,6 +191,36 @@
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
 }
 
+.old2new-product-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 8px;
+    padding: 5px 9px;
+    border: 1px solid var(--hp-zen-accent, rgba(241, 178, 43, 0.55));
+    border-radius: 999px;
+    background: var(--hp-zen-accent-soft, rgba(241, 178, 43, 0.13));
+    color: var(--hp-zen-accent, #f1b22b);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.1;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.old2new-product-badge:hover,
+.old2new-product-badge:focus-visible {
+    background: var(--hp-zen-accent, #f1b22b);
+    color: #1d1d1b;
+    outline: none;
+}
+
+.old2new-product-badge--fibo {
+    margin: 4px 0 0;
+}
+
 @media (max-width: 900px) {
     .old2new-product-block {
         grid-template-columns: 1fr;

@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var redirectType = document.getElementById('hp-old2new-redirect-type');
     var packetId = document.getElementById('hp-old2new-packet-id');
     var startedAt = document.getElementById('hp-old2new-hard-redirect-started-at');
+    var oldMessage = document.getElementById('hp-old2new-custom-old-message');
+    var newMessage = document.getElementById('hp-old2new-custom-new-message');
+    var badgeText = document.getElementById('hp-old2new-badge-text');
+    var preview = document.getElementById('hp-old2new-message-preview');
     var saveButton = document.getElementById('hp-old2new-save');
 
     if (!table || !form) {
@@ -23,6 +27,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var packets = [];
     var oldProduct = null;
     var newProducts = [];
+
+    var statusLabels = {
+        basic_discontinue: 'Basic Discontinue',
+        canonical: 'Canonical',
+        hard_redirect: 'Hard Redirect',
+        replace: 'Basic Discontinue',
+        discontinue: 'Canonical'
+    };
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -61,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function productCard(product) {
         if (!product) {
-            return '';
+            return '<span class="hp-old2new-product-card hp-old2new-product-card--missing">Missing product</span>';
         }
         var image = safeImageUrl(product.image);
         var thumb = image
@@ -78,6 +90,17 @@ document.addEventListener('DOMContentLoaded', function () {
             + '</a>';
     }
 
+    function warnings(packet) {
+        var rows = Array.isArray(packet.health_warnings) ? packet.health_warnings : [];
+        if (!rows.length) {
+            return '<span class="hp-old2new-health hp-old2new-health--ok">OK</span>';
+        }
+
+        return '<ul class="hp-old2new-health hp-old2new-health--warn">'
+            + rows.map(function (row) { return '<li>' + escapeHtml(row) + '</li>'; }).join('')
+            + '</ul>';
+    }
+
     function renderTable() {
         if (!packets.length) {
             table.innerHTML = '<p>' + escapeHtml((config.i18n && config.i18n.empty) || 'No Old2New packets yet.') + '</p>';
@@ -85,11 +108,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         table.innerHTML = packets.map(function (packet) {
+            var target = packet.target_product;
+            var targetHtml = target
+                ? '<span class="hp-old2new-target">' + escapeHtml(target.name) + '<br><small>' + escapeHtml(packet.target_reason || '') + '</small></span>'
+                : '<span class="hp-old2new-target">No target</span>';
             return '<div class="hp-old2new-row" data-packet-id="' + escapeHtml(packet.id) + '">'
                 + '<div>' + productCard(packet.old_product) + '</div>'
                 + '<div class="hp-old2new-product-stack">' + (packet.new_products || []).map(productCard).join('') + '</div>'
-                + '<div><strong>Status</strong><br>' + escapeHtml(packet.status || 'replace') + '</div>'
+                + '<div><strong>Status</strong><br><span class="hp-old2new-status-badge hp-old2new-status-badge--' + escapeHtml(packet.status || 'basic_discontinue') + '">' + escapeHtml(statusLabels[packet.status] || packet.status || 'Basic Discontinue') + '</span></div>'
                 + '<div><strong>Redirect</strong><br>' + escapeHtml(packet.redirect_type || 'none') + '</div>'
+                + '<div><strong>Target</strong><br>' + targetHtml + '</div>'
+                + '<div><strong>Health</strong><br>' + warnings(packet) + '</div>'
                 + '<div class="hp-old2new-actions">'
                 + '<button type="button" class="button" data-action="edit">Edit</button>'
                 + '<button type="button" class="button" data-action="delete">Delete</button>'
@@ -118,6 +147,36 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
+    function normalizeStatus(value) {
+        if (value === 'replace') return 'basic_discontinue';
+        if (value === 'discontinue') return 'canonical';
+        return value || 'basic_discontinue';
+    }
+
+    function renderTemplate(template) {
+        var oldName = oldProduct && oldProduct.name ? oldProduct.name : '';
+        var names = newProducts.map(function (product) { return product.name || ''; }).filter(Boolean);
+        return String(template || '')
+            .replace(/\{old_product\}/g, oldName)
+            .replace(/\{new_product\}/g, names[0] || '')
+            .replace(/\{new_products\}/g, names.join(', '))
+            .replace(/\{new_product_count\}/g, String(newProducts.length));
+    }
+
+    function updatePreview() {
+        if (!preview) return;
+        var defaultOld = newProducts.length > 1
+            ? "This product is no longer available. Follow Dr. Cousens' recommendations for these {new_products}."
+            : "This product is no longer available. Follow Dr. Cousens' recommendation for this {new_product}.";
+        var defaultNew = 'This product is now replacing the previous product.';
+        var oldValue = oldMessage && oldMessage.value ? oldMessage.value : defaultOld;
+        var newValue = newMessage && newMessage.value ? newMessage.value : defaultNew;
+        var badgeValue = badgeText && badgeText.value ? badgeText.value : ((config.i18n && config.i18n.defaultBadge) || 'See new product');
+        preview.innerHTML = '<strong>Old banner:</strong> ' + escapeHtml(renderTemplate(oldValue))
+            + '<br><strong>New banner:</strong> ' + escapeHtml(renderTemplate(newValue))
+            + '<br><strong>Compact badge:</strong> ' + escapeHtml(badgeValue);
+    }
+
     function showForm(packet) {
         form.hidden = false;
         packetId.value = packet && packet.id ? String(packet.id) : '';
@@ -125,15 +184,20 @@ document.addEventListener('DOMContentLoaded', function () {
         newProducts = packet && Array.isArray(packet.new_products) ? packet.new_products.slice() : [];
         oldInput.value = oldProduct ? (oldProduct.name + ' [' + oldProduct.sku + ']') : '';
         newInput.value = '';
-        statusSelect.value = packet && packet.status ? packet.status : 'replace';
+        statusSelect.value = normalizeStatus(packet && packet.status ? packet.status : 'basic_discontinue');
         startedAt.value = packet && packet.hard_redirect_started_at ? packet.hard_redirect_started_at : '';
+        if (oldMessage) oldMessage.value = packet && packet.custom_old_message ? packet.custom_old_message : '';
+        if (newMessage) newMessage.value = packet && packet.custom_new_message ? packet.custom_new_message : '';
+        if (badgeText) badgeText.value = packet && packet.badge_text ? packet.badge_text : '';
         updateRedirectType();
         renderSelectedNewProducts();
+        updatePreview();
     }
 
     function updateRedirectType() {
-        var type = statusSelect.value === 'discontinue' ? 'canonical' : (statusSelect.value === 'hard_redirect' ? '301' : 'none');
+        var type = statusSelect.value === 'canonical' ? 'canonical' : (statusSelect.value === 'hard_redirect' ? '301' : 'none');
         redirectType.textContent = type;
+        updatePreview();
     }
 
     function renderSelectedNewProducts() {
@@ -143,6 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 + '<button type="button" class="button-link" data-remove-new="' + escapeHtml(product.id) + '">x</button>'
                 + '</span>';
         }).join('');
+        updatePreview();
     }
 
     function searchProducts(term) {
@@ -200,9 +265,13 @@ document.addEventListener('DOMContentLoaded', function () {
     statusSelect.addEventListener('change', updateRedirectType);
     oldInput.addEventListener('input', function () { searchProducts(oldInput.value); });
     newInput.addEventListener('input', function () { searchProducts(newInput.value); });
+    [oldMessage, newMessage, badgeText].forEach(function (field) {
+        if (field) field.addEventListener('input', updatePreview);
+    });
 
     oldInput.addEventListener('change', function () {
         oldProduct = productFromInput(oldInput);
+        updatePreview();
     });
 
     newInput.addEventListener('change', function () {
@@ -257,7 +326,10 @@ document.addEventListener('DOMContentLoaded', function () {
             old_product_id: oldProduct.id,
             new_product_ids: newProducts.map(function (product) { return product.id; }),
             status: statusSelect.value,
-            hard_redirect_started_at: startedAt.value
+            hard_redirect_started_at: startedAt.value,
+            custom_old_message: oldMessage ? oldMessage.value : '',
+            custom_new_message: newMessage ? newMessage.value : '',
+            badge_text: badgeText ? badgeText.value : ''
         };
 
         if (saveButton) {

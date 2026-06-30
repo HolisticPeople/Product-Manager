@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.0
+
+- Add Old2New lifecycle statuses, canonical target selection, hard 301 redirects, and a 180-day hard-redirect banner window.
+- Add compact old-product badges for product loops and Product Manager-owned Fibo/autocomplete decoration.
+- Add packet custom text fields, admin guidelines, target previews, and health warnings.
+
 ### 2.0.9
 
 - Move Old2New product replacement packets and `[old2new_product_block]` ownership into Product Manager.

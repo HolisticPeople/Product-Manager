@@ -40,6 +40,7 @@
       "hp-products-manager/v1/product/{id}/sales/daily",
       "hp-products-manager/v1/old2new-packets",
       "hp-products-manager/v1/old2new-packets/{id}",
+      "hp-products-manager/v1/old2new-badges",
       "hp-products-manager/v1/old2new-products/search",
       "hp-products-manager/v1/product/{id}/seo-audit",
       "hp-products-manager/v1/products"

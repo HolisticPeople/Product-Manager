@@ -20,6 +20,14 @@ const adminCss = fs.readFileSync(adminCssPath, 'utf8');
   'hp-old2new-status',
   'hp-old2new-save',
   'hp-old2new-cancel',
+  'custom_old_message',
+  'custom_new_message',
+  'badge_text',
+  'health_warnings',
+  'target_product',
+  'Basic Discontinue',
+  'Canonical',
+  'Hard Redirect',
   'old_product',
   'new_products',
   'redirect_type',
@@ -38,9 +46,12 @@ assert(!adminJs.includes('innerHTML = packet.old_product.name'), 'Old2New admin 
 
 [
   '.hp-old2new-admin',
+  '.hp-old2new-guidelines',
   '.hp-old2new-product-card',
   '.hp-old2new-product-card__thumb',
   '.hp-old2new-product-card__stock',
+  '.hp-old2new-health',
+  '.hp-old2new-preview',
   '.hp-old2new-actions',
 ].forEach((needle) => {
   assert(adminCss.includes(needle), `Old2New admin CSS must include ${needle}`);

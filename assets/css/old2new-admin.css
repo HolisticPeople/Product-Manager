@@ -19,6 +19,23 @@
     color: var(--hp-admin-muted, #646970);
 }
 
+.hp-old2new-guidelines {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px 14px;
+    margin: 0 0 16px;
+    padding: 12px;
+    border: var(--hp-admin-card-border, 1px solid #dcdcde);
+    border-radius: 8px;
+    background: var(--hp-admin-card-bg, #fff);
+}
+
+.hp-old2new-guidelines p {
+    margin: 0;
+    color: var(--hp-admin-muted, #646970);
+    line-height: 1.35;
+}
+
 .hp-old2new-table {
     display: grid;
     gap: 12px;
@@ -26,7 +43,7 @@
 
 .hp-old2new-row {
     display: grid;
-    grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.4fr) 150px 120px 150px;
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.2fr) 132px 92px minmax(180px, 1fr) minmax(180px, 1fr) 132px;
     gap: 12px;
     align-items: center;
     padding: 12px;
@@ -53,6 +70,14 @@
     border-radius: 8px;
     background: var(--hp-admin-surface, #fff);
     overflow: hidden;
+}
+
+.hp-old2new-product-card--missing {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px;
+    color: #8a1f11;
+    background: #fcf0ed;
 }
 
 .hp-old2new-product-card:hover,
@@ -102,6 +127,48 @@
     justify-content: flex-end;
 }
 
+.hp-old2new-status-badge,
+.hp-old2new-health {
+    display: inline-block;
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.hp-old2new-status-badge {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #eef2f7;
+}
+
+.hp-old2new-status-badge--canonical {
+    background: #e7f2ff;
+    color: #0a4b78;
+}
+
+.hp-old2new-status-badge--hard_redirect {
+    background: #fff2d8;
+    color: #7a4b00;
+}
+
+.hp-old2new-health {
+    margin: 0;
+    padding: 0;
+}
+
+.hp-old2new-health--ok {
+    color: #008a20;
+    font-weight: 600;
+}
+
+.hp-old2new-health--warn {
+    margin-left: 16px;
+    color: #8a1f11;
+}
+
+.hp-old2new-target small {
+    color: var(--hp-admin-muted, #646970);
+}
+
 .hp-old2new-form {
     display: grid;
     gap: 12px;
@@ -125,8 +192,22 @@
 }
 
 .hp-old2new-form input,
-.hp-old2new-form select {
+.hp-old2new-form select,
+.hp-old2new-form textarea {
     min-height: var(--hp-admin-control-height, 38px);
+}
+
+.hp-old2new-form textarea {
+    width: 100%;
+}
+
+.hp-old2new-preview {
+    padding: 10px 12px;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    background: #f6f7f7;
+    color: var(--hp-admin-muted, #646970);
+    line-height: 1.5;
 }
 
 .hp-old2new-selected-products {

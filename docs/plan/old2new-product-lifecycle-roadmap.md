@@ -3,8 +3,8 @@
 ## Ownership
 
 Product Manager owns Old2New packets, the `[old2new_product_block]` shortcode,
-the admin editing surface, and the lifecycle policy for replacement,
-discontinue, and hard redirect states.
+the admin editing surface, and the lifecycle policy for basic discontinue,
+canonical, and hard redirect states.
 
 WooCommerce remains the source of truth for product records, SKU, stock,
 permalinks, thumbnails, and `total_sales`. Product Manager reads that truth and
@@ -44,29 +44,28 @@ New-product copy remains informational:
 
 ## Lifecycle Statuses
 
-### replace
+### basic_discontinue
 
-`replace` is the current runtime behavior. The old product and the new product
-pages remain accessible. Product Manager only displays the replacement banner.
-The old product may still have inventory.
+`basic_discontinue` is the entry runtime behavior. The old product and the new
+product pages remain accessible. Product Manager displays the product-page
+banner and old-product compact badges.
 
 Redirect type: `none`.
 
-### discontinue
+### canonical
 
-`discontinue` is a future runtime slice. The old product page remains
-accessible, but the canonical URL should point to the selected new product. The
-banner remains visible.
+`canonical` keeps the old product page accessible, but the canonical URL points
+to the selected new product. The product-page banner and old-product compact
+badges remain visible.
 
 Redirect type: `canonical`.
 
 ### hard_redirect
 
-`hard_redirect` is a future runtime slice. The old product should return a 301
-redirect to the selected new product. The selected new product keeps the
-replacement banner visible for 90 days after `hard_redirect_started_at`. After
-90 days, Product Manager should hide the banner while leaving the 301 redirect
-active.
+`hard_redirect` returns a 301 redirect from the old product to the selected new
+product. The selected new product keeps the replacement banner visible for 180
+days after `hard_redirect_started_at`. After 180 days, Product Manager hides the
+banner while leaving the 301 redirect active.
 
 Redirect type: `301`.
 
@@ -76,8 +75,7 @@ When a packet has multiple new products, Product Manager should select the
 canonical or hard redirect target by highest WooCommerce `total_sales`.
 Tie-breaks should use the packet order stored in the Old2New packet.
 
-This target selection rule is roadmap policy until the canonical and 301
-runtime slices are implemented.
+This target selection rule is used for canonical and 301 runtime behavior.
 
 ## Packet Fields
 
@@ -85,24 +83,26 @@ Current packet records store the fields needed by the admin and shortcode:
 
 - old product ID and old SKU
 - one or more new product IDs and new SKUs
-- lifecycle status: `replace`, `discontinue`, or `hard_redirect`
+- lifecycle status: `basic_discontinue`, `canonical`, or `hard_redirect`
 - `hard_redirect_started_at`
+- custom old-product banner message
+- custom new-product banner message
+- compact badge text
 
 Future SEO and redirect slices should use the existing packet fields before
 adding new data.
 
 ## Future Visibility Slices
 
-- Fibo/search details panel visibility, owned by Product Manager APIs and
-  renderer contracts, not by HP-UI direct coupling.
-- Product category list-card layout visibility. Grid cards remain out of scope.
-- Status-aware search and category list behavior for `replace`, `discontinue`,
-  and `hard_redirect`.
+- Fibo/search visibility is owned by Product Manager APIs and renderer
+  contracts, not by HP-UI direct coupling.
+- Product category list-card and grid-card layouts show the compact badge for
+  old products only.
+- Status-aware search and category list behavior applies to
+  `basic_discontinue`, `canonical`, and `hard_redirect`.
 
 ## Guardrails
 
-- Do not implement canonical override or 301 redirect behavior in banner polish
-  slices.
 - Do not move WooCommerce product truth into Product Manager packet records.
 - Do not reintroduce HP-UI shortcode ownership.
 - Keep legacy ACF row reads only as rollback and migration safety.

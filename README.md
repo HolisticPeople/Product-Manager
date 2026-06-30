@@ -33,6 +33,11 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.0.9
+
+- Move Old2New product replacement packets and `[old2new_product_block]` ownership into Product Manager.
+- Add the Old2New admin tab with editable packet records, product cards, status, redirect type, and stock labels.
+
 ### 2.0.8
 
 - Cover list-backed product search inputs without explicit input types and stabilize wrapped product-detail tabs under HP-Zen styling.

@@ -5,7 +5,8 @@
   "owns": [
     "ERP product fields",
     "product metrics",
-    "admin REST tooling"
+    "admin REST tooling",
+    "Old2New product replacement packets"
   ],
   "must_not_own": [
     "WooCommerce core product ownership"
@@ -15,7 +16,9 @@
     "HP-Catalog"
   ],
   "exposes": {
-    "cpts": [],
+    "cpts": [
+      "hp_old2new_packet"
+    ],
     "rest": [
       "hp-products-manager/v1/erp/debug",
       "hp-products-manager/v1/erp/install-log",
@@ -35,10 +38,15 @@
       "hp-products-manager/v1/product/{id}/movements/persist-from-logs",
       "hp-products-manager/v1/product/{id}/movements/rebuild",
       "hp-products-manager/v1/product/{id}/sales/daily",
+      "hp-products-manager/v1/old2new-packets",
+      "hp-products-manager/v1/old2new-packets/{id}",
+      "hp-products-manager/v1/old2new-products/search",
       "hp-products-manager/v1/product/{id}/seo-audit",
       "hp-products-manager/v1/products"
     ],
-    "shortcodes": [],
+    "shortcodes": [
+      "old2new_product_block"
+    ],
     "providers": []
   },
   "verification": {

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.0.8
+ * Version: 2.0.9
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,8 +39,12 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.0.8';
+    const VERSION = '2.0.9';
     const HANDLE  = 'hp-products-manager';
+    private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
+    private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
+    private const OLD2NEW_DEFAULT_IMPORT_OPTION = 'hp_pm_old2new_default_packets_imported';
+    private const OLD2NEW_LEGACY_MIGRATION_OPTION = 'hp_pm_old2new_legacy_pairs_migrated';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
     private const CACHE_GROUP       = 'hp_products_manager';
@@ -96,6 +100,8 @@ final class HP_Products_Manager {
      * Register admin hooks.
      */
     private function __construct() {
+        add_action('init', [$this, 'register_old2new_packet_cpt']);
+        add_action('init', [$this, 'register_old2new_shortcode'], 30);
         add_action('rest_api_init', [$this, 'register_rest_routes']);
 
         if (!is_admin()) {
@@ -114,6 +120,8 @@ final class HP_Products_Manager {
         add_action('woocommerce_update_product', [$this, 'flush_metrics_cache'], 10, 1);
         // Ensure legacy ERP tables once per schema version.
         add_action('admin_init', [$this, 'maybe_install_tables']);
+        add_action('admin_init', [$this, 'maybe_import_default_old2new_packets']);
+        add_action('admin_init', [$this, 'maybe_migrate_legacy_old2new_pairs']);
 
         // ERP minimal: register a single logging hook behind a feature flag
         if ($this->is_erp_enabled()) {
@@ -209,6 +217,37 @@ final class HP_Products_Manager {
                 ],
             ]
         );
+
+        wp_enqueue_style(
+            self::HANDLE . '-old2new-admin',
+            $asset_base . 'css/old2new-admin.css',
+            [],
+            self::VERSION
+        );
+
+        wp_enqueue_script(
+            self::HANDLE . '-old2new-admin',
+            $asset_base . 'js/old2new-admin.js',
+            [],
+            self::VERSION,
+            true
+        );
+
+        wp_localize_script(
+            self::HANDLE . '-old2new-admin',
+            'HPOld2NewAdminData',
+            [
+                'packetsUrl' => rest_url(self::REST_NAMESPACE . '/old2new-packets'),
+                'searchUrl'  => rest_url(self::REST_NAMESPACE . '/old2new-products/search'),
+                'nonce'      => wp_create_nonce('wp_rest'),
+                'productUrlBase' => admin_url('admin.php?page=hp-products-manager-product&product_id='),
+                'i18n'       => [
+                    'loading' => __('Loading Old2New packets...', 'hp-products-manager'),
+                    'empty'   => __('No Old2New packets yet.', 'hp-products-manager'),
+                    'deleteConfirm' => __('Delete this Old2New packet?', 'hp-products-manager'),
+                ],
+            ]
+        );
     }
 
     /**
@@ -267,6 +306,256 @@ final class HP_Products_Manager {
     }
 
     /**
+     * Register Product Manager-owned Old2New packet records.
+     */
+    public function register_old2new_packet_cpt(): void {
+        register_post_type('hp_old2new_packet', [
+            'labels' => [
+                'name' => __('Old2New Packets', 'hp-products-manager'),
+                'singular_name' => __('Old2New Packet', 'hp-products-manager'),
+            ],
+            'public' => false,
+            'show_ui' => false,
+            'show_in_menu' => false,
+            'show_in_rest' => false,
+            'capability_type' => 'product',
+            'supports' => ['title'],
+            'rewrite' => false,
+            'query_var' => false,
+        ]);
+    }
+
+    /**
+     * Register the frontend shortcode in Product Manager.
+     */
+    public function register_old2new_shortcode(): void {
+        if (function_exists('HP_Core\register_shortcode')) {
+            \HP_Core\register_shortcode('old2new_product_block', [
+                'label' => 'Old2New Product Block',
+                'description' => 'Displays Product Manager Old2New replacement packets.',
+                'callback' => [$this, 'render_old2new_product_block'],
+                'usage' => '[old2new_product_block]',
+            ]);
+        }
+
+        add_shortcode('old2new_product_block', [$this, 'render_old2new_product_block']);
+    }
+
+    /**
+     * Keep lifecycle status values bounded.
+     */
+    private function sanitize_old2new_status($status): string {
+        $status = sanitize_key((string) $status);
+        $allowed = ['replace', 'discontinue', 'hard_redirect'];
+
+        return in_array($status, $allowed, true) ? $status : 'replace';
+    }
+
+    /**
+     * Convert status into the redirect type shown in admin/API responses.
+     */
+    private function old2new_redirect_type(string $status): string {
+        if ($status === 'discontinue') {
+            return 'canonical';
+        }
+
+        if ($status === 'hard_redirect') {
+            return '301';
+        }
+
+        return 'none';
+    }
+
+    private function normalize_old2new_sku(string $sku): string {
+        return trim($sku);
+    }
+
+    private function old2new_product_by_sku(string $sku) {
+        if ($sku === '' || !function_exists('wc_get_product_id_by_sku') || !function_exists('wc_get_product')) {
+            return null;
+        }
+
+        $product_id = (int) wc_get_product_id_by_sku($sku);
+        if ($product_id <= 0) {
+            return null;
+        }
+
+        $product = wc_get_product($product_id);
+
+        return $product instanceof WC_Product ? $product : null;
+    }
+
+    private function old2new_product_stock_label(WC_Product $product): string {
+        if ($product->managing_stock()) {
+            $quantity = $product->get_stock_quantity();
+            return $quantity === null ? __('Stock: managed', 'hp-products-manager') : sprintf(__('Stock: %s', 'hp-products-manager'), (string) (int) $quantity);
+        }
+
+        $status = function_exists('wc_get_stock_status_name')
+            ? wc_get_stock_status_name($product->get_stock_status())
+            : ucfirst((string) $product->get_stock_status());
+
+        return sprintf(__('Stock: %s', 'hp-products-manager'), $status);
+    }
+
+    /**
+     * Build Product Manager product-card payloads.
+     */
+    private function old2new_product_summary(WC_Product $product): array {
+        $product_id = (int) $product->get_id();
+        $sku = $this->normalize_old2new_sku((string) $product->get_sku());
+        $image_id = (int) $product->get_image_id();
+
+        return [
+            'id' => $product_id,
+            'sku' => $sku,
+            'name' => wp_strip_all_tags((string) $product->get_name()),
+            'image' => $image_id > 0 ? (string) wp_get_attachment_image_url($image_id, 'woocommerce_thumbnail') : '',
+            'image_id' => $image_id,
+            'permalink' => $product_id > 0 ? (string) get_permalink($product_id) : '',
+            'admin_url' => admin_url('admin.php?page=hp-products-manager-product&product_id=' . $product_id),
+            'stock' => $product->managing_stock() ? $product->get_stock_quantity() : null,
+            'stock_status' => (string) $product->get_stock_status(),
+            'stock_label' => $this->old2new_product_stock_label($product),
+        ];
+    }
+
+    /**
+     * Create a packet response from a packet post.
+     */
+    private function old2new_packet_response(int $packet_id): ?array {
+        $post = get_post($packet_id);
+        if (!$post || $post->post_type !== self::OLD2NEW_PACKET_CPT) {
+            return null;
+        }
+
+        $old_product_id = (int) get_post_meta($packet_id, '_hp_old2new_old_product_id', true);
+        $new_product_ids = get_post_meta($packet_id, '_hp_old2new_new_product_ids', true);
+        $new_product_ids = is_array($new_product_ids) ? array_values(array_filter(array_map('absint', $new_product_ids))) : [];
+        $status = $this->sanitize_old2new_status(get_post_meta($packet_id, '_hp_old2new_status', true));
+        $old_product = $old_product_id > 0 ? wc_get_product($old_product_id) : null;
+        $new_products = [];
+
+        foreach ($new_product_ids as $new_product_id) {
+            $new_product = wc_get_product($new_product_id);
+            if ($new_product instanceof WC_Product) {
+                $new_products[] = $this->old2new_product_summary($new_product);
+            }
+        }
+
+        if (!$old_product instanceof WC_Product || empty($new_products)) {
+            return null;
+        }
+
+        return [
+            'id' => $packet_id,
+            'title' => get_the_title($packet_id),
+            'old_product' => $this->old2new_product_summary($old_product),
+            'new_products' => $new_products,
+            'status' => $status,
+            'redirect_type' => $this->old2new_redirect_type($status),
+            'hard_redirect_started_at' => (string) get_post_meta($packet_id, '_hp_old2new_hard_redirect_started_at', true),
+            'edit_url' => get_edit_post_link($packet_id, ''),
+        ];
+    }
+
+    private function find_old2new_packet_by_old_sku(string $old_sku, int $exclude_id = 0): int {
+        $old_sku = $this->normalize_old2new_sku($old_sku);
+        if ($old_sku === '') {
+            return 0;
+        }
+
+        $query = new WP_Query([
+            'post_type' => self::OLD2NEW_PACKET_CPT,
+            'post_status' => ['publish', 'draft', 'private'],
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'meta_query' => [
+                [
+                    'key' => '_hp_old2new_old_sku',
+                    'value' => $old_sku,
+                    'compare' => '=',
+                ],
+            ],
+            'post__not_in' => $exclude_id > 0 ? [$exclude_id] : [],
+        ]);
+
+        return !empty($query->posts) ? (int) $query->posts[0] : 0;
+    }
+
+    private function save_old2new_packet(array $payload, int $packet_id = 0) {
+        $old_product_id = absint($payload['old_product_id'] ?? 0);
+        $new_product_ids = isset($payload['new_product_ids']) && is_array($payload['new_product_ids'])
+            ? array_values(array_filter(array_map('absint', $payload['new_product_ids'])))
+            : [];
+
+        $old_product = $old_product_id > 0 ? wc_get_product($old_product_id) : null;
+        if (!$old_product instanceof WC_Product) {
+            return new \WP_Error('old2new_invalid_old_product', __('Old product is required.', 'hp-products-manager'), ['status' => 400]);
+        }
+
+        $new_products = [];
+        foreach ($new_product_ids as $new_product_id) {
+            $new_product = wc_get_product($new_product_id);
+            if ($new_product instanceof WC_Product) {
+                $new_products[] = $new_product;
+            }
+        }
+
+        if (empty($new_products)) {
+            return new \WP_Error('old2new_invalid_new_products', __('At least one new product is required.', 'hp-products-manager'), ['status' => 400]);
+        }
+
+        $old_sku = $this->normalize_old2new_sku((string) $old_product->get_sku());
+        if ($old_sku === '') {
+            return new \WP_Error('old2new_missing_old_sku', __('Old product must have an SKU.', 'hp-products-manager'), ['status' => 400]);
+        }
+
+        $duplicate_id = $this->find_old2new_packet_by_old_sku($old_sku, $packet_id);
+        if ($duplicate_id > 0) {
+            return new \WP_Error('old2new_duplicate_old_sku', __('An Old2New packet already exists for this old SKU.', 'hp-products-manager'), ['status' => 409]);
+        }
+
+        $new_skus = [];
+        foreach ($new_products as $new_product) {
+            $new_sku = $this->normalize_old2new_sku((string) $new_product->get_sku());
+            if ($new_sku !== '') {
+                $new_skus[] = $new_sku;
+            }
+        }
+
+        $status = $this->sanitize_old2new_status($payload['status'] ?? 'replace');
+        $post_title = sprintf('%s -> %s', $old_sku, implode(', ', $new_skus));
+        $post_data = [
+            'post_type' => self::OLD2NEW_PACKET_CPT,
+            'post_status' => 'publish',
+            'post_title' => $post_title,
+        ];
+
+        if ($packet_id > 0) {
+            $post_data['ID'] = $packet_id;
+            $saved_id = wp_update_post(wp_slash($post_data), true);
+        } else {
+            $saved_id = wp_insert_post(wp_slash($post_data), true);
+        }
+
+        if (is_wp_error($saved_id)) {
+            return $saved_id;
+        }
+
+        $saved_id = (int) $saved_id;
+        update_post_meta($saved_id, '_hp_old2new_old_product_id', $old_product_id);
+        update_post_meta($saved_id, '_hp_old2new_old_sku', $old_sku);
+        update_post_meta($saved_id, '_hp_old2new_new_product_ids', array_map('intval', $new_product_ids));
+        update_post_meta($saved_id, '_hp_old2new_new_skus', $new_skus);
+        update_post_meta($saved_id, '_hp_old2new_status', $status);
+        update_post_meta($saved_id, '_hp_old2new_hard_redirect_started_at', sanitize_text_field((string) ($payload['hard_redirect_started_at'] ?? '')));
+
+        return $this->old2new_packet_response($saved_id);
+    }
+
+    /**
      * Register the Products Manager admin page.
      */
     public function register_admin_page(): void {
@@ -321,6 +610,12 @@ final class HP_Products_Manager {
                 </div>
             </header>
 
+            <nav class="nav-tab-wrapper hp-pm-tabs" aria-label="<?php esc_attr_e('Products Manager sections', 'hp-products-manager'); ?>">
+                <button type="button" class="nav-tab nav-tab-active" data-hp-pm-tab="products"><?php esc_html_e('Products', 'hp-products-manager'); ?></button>
+                <button type="button" class="nav-tab" data-hp-pm-tab="old2new"><?php esc_html_e('Old2New', 'hp-products-manager'); ?></button>
+            </nav>
+
+            <div data-hp-pm-panel="products">
             <form id="hp-products-filters" class="hp-pm-filters">
                 <div class="hp-pm-filter-group">
                     <label for="hp-pm-filter-search">
@@ -403,6 +698,51 @@ final class HP_Products_Manager {
             <section class="hp-pm-table">
                 <div id="hp-pm-table-count" class="hp-pm-table-count">&nbsp;</div>
                 <div id="hp-products-table"></div>
+            </section>
+            </div>
+
+            <section class="hp-old2new-admin" data-hp-pm-panel="old2new" hidden>
+                <div class="hp-old2new-toolbar">
+                    <div>
+                        <h2><?php esc_html_e('Old2New Packets', 'hp-products-manager'); ?></h2>
+                        <p><?php esc_html_e('Manage old product replacement packets, lifecycle status, and redirect readiness.', 'hp-products-manager'); ?></p>
+                    </div>
+                    <button type="button" class="button button-primary" id="hp-old2new-add"><?php esc_html_e('Add Old2New Packet', 'hp-products-manager'); ?></button>
+                </div>
+                <div id="hp-old2new-status" class="hp-old2new-status" role="status" aria-live="polite"></div>
+                <div id="hp-old2new-table" class="hp-old2new-table"></div>
+
+                <form id="hp-old2new-form" class="hp-old2new-form" hidden>
+                    <input type="hidden" id="hp-old2new-packet-id" value="">
+                    <h3 id="hp-old2new-form-title"><?php esc_html_e('Old2New Packet', 'hp-products-manager'); ?></h3>
+                    <label for="hp-old2new-old-product">
+                        <?php esc_html_e('Old Product', 'hp-products-manager'); ?>
+                        <input id="hp-old2new-old-product" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search old product by name or SKU', 'hp-products-manager'); ?>">
+                    </label>
+                    <label for="hp-old2new-new-products">
+                        <?php esc_html_e('New Products', 'hp-products-manager'); ?>
+                        <input id="hp-old2new-new-products" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search replacement product by name or SKU', 'hp-products-manager'); ?>">
+                    </label>
+                    <div id="hp-old2new-selected-new-products" class="hp-old2new-selected-products"></div>
+                    <label for="hp-old2new-status-select">
+                        <?php esc_html_e('Status', 'hp-products-manager'); ?>
+                        <select id="hp-old2new-status-select">
+                            <option value="replace"><?php esc_html_e('Replace', 'hp-products-manager'); ?></option>
+                            <option value="discontinue"><?php esc_html_e('Discontinue', 'hp-products-manager'); ?></option>
+                            <option value="hard_redirect"><?php esc_html_e('Hard Redirect', 'hp-products-manager'); ?></option>
+                        </select>
+                    </label>
+                    <label for="hp-old2new-hard-redirect-started-at">
+                        <?php esc_html_e('Hard redirect started at', 'hp-products-manager'); ?>
+                        <input id="hp-old2new-hard-redirect-started-at" type="date">
+                    </label>
+                    <p class="hp-old2new-derived"><?php esc_html_e('Redirect type:', 'hp-products-manager'); ?> <strong id="hp-old2new-redirect-type">none</strong></p>
+                    <datalist id="hp-old2new-products-list"></datalist>
+                    <div class="hp-old2new-actions">
+                        <button type="submit" class="button button-primary" id="hp-old2new-save"><?php esc_html_e('Save Packet', 'hp-products-manager'); ?></button>
+                        <button type="button" class="button" id="hp-old2new-cancel"><?php esc_html_e('Cancel', 'hp-products-manager'); ?></button>
+                    </div>
+                </form>
             </section>
         </div>
         <?php
@@ -1436,6 +1776,163 @@ final class HP_Products_Manager {
                 ],
             ]
         );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/old2new-packets',
+            [
+                [
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => [$this, 'rest_get_old2new_packets'],
+                    'permission_callback' => function (): bool {
+                        return current_user_can('edit_products');
+                    },
+                ],
+                [
+                    'methods'             => WP_REST_Server::CREATABLE,
+                    'callback'            => [$this, 'rest_create_old2new_packet'],
+                    'permission_callback' => function (): bool {
+                        return current_user_can('manage_woocommerce');
+                    },
+                ],
+            ]
+        );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/old2new-packets/(?P<id>\d+)',
+            [
+                [
+                    'methods'             => WP_REST_Server::EDITABLE,
+                    'callback'            => [$this, 'rest_update_old2new_packet'],
+                    'permission_callback' => function (): bool {
+                        return current_user_can('manage_woocommerce');
+                    },
+                    'args' => [
+                        'id' => [
+                            'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                        ],
+                    ],
+                ],
+                [
+                    'methods'             => WP_REST_Server::DELETABLE,
+                    'callback'            => [$this, 'rest_delete_old2new_packet'],
+                    'permission_callback' => function (): bool {
+                        return current_user_can('manage_woocommerce');
+                    },
+                    'args' => [
+                        'id' => [
+                            'validate_callback' => function ($value, $request, $param) { return is_numeric($value); },
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        register_rest_route(
+            self::REST_NAMESPACE,
+            '/old2new-products/search',
+            [
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => [$this, 'rest_search_old2new_products'],
+                'permission_callback' => function (): bool {
+                    return current_user_can('edit_products');
+                },
+            ]
+        );
+    }
+
+    public function rest_get_old2new_packets(WP_REST_Request $request) {
+        $query = new WP_Query([
+            'post_type' => self::OLD2NEW_PACKET_CPT,
+            'post_status' => ['publish', 'draft', 'private'],
+            'posts_per_page' => 200,
+            'orderby' => 'modified',
+            'order' => 'DESC',
+            'fields' => 'ids',
+            'no_found_rows' => true,
+        ]);
+
+        $packets = [];
+        foreach ($query->posts as $packet_id) {
+            $packet = $this->old2new_packet_response((int) $packet_id);
+            if ($packet) {
+                $packets[] = $packet;
+            }
+        }
+
+        return rest_ensure_response(['packets' => $packets]);
+    }
+
+    public function rest_create_old2new_packet(WP_REST_Request $request) {
+        $saved = $this->save_old2new_packet($request->get_json_params() ?: []);
+
+        return is_wp_error($saved) ? $saved : rest_ensure_response($saved);
+    }
+
+    public function rest_update_old2new_packet(WP_REST_Request $request) {
+        $packet_id = (int) $request['id'];
+        if (get_post_type($packet_id) !== self::OLD2NEW_PACKET_CPT) {
+            return new \WP_Error('old2new_not_found', __('Old2New packet not found.', 'hp-products-manager'), ['status' => 404]);
+        }
+
+        $saved = $this->save_old2new_packet($request->get_json_params() ?: [], $packet_id);
+
+        return is_wp_error($saved) ? $saved : rest_ensure_response($saved);
+    }
+
+    public function rest_delete_old2new_packet(WP_REST_Request $request) {
+        $packet_id = (int) $request['id'];
+        if (get_post_type($packet_id) !== self::OLD2NEW_PACKET_CPT) {
+            return new \WP_Error('old2new_not_found', __('Old2New packet not found.', 'hp-products-manager'), ['status' => 404]);
+        }
+
+        $deleted = wp_delete_post($packet_id, true);
+
+        return rest_ensure_response(['deleted' => (bool) $deleted, 'id' => $packet_id]);
+    }
+
+    public function rest_search_old2new_products(WP_REST_Request $request) {
+        $search = sanitize_text_field((string) $request->get_param('search'));
+        $args = [
+            'post_type' => 'product',
+            'post_status' => ['publish', 'draft', 'pending', 'private'],
+            'posts_per_page' => 20,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'suppress_filters' => false,
+        ];
+
+        if ($search !== '') {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query($args);
+        $products = [];
+        $seen = [];
+
+        if ($search !== '' && function_exists('wc_get_product_id_by_sku')) {
+            $sku_product_id = (int) wc_get_product_id_by_sku($search);
+            if ($sku_product_id > 0) {
+                $sku_product = wc_get_product($sku_product_id);
+                if ($sku_product instanceof WC_Product) {
+                    $products[] = $this->old2new_product_summary($sku_product);
+                    $seen[$sku_product_id] = true;
+                }
+            }
+        }
+
+        foreach ($query->posts as $product_id) {
+            if (isset($seen[(int) $product_id])) {
+                continue;
+            }
+            $product = wc_get_product((int) $product_id);
+            if ($product instanceof WC_Product) {
+                $products[] = $this->old2new_product_summary($product);
+            }
+        }
+
+        return rest_ensure_response(['products' => $products]);
     }
 
     /**
@@ -3384,6 +3881,426 @@ final class HP_Products_Manager {
         }
 
         return $map;
+    }
+
+    /**
+     * Import known real Old2New QA packets once products exist on the site.
+     */
+    public function maybe_import_default_old2new_packets(): void {
+        if (get_option(self::OLD2NEW_DEFAULT_IMPORT_OPTION) === 'yes') {
+            return;
+        }
+
+        $defaults = [
+            'NTI-O-Mega-Zen' => ['B22185'],
+            'NTI-O-Mega-Zen-EPA' => ['B22185'],
+            'WA-1650' => ['HD-NCMC30', 'HD-NCMC60', 'HD-NXMC2'],
+        ];
+
+        $created = 0;
+        $complete = true;
+        foreach ($defaults as $old_sku => $new_skus) {
+            if ($this->find_old2new_packet_by_old_sku($old_sku) > 0) {
+                continue;
+            }
+
+            $created_packet = $this->create_old2new_packet_from_skus($old_sku, $new_skus);
+            $created += $created_packet ? 1 : 0;
+            if (!$created_packet) {
+                $complete = false;
+            }
+        }
+
+        if ($complete || !function_exists('wc_get_product_id_by_sku')) {
+            update_option(self::OLD2NEW_DEFAULT_IMPORT_OPTION, 'yes', false);
+        }
+    }
+
+    /**
+     * Migrate legacy product-level old2new_product_pairs into packet records once.
+     */
+    public function maybe_migrate_legacy_old2new_pairs(): void {
+        if (get_option(self::OLD2NEW_LEGACY_MIGRATION_OPTION) === 'yes') {
+            return;
+        }
+
+        $query = new WP_Query([
+            'post_type' => 'product',
+            'post_status' => ['publish', 'draft', 'pending', 'private'],
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'meta_query' => [
+                [
+                    'key' => self::OLD2NEW_LEGACY_FIELD,
+                    'compare' => 'EXISTS',
+                ],
+            ],
+        ]);
+
+        $groups = [];
+        foreach ($query->posts as $product_id) {
+            $rows = get_post_meta((int) $product_id, self::OLD2NEW_LEGACY_FIELD, true);
+            if (!is_array($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $old_sku = $this->normalize_old2new_sku((string) ($row['old_sku'] ?? ''));
+                $new_sku = $this->normalize_old2new_sku((string) ($row['new_sku'] ?? ''));
+                if ($old_sku === '' || $new_sku === '') {
+                    continue;
+                }
+
+                if (!isset($groups[$old_sku])) {
+                    $groups[$old_sku] = [];
+                }
+                $groups[$old_sku][$new_sku] = $new_sku;
+            }
+        }
+
+        foreach ($groups as $old_sku => $new_skus) {
+            $this->create_old2new_packet_from_skus($old_sku, array_values($new_skus));
+        }
+
+        update_option(self::OLD2NEW_LEGACY_MIGRATION_OPTION, 'yes', false);
+    }
+
+    private function create_old2new_packet_from_skus(string $old_sku, array $new_skus): bool {
+        $old_product = $this->old2new_product_by_sku($old_sku);
+        if (!$old_product instanceof WC_Product) {
+            return false;
+        }
+
+        $old_sku = $this->normalize_old2new_sku((string) $old_product->get_sku());
+        if ($old_sku === '' || $this->find_old2new_packet_by_old_sku($old_sku) > 0) {
+            return false;
+        }
+
+        $new_ids = [];
+        foreach ($new_skus as $new_sku) {
+            $new_product = $this->old2new_product_by_sku((string) $new_sku);
+            if ($new_product instanceof WC_Product) {
+                $new_ids[] = (int) $new_product->get_id();
+            }
+        }
+
+        if (empty($new_ids)) {
+            return false;
+        }
+
+        $saved = $this->save_old2new_packet([
+            'old_product_id' => (int) $old_product->get_id(),
+            'new_product_ids' => $new_ids,
+            'status' => 'replace',
+        ]);
+
+        return is_array($saved);
+    }
+
+    private function old2new_current_product_id(int $explicit_id = 0): int {
+        if ($explicit_id > 0) {
+            return $explicit_id;
+        }
+
+        global $product;
+        if ($product instanceof WC_Product) {
+            return (int) $product->get_id();
+        }
+
+        $queried = function_exists('get_queried_object') ? get_queried_object() : null;
+        if (is_object($queried) && isset($queried->ID) && ($queried->post_type ?? '') === 'product') {
+            return (int) $queried->ID;
+        }
+
+        return function_exists('get_the_ID') ? (int) get_the_ID() : 0;
+    }
+
+    private function resolve_old2new_for_product_id(int $product_id): ?array {
+        if ($product_id <= 0 || !function_exists('wc_get_product')) {
+            return null;
+        }
+
+        $current_product = wc_get_product($product_id);
+        if (!$current_product instanceof WC_Product) {
+            return null;
+        }
+
+        $current_sku = $this->normalize_old2new_sku((string) $current_product->get_sku());
+        if ($current_sku === '') {
+            return null;
+        }
+
+        $old_match = $this->resolve_old2new_packet_for_old_sku($current_sku);
+        if ($old_match) {
+            return $old_match;
+        }
+
+        $new_match = $this->resolve_old2new_packet_for_new_sku($current_sku, $current_product);
+        if ($new_match) {
+            return $new_match;
+        }
+
+        return $this->resolve_legacy_old2new_for_product($current_product);
+    }
+
+    private function resolve_old2new_packet_for_old_sku(string $old_sku): ?array {
+        $packet_id = $this->find_old2new_packet_by_old_sku($old_sku);
+        $packet = $packet_id > 0 ? $this->old2new_packet_response($packet_id) : null;
+        if (!$packet) {
+            return null;
+        }
+
+        return [
+            'state' => 'old',
+            'oldProducts' => [$packet['old_product']],
+            'newProducts' => $packet['new_products'],
+            'packet' => $packet,
+        ];
+    }
+
+    private function resolve_old2new_packet_for_new_sku(string $new_sku, WC_Product $current_product): ?array {
+        $query = new WP_Query([
+            'post_type' => self::OLD2NEW_PACKET_CPT,
+            'post_status' => ['publish', 'draft', 'private'],
+            'posts_per_page' => 25,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'meta_query' => [
+                [
+                    'key' => '_hp_old2new_new_skus',
+                    'value' => $new_sku,
+                    'compare' => 'LIKE',
+                ],
+            ],
+        ]);
+
+        $old_products = [];
+        foreach ($query->posts as $packet_id) {
+            $packet = $this->old2new_packet_response((int) $packet_id);
+            if ($packet && isset($packet['old_product'])) {
+                $old_products[$packet['old_product']['sku']] = $packet['old_product'];
+            }
+        }
+
+        if (empty($old_products)) {
+            return null;
+        }
+
+        return [
+            'state' => 'new',
+            'oldProducts' => array_values($old_products),
+            'newProducts' => [$this->old2new_product_summary($current_product)],
+        ];
+    }
+
+    private function resolve_legacy_old2new_for_product(WC_Product $current_product): ?array {
+        $product_id = (int) $current_product->get_id();
+        $current_sku = $this->normalize_old2new_sku((string) $current_product->get_sku());
+        $rows = get_post_meta($product_id, self::OLD2NEW_LEGACY_FIELD, true);
+        if (!is_array($rows)) {
+            return null;
+        }
+
+        $old_products = [];
+        $new_products = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $old_sku = $this->normalize_old2new_sku((string) ($row['old_sku'] ?? ''));
+            $new_sku = $this->normalize_old2new_sku((string) ($row['new_sku'] ?? ''));
+            if ($old_sku === '' || $new_sku === '') {
+                continue;
+            }
+
+            if ($current_sku === $old_sku) {
+                $new_product = $this->old2new_product_by_sku($new_sku);
+                if ($new_product instanceof WC_Product) {
+                    $new_products[$new_sku] = $this->old2new_product_summary($new_product);
+                }
+            }
+
+            if ($current_sku === $new_sku) {
+                $old_product = $this->old2new_product_by_sku($old_sku);
+                if ($old_product instanceof WC_Product) {
+                    $old_products[$old_sku] = $this->old2new_product_summary($old_product);
+                }
+            }
+        }
+
+        if (!empty($new_products)) {
+            return [
+                'state' => 'old',
+                'oldProducts' => [$this->old2new_product_summary($current_product)],
+                'newProducts' => array_values($new_products),
+            ];
+        }
+
+        if (!empty($old_products)) {
+            return [
+                'state' => 'new',
+                'oldProducts' => array_values($old_products),
+                'newProducts' => [$this->old2new_product_summary($current_product)],
+            ];
+        }
+
+        return null;
+    }
+
+    public function render_old2new_product_block($atts = []): string {
+        $atts = shortcode_atts(
+            [
+                'product_id' => '',
+                'class' => 'old2new-product-block',
+            ],
+            is_array($atts) ? $atts : [],
+            'old2new_product_block'
+        );
+
+        $resolved = $this->resolve_old2new_for_product_id($this->old2new_current_product_id(absint($atts['product_id'])));
+        if (!$resolved) {
+            return '';
+        }
+
+        $this->enqueue_old2new_frontend_assets();
+
+        $base_class = sanitize_html_class((string) $atts['class'], 'old2new-product-block');
+        $state = (string) $resolved['state'];
+        $old_products = array_values(array_filter($resolved['oldProducts'] ?? []));
+        $new_products = array_values(array_filter($resolved['newProducts'] ?? []));
+        if (empty($old_products) || empty($new_products)) {
+            return '';
+        }
+
+        $highlight = count($new_products) > 1
+            ? '<strong class="' . esc_attr($base_class) . '__highlight">' . esc_html__('new products', 'hp-products-manager') . '</strong>'
+            : '<strong class="' . esc_attr($base_class) . '__highlight">' . esc_html__('new product', 'hp-products-manager') . '</strong>';
+
+        if ($state === 'old') {
+            $message = count($new_products) > 1
+                ? sprintf(__('This product is no longer available. Follow Dr. Cousens\' recommendations for these %s.', 'hp-products-manager'), $highlight)
+                : sprintf(__('This product is no longer available. Follow Dr. Cousens\' recommendation for this %s.', 'hp-products-manager'), $highlight);
+            $new_clickable = true;
+        } else {
+            $message = count($old_products) > 1
+                ? esc_html__('This product is now replacing these previous products.', 'hp-products-manager')
+                : esc_html__('This product is now replacing the previous product.', 'hp-products-manager');
+            $new_clickable = false;
+        }
+
+        return sprintf(
+            '<section class="%1$s %1$s--%2$s" data-old2new-state="%2$s" aria-label="%3$s"><div class="%1$s__copy"><p class="%1$s__message">%4$s</p></div>%5$s</section>',
+            esc_attr($base_class),
+            esc_attr($state),
+            esc_attr__('Product replacement notice', 'hp-products-manager'),
+            wp_kses_post($message),
+            $this->render_old2new_flow($old_products, $new_products, $new_clickable, $base_class)
+        );
+    }
+
+    private function enqueue_old2new_frontend_assets(): void {
+        $style_path = plugin_dir_path(__FILE__) . 'assets/css/old2new-product-block.css';
+        if (!file_exists($style_path)) {
+            return;
+        }
+
+        wp_enqueue_style(
+            self::HANDLE . '-old2new-product-block',
+            plugin_dir_url(__FILE__) . 'assets/css/old2new-product-block.css',
+            [],
+            self::VERSION
+        );
+    }
+
+    private function render_old2new_flow(array $old_products, array $new_products, bool $new_clickable, string $block_class): string {
+        return sprintf(
+            '<div class="%1$s__flow"><div class="%1$s__column %1$s__column--old">%2$s</div><span class="%1$s__arrow" aria-hidden="true">&rarr;</span><div class="%1$s__column %1$s__column--new">%3$s</div></div>',
+            esc_attr($block_class),
+            $this->render_old2new_product_cards($old_products, 'old', false),
+            $this->render_old2new_product_cards($new_products, 'new', $new_clickable)
+        );
+    }
+
+    private function render_old2new_product_cards(array $products, string $role, bool $clickable): string {
+        $cards = [];
+        foreach ($products as $product) {
+            if (is_array($product) && !empty($product['name'])) {
+                $cards[] = $this->render_old2new_product_card($product, $role, $clickable);
+            }
+        }
+
+        return '<span class="old2new-product-block__cards">' . implode('', $cards) . '</span>';
+    }
+
+    private function render_old2new_product_card(array $product, string $role, bool $clickable): string {
+        $base_class = 'old2new-product-card';
+        $classes = $base_class . ' ' . $base_class . '--' . sanitize_html_class($role);
+        $tag = $clickable ? 'a' : 'span';
+        $href = $clickable ? ' href="' . esc_url((string) ($product['permalink'] ?? '')) . '"' : '';
+        $cta = $clickable ? sprintf('<span class="%1$s__cta" aria-hidden="true">&rarr;</span>', esc_attr($base_class)) : '';
+        if ($clickable) {
+            $classes .= ' ' . $base_class . '--clickable';
+        }
+
+        return sprintf(
+            '<%1$s class="%2$s"%3$s data-old2new-product-role="%4$s">%5$s<span class="%6$s__body"><span class="%6$s__title">%7$s</span><span class="%6$s__stock">%8$s</span></span>%9$s</%1$s>',
+            $tag,
+            esc_attr($classes),
+            $href,
+            esc_attr($role),
+            $this->render_old2new_thumb($product, $base_class),
+            esc_attr($base_class),
+            esc_html((string) ($product['name'] ?? '')),
+            esc_html((string) ($product['stock_label'] ?? __('Stock: --', 'hp-products-manager'))),
+            $cta
+        );
+    }
+
+    private function render_old2new_thumb(array $product, string $base_class): string {
+        $name = (string) ($product['name'] ?? '');
+        $image = '';
+
+        if (!empty($product['image_id']) && function_exists('wp_get_attachment_image')) {
+            $image = (string) wp_get_attachment_image((int) $product['image_id'], 'woocommerce_thumbnail', false, [
+                'class' => $base_class . '__image',
+                'alt' => $name,
+            ]);
+        }
+
+        if ($image === '' && !empty($product['image'])) {
+            $image = sprintf(
+                '<img class="%1$s__image" src="%2$s" alt="%3$s" loading="lazy" decoding="async" />',
+                esc_attr($base_class),
+                esc_url((string) $product['image']),
+                esc_attr($name)
+            );
+        }
+
+        if ($image === '') {
+            $image = sprintf(
+                '<span class="%1$s__placeholder" aria-hidden="true">%2$s</span>',
+                esc_attr($base_class),
+                esc_html($this->old2new_initials($name))
+            );
+        }
+
+        return sprintf('<span class="%1$s__thumb">%2$s</span>', esc_attr($base_class), $image);
+    }
+
+    private function old2new_initials(string $name): string {
+        $words = preg_split('/\s+/', trim(wp_strip_all_tags($name))) ?: [];
+        $letters = '';
+        foreach (array_slice(array_filter($words), 0, 2) as $word) {
+            $letters .= strtoupper(substr((string) $word, 0, 1));
+        }
+
+        return $letters !== '' ? $letters : 'HP';
     }
 
     /**

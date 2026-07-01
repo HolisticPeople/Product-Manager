@@ -4624,7 +4624,7 @@ final class HP_Products_Manager {
         }
 
         return sprintf(
-            '<%1$s class="%2$s"%3$s data-old2new-product-role="%4$s">%5$s<span class="%6$s__body"><span class="%6$s__title">%7$s</span><span class="%6$s__stock">%8$s</span></span>%9$s</%1$s>',
+            '<%1$s class="%2$s"%3$s data-old2new-product-role="%4$s">%5$s<span class="%6$s__body"><span class="%6$s__title">%7$s</span></span>%8$s</%1$s>',
             $tag,
             esc_attr($classes),
             $href,
@@ -4632,7 +4632,6 @@ final class HP_Products_Manager {
             $this->render_old2new_thumb($product, $base_class),
             esc_attr($base_class),
             esc_html((string) ($product['name'] ?? '')),
-            esc_html((string) ($product['stock_label'] ?? __('Stock: --', 'hp-products-manager'))),
             $cta
         );
     }

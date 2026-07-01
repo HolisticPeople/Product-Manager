@@ -195,6 +195,21 @@
 .hp-old2new-form select,
 .hp-old2new-form textarea {
     min-height: var(--hp-admin-control-height, 38px);
+    border: var(--hp-admin-input-border, 1px solid rgba(255, 255, 255, 0.12)) !important;
+    border-radius: var(--hp-admin-input-radius, 12px) !important;
+    background: var(--hp-admin-input-bg, rgba(5, 7, 5, 0.92)) !important;
+    color: var(--hp-admin-text, #f6f1e8) !important;
+    box-shadow: var(--hp-admin-input-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.04)) !important;
+}
+
+.hp-old2new-form select option {
+    background: var(--hp-admin-card-bg-solid, #12130f);
+    color: var(--hp-admin-text, #f6f1e8);
+}
+
+.hp-old2new-form input::placeholder,
+.hp-old2new-form textarea::placeholder {
+    color: var(--hp-admin-soft, rgba(246, 241, 232, 0.5));
 }
 
 .hp-old2new-form textarea {

@@ -67,6 +67,7 @@ hp_pm_old2new_assert(str_contains($plugin, 'WA-1650'), 'Default packet import mu
 hp_pm_old2new_assert(str_contains($plugin, 'HD-NCMC30') && str_contains($plugin, 'HD-NCMC60') && str_contains($plugin, 'HD-NXMC2'), 'Default packet import must include WA replacement SKUs.');
 
 hp_pm_old2new_assert(str_contains($plugin, 'Stock:'), 'Old2New product cards must render Stock labels.');
+hp_pm_old2new_assert(!str_contains($plugin, '<span class="%6$s__stock">'), 'Old2New frontend shortcode cards must not render stock labels.');
 hp_pm_old2new_assert(str_contains($frontend_css, '60px'), 'Old2New frontend cards must use 60px thumbnails.');
 hp_pm_old2new_assert(str_contains($frontend_css, '-webkit-line-clamp: 2'), 'Old2New frontend titles must clamp to 2 lines.');
 hp_pm_old2new_assert(str_contains($frontend_css, '260px'), 'Old2New frontend cards must cap around 260px.');
@@ -74,6 +75,7 @@ hp_pm_old2new_assert(str_contains($frontend_css, '--hp-zen-'), 'Old2New frontend
 hp_pm_old2new_assert(str_contains($frontend_css, 'grid-template-columns: minmax(220px, 1fr) minmax(420px, auto)'), 'Old2New banner must keep desktop copy-left/product-flow-right layout.');
 hp_pm_old2new_assert(str_contains($frontend_css, 'justify-content: end'), 'Old2New product flow must align to the right on desktop.');
 hp_pm_old2new_assert(str_contains($frontend_css, '.old2new-product-badge'), 'Old2New compact badge CSS must exist.');
+hp_pm_old2new_assert(!str_contains($frontend_css, '.old2new-product-card__stock'), 'Old2New frontend CSS must not expose public stock styling.');
 hp_pm_old2new_assert(str_contains($plugin, '&rarr;'), 'Old2New CTA must be arrow-only.');
 hp_pm_old2new_assert(!str_contains($plugin, 'Click here'), 'Old2New CTA copy must not reintroduce Click here text.');
 hp_pm_old2new_assert(str_contains($plugin, '_hp_old2new_custom_old_message'), 'Old2New packets must store custom old banner message.');
@@ -94,6 +96,8 @@ hp_pm_old2new_assert(str_contains($admin_js, 'target_product'), 'Old2New admin J
 hp_pm_old2new_assert(str_contains($admin_js, 'custom_old_message') && str_contains($admin_js, 'custom_new_message') && str_contains($admin_js, 'badge_text'), 'Old2New admin JS must save custom text fields.');
 hp_pm_old2new_assert(str_contains($admin_css, 'hp-old2new-product-card'), 'Old2New admin CSS must style product cards.');
 hp_pm_old2new_assert(str_contains($admin_css, 'hp-old2new-guidelines'), 'Old2New admin CSS must style the guidelines panel.');
+hp_pm_old2new_assert(str_contains($admin_css, '.hp-old2new-form select option'), 'Old2New admin CSS must style select options for dark themes.');
+hp_pm_old2new_assert(str_contains($admin_css, '--hp-admin-input-bg'), 'Old2New admin form controls must consume HP admin input tokens.');
 hp_pm_old2new_assert(str_contains($frontend_js, 'HPOld2NewFrontendData'), 'Old2New frontend JS must use Product Manager badge config.');
 hp_pm_old2new_assert(str_contains($frontend_js, 'old2new-badges') || str_contains($frontend_js, 'badgeUrl'), 'Old2New frontend JS must call the Product Manager badge endpoint.');
 hp_pm_old2new_assert(str_contains($frontend_js, 'dgwt-wcas') || str_contains($frontend_js, 'fibo'), 'Old2New frontend JS must decorate Fibo/autocomplete surfaces.');
@@ -102,7 +106,7 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.0'), 'README release notes must include 2.1.0.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.1'), 'README release notes must include 2.1.1.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');

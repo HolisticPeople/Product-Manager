@@ -37,6 +37,8 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 - Add Product Manager thumbnail fallbacks for SO-1 and SO-2 so special-order
   products show purpose-specific icons when no WooCommerce product image exists.
+- Hide Old2New stock labels from frontend product replacement cards while keeping backend admin stock labels visible.
+- Fix Old2New admin packet form inputs, selects, and select options for dark HP admin themes.
 
 ### 2.1.0
 

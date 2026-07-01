@@ -53,6 +53,9 @@ assert(!adminJs.includes('innerHTML = packet.old_product.name'), 'Old2New admin 
   '.hp-old2new-health',
   '.hp-old2new-preview',
   '.hp-old2new-actions',
+  '.hp-old2new-form select option',
+  '--hp-admin-input-bg',
+  '--hp-admin-text',
 ].forEach((needle) => {
   assert(adminCss.includes(needle), `Old2New admin CSS must include ${needle}`);
 });

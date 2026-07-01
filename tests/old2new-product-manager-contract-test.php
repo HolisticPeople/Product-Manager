@@ -20,7 +20,6 @@ $files = [
     'assets/css/old2new-product-block.css',
     'assets/css/old2new-admin.css',
     'assets/js/old2new-admin.js',
-    'assets/js/old2new-frontend.js',
     'docs/plan/old2new-product-lifecycle-roadmap.md',
 ];
 
@@ -31,11 +30,10 @@ foreach ($files as $file) {
 $frontend_css = (string) file_get_contents($root . '/assets/css/old2new-product-block.css');
 $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css');
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
-$frontend_js = (string) file_get_contents($root . '/assets/js/old2new-frontend.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.1'), 'Product Manager plugin header must bump to 2.1.1.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.1'"), 'Product Manager VERSION constant must bump to 2.1.1.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.2'), 'Product Manager plugin header must bump to 2.1.2.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.2'"), 'Product Manager VERSION constant must bump to 2.1.2.');
 
 hp_pm_old2new_assert(str_contains($plugin, "register_post_type('hp_old2new_packet'"), 'Product Manager must register hidden hp_old2new_packet CPT.');
 hp_pm_old2new_assert(str_contains($plugin, "'public' => false"), 'Old2New packet CPT must not be public.');
@@ -98,15 +96,16 @@ hp_pm_old2new_assert(str_contains($admin_css, 'hp-old2new-product-card'), 'Old2N
 hp_pm_old2new_assert(str_contains($admin_css, 'hp-old2new-guidelines'), 'Old2New admin CSS must style the guidelines panel.');
 hp_pm_old2new_assert(str_contains($admin_css, '.hp-old2new-form select option'), 'Old2New admin CSS must style select options for dark themes.');
 hp_pm_old2new_assert(str_contains($admin_css, '--hp-admin-input-bg'), 'Old2New admin form controls must consume HP admin input tokens.');
-hp_pm_old2new_assert(str_contains($frontend_js, 'HPOld2NewFrontendData'), 'Old2New frontend JS must use Product Manager badge config.');
-hp_pm_old2new_assert(str_contains($frontend_js, 'old2new-badges') || str_contains($frontend_js, 'badgeUrl'), 'Old2New frontend JS must call the Product Manager badge endpoint.');
-hp_pm_old2new_assert(str_contains($frontend_js, 'dgwt-wcas') || str_contains($frontend_js, 'fibo'), 'Old2New frontend JS must decorate Fibo/autocomplete surfaces.');
+hp_pm_old2new_assert(!file_exists($root . '/assets/js/old2new-frontend.js'), 'Product Manager must not ship a frontend Fibo/autocomplete decorator.');
+hp_pm_old2new_assert(!str_contains($plugin, 'old2new-frontend.js'), 'Product Manager must not enqueue an Old2New Fibo/autocomplete decorator.');
+hp_pm_old2new_assert(!str_contains($plugin, 'HPOld2NewFrontendData'), 'Product Manager must not localize Fibo badge frontend config.');
+hp_pm_old2new_assert(!str_contains($plugin, 'dgwt-wcas') && !str_contains($plugin, 'fibo-search-suggestion'), 'Product Manager must not query or mutate FiboSearch DOM.');
 
 hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contract must expose hp_old2new_packet CPT.');
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.1'), 'README release notes must include 2.1.1.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.2'), 'README release notes must include 2.1.2.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');
@@ -114,6 +113,6 @@ hp_pm_old2new_assert(str_contains($roadmap, 'basic_discontinue') && str_contains
 hp_pm_old2new_assert(str_contains($roadmap, 'canonical') && str_contains($roadmap, '301'), 'Old2New lifecycle roadmap must capture future canonical and 301 behavior.');
 hp_pm_old2new_assert(str_contains($roadmap, 'total_sales'), 'Old2New lifecycle roadmap must capture total_sales target selection.');
 hp_pm_old2new_assert(str_contains($roadmap, '180 days'), 'Old2New lifecycle roadmap must capture the 180-day new-product banner window.');
-hp_pm_old2new_assert(str_contains($roadmap, 'Fibo/search') && str_contains($roadmap, 'category list'), 'Old2New lifecycle roadmap must capture future search and category-list visibility slices.');
+hp_pm_old2new_assert(str_contains($roadmap, 'HP-Zen owns FiboSearch') && str_contains($roadmap, 'category list'), 'Old2New lifecycle roadmap must capture HP-Zen FiboSearch ownership and category-list visibility slices.');
 
 echo "Old2New Product Manager contract passed\n";

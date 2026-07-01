@@ -14,6 +14,10 @@ HP-UI is no longer the Old2New owner. It should not register the shortcode,
 resolve packets, inject Fibo/search behavior, or carry fallback Old2New CSS.
 HPSP/ACF legacy `old2new_product_pairs` rows are migration fallback only.
 
+HP-Zen owns FiboSearch rendering, selection behavior, detail panels, and any
+Old2New badge placement inside autocomplete/search results. Product Manager
+remains the data/API owner for the public badge lookup route.
+
 ## Banner V1
 
 The current single-product banner remains a top-of-page product message. It is
@@ -94,8 +98,8 @@ adding new data.
 
 ## Future Visibility Slices
 
-- Fibo/search visibility is owned by Product Manager APIs and renderer
-  contracts, not by HP-UI direct coupling.
+- HP-Zen owns FiboSearch visibility and rendering while consuming Product
+  Manager APIs; Product Manager must not directly decorate autocomplete DOM.
 - Product category list-card and grid-card layouts show the compact badge for
   old products only.
 - Status-aware search and category list behavior applies to

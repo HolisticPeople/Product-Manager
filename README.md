@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.2
+
+- Hand FiboSearch Old2New badge rendering to HP-Zen; Product Manager now keeps the badge REST endpoint and product-loop badges only.
+
 ### 2.1.1
 
 - Add Product Manager thumbnail fallbacks for SO-1 and SO-2 so special-order
@@ -43,7 +47,7 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 ### 2.1.0
 
 - Add Old2New lifecycle statuses, canonical target selection, hard 301 redirects, and a 180-day hard-redirect banner window.
-- Add compact old-product badges for product loops and Product Manager-owned Fibo/autocomplete decoration.
+- Add compact old-product badges for product loops and expose the badge endpoint consumed by HP-Zen-owned FiboSearch rendering.
 - Add packet custom text fields, admin guidelines, target previews, and health warnings.
 
 ### 2.0.9

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.1
+ * Version: 2.1.2
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.1';
+    const VERSION = '2.1.2';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -4570,27 +4570,8 @@ final class HP_Products_Manager {
             );
         }
 
-        $script_path = plugin_dir_path(__FILE__) . 'assets/js/old2new-frontend.js';
-        if (!file_exists($script_path)) {
-            return;
-        }
-
-        wp_enqueue_script(
-            self::HANDLE . '-old2new-frontend',
-            plugin_dir_url(__FILE__) . 'assets/js/old2new-frontend.js',
-            [],
-            self::VERSION,
-            true
-        );
-
-        wp_localize_script(
-            self::HANDLE . '-old2new-frontend',
-            'HPOld2NewFrontendData',
-            [
-                'badgeUrl' => rest_url(self::REST_NAMESPACE . '/old2new-badges'),
-                'defaultText' => $this->old2new_default_badge_text(),
-            ]
-        );
+        // HP-Zen owns FiboSearch/autocomplete presentation and consumes the
+        // Old2New badge REST endpoint directly inside its scoped search bridge.
     }
 
     private function render_old2new_flow(array $old_products, array $new_products, bool $new_clickable, string $block_class): string {

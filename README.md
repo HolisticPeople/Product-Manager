@@ -33,6 +33,16 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.3
+
+- Fix Old2New admin packet list styling on the dark HP-Zen admin surface: the
+  status capsule no longer renders as a white pill with invisible text, and the
+  product cards show one clean outline instead of boxing every text line
+  (HP-Zen's `[class*="-card"]` treatment was matching our BEM child elements).
+- Replace remaining hard-coded light backgrounds (thumb well, target preview,
+  selected-product chips, missing-product card) with HP-Zen admin tokens so
+  they read correctly on dark themes and fail dark, not white.
+
 ### 2.1.2
 
 - Hand FiboSearch Old2New badge rendering to HP-Zen; Product Manager now keeps the badge REST endpoint and product-loop badges only.

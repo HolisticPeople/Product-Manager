@@ -68,16 +68,36 @@
     text-decoration: none;
     border: var(--hp-admin-card-border, 1px solid #dcdcde);
     border-radius: 8px;
-    background: var(--hp-admin-surface, #fff);
+    background: var(--hp-admin-card-bg-solid, #12130f);
     overflow: hidden;
+}
+
+/*
+ * HP-Zen's admin surface styles every element whose class CONTAINS "-card"
+ * (`.hp-zen-admin-surface [class*="-card"]`) as a full card: border, radius,
+ * gradient background, shadow. Our BEM children (`__thumb`, `__body`,
+ * `__title`, `__meta`, `__stock`) all contain the "-card" substring, so each
+ * text line was boxed in its own outline ("multiple card outlines"). That
+ * greedy selector is ID-scoped (`#wpbody-content`), so we neutralise it on our
+ * own inner elements with `!important`; the product card keeps one clean card.
+ */
+.hp-old2new-product-card__thumb,
+.hp-old2new-product-card__body,
+.hp-old2new-product-card__title,
+.hp-old2new-product-card__meta,
+.hp-old2new-product-card__stock {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .hp-old2new-product-card--missing {
     display: inline-flex;
     align-items: center;
     padding: 10px;
-    color: #8a1f11;
-    background: #fcf0ed;
+    color: var(--hp-admin-danger-text, #ffb4a2);
+    background: var(--hp-admin-danger-bg, rgba(138, 31, 17, 0.22));
 }
 
 .hp-old2new-product-card:hover,
@@ -89,7 +109,8 @@
 .hp-old2new-product-card__thumb {
     width: 52px;
     height: 52px;
-    background: #f0f2f4;
+    background: var(--hp-admin-card-bg-solid, #12130f) !important;
+    border-radius: 6px !important;
 }
 
 .hp-old2new-product-card__thumb img {
@@ -134,20 +155,26 @@
     line-height: 1.3;
 }
 
+/*
+ * Status capsules read on the dark HP admin surface. The base badge previously
+ * set only a light background with no colour, so the label inherited the light
+ * `--hp-admin-text` and rendered as a white pill with invisible text.
+ */
 .hp-old2new-status-badge {
     padding: 3px 8px;
     border-radius: 999px;
-    background: #eef2f7;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--hp-admin-text, #f6f1e8);
 }
 
 .hp-old2new-status-badge--canonical {
-    background: #e7f2ff;
-    color: #0a4b78;
+    background: rgba(34, 113, 177, 0.3);
+    color: #bcdcff;
 }
 
 .hp-old2new-status-badge--hard_redirect {
-    background: #fff2d8;
-    color: #7a4b00;
+    background: rgba(191, 120, 0, 0.32);
+    color: #ffdd9e;
 }
 
 .hp-old2new-health {
@@ -218,9 +245,9 @@
 
 .hp-old2new-preview {
     padding: 10px 12px;
-    border: 1px solid #dcdcde;
+    border: var(--hp-admin-card-border, 1px solid #dcdcde);
     border-radius: 8px;
-    background: #f6f7f7;
+    background: var(--hp-admin-card-bg-solid, #12130f);
     color: var(--hp-admin-muted, #646970);
     line-height: 1.5;
 }
@@ -236,9 +263,10 @@
     align-items: center;
     gap: 6px;
     padding: 4px 8px;
-    border: 1px solid #dcdcde;
+    border: var(--hp-admin-card-border, 1px solid #dcdcde);
     border-radius: 999px;
-    background: #f6f7f7;
+    background: var(--hp-admin-card-bg-solid, #12130f);
+    color: var(--hp-admin-text, #f6f1e8);
 }
 
 @media (max-width: 1200px) {

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.0
+ * Version: 2.1.1
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.0';
+    const VERSION = '2.1.1';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -429,7 +429,7 @@ final class HP_Products_Manager {
             'id' => $product_id,
             'sku' => $sku,
             'name' => wp_strip_all_tags((string) $product->get_name()),
-            'image' => $image_id > 0 ? (string) wp_get_attachment_image_url($image_id, 'woocommerce_thumbnail') : '',
+            'image' => (string) ($this->product_image_url($product, 'woocommerce_thumbnail') ?: ''),
             'image_id' => $image_id,
             'permalink' => $product_id > 0 ? (string) get_permalink($product_id) : '',
             'admin_url' => admin_url('admin.php?page=hp-products-manager-product&product_id=' . $product_id),
@@ -1102,7 +1102,7 @@ final class HP_Products_Manager {
                     // Admin
                     'product_type_hp' => get_post_meta($product_id, 'product_type_hp', true),
                     'site_catalog'    => (array) get_post_meta($product_id, 'site_catalog', true),
-                    'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+                    'image'      => $this->product_image_url($product),
                     'image_id'   => $product->get_image_id() ?: null,
                     'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
                     'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
@@ -2264,7 +2264,7 @@ final class HP_Products_Manager {
 
         return [
             'id'           => $product_id,
-            'image'        => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'image'        => $this->product_image_url($product),
             'name'         => $product->get_name(),
             'sku'          => $product->get_sku(),
             'cost'         => $cost,
@@ -3549,6 +3549,30 @@ final class HP_Products_Manager {
         return '';
     }
 
+    private function product_image_url(WC_Product $product, string $size = 'thumbnail'): ?string {
+        $image_id = (int) $product->get_image_id();
+        if ($image_id > 0) {
+            $image_url = wp_get_attachment_image_url($image_id, $size);
+            if ($image_url) {
+                return (string) $image_url;
+            }
+        }
+
+        return $this->special_order_image_url($product);
+    }
+
+    private function special_order_image_url(WC_Product $product): ?string {
+        $sku = strtoupper(trim((string) $product->get_sku()));
+        if ($sku === 'SO-1') {
+            return plugins_url('assets/images/special-order.svg', __FILE__);
+        }
+        if ($sku === 'SO-2') {
+            return plugins_url('assets/images/special-order-shipping.svg', __FILE__);
+        }
+
+        return null;
+    }
+
     private function get_product_brand_terms(int $product_id): array {
         $taxonomy = $this->get_active_brand_taxonomy();
 
@@ -3630,7 +3654,7 @@ final class HP_Products_Manager {
             // Admin
             'product_type_hp' => get_post_meta($id, 'product_type_hp', true),
             'site_catalog'    => (array) get_post_meta($id, 'site_catalog', true),
-            'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'image'      => $this->product_image_url($product),
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
             'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
@@ -3934,7 +3958,7 @@ final class HP_Products_Manager {
             // Admin
             'product_type_hp' => get_post_meta($id, 'product_type_hp', true),
             'site_catalog'    => (array) get_post_meta($id, 'site_catalog', true),
-            'image'      => $product->get_image_id() ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') : null,
+            'image'      => $this->product_image_url($product),
             'image_id'   => $product->get_image_id() ?: null,
             'gallery_ids'=> method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [],
             'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),

@@ -33,6 +33,11 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.1
+
+- Add Product Manager thumbnail fallbacks for SO-1 and SO-2 so special-order
+  products show purpose-specific icons when no WooCommerce product image exists.
+
 ### 2.1.0
 
 - Add Old2New lifecycle statuses, canonical target selection, hard 301 redirects, and a 180-day hard-redirect banner window.

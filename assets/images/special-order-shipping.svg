@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Special order shipping">
+  <rect width="96" height="96" rx="18" fill="#172025"/>
+  <path d="M19 34h37v28H19z" fill="#f3d27e"/>
+  <path d="M56 43h13l9 9v10H56z" fill="#63c17a"/>
+  <path d="M25 34l8-10h35l8 10" fill="none" stroke="#f8f2df" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="32" cy="67" r="7" fill="#f8f2df"/>
+  <circle cx="68" cy="67" r="7" fill="#f8f2df"/>
+  <path d="M19 62h59" stroke="#172025" stroke-width="4"/>
+</svg>

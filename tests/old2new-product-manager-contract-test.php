@@ -34,8 +34,8 @@ $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $frontend_js = (string) file_get_contents($root . '/assets/js/old2new-frontend.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.0'), 'Product Manager plugin header must bump to 2.1.0.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.0'"), 'Product Manager VERSION constant must bump to 2.1.0.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.1'), 'Product Manager plugin header must bump to 2.1.1.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.1'"), 'Product Manager VERSION constant must bump to 2.1.1.');
 
 hp_pm_old2new_assert(str_contains($plugin, "register_post_type('hp_old2new_packet'"), 'Product Manager must register hidden hp_old2new_packet CPT.');
 hp_pm_old2new_assert(str_contains($plugin, "'public' => false"), 'Old2New packet CPT must not be public.');

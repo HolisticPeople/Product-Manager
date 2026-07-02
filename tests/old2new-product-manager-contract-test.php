@@ -32,8 +32,38 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.4'), 'Product Manager plugin header must bump to 2.1.4.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.4'"), 'Product Manager VERSION constant must bump to 2.1.4.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.5'), 'Product Manager plugin header must bump to 2.1.5.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.5'"), 'Product Manager VERSION constant must bump to 2.1.5.');
+
+// 2.1.5 referral gating: only visitors following an Old2New link see the
+// new-product replacement banner; organic visitors never do.
+hp_pm_old2new_assert(str_contains($plugin, "OLD2NEW_REFERRAL_PARAM = 'o2n'"), 'Old2New must define the o2n referral param.');
+hp_pm_old2new_assert(
+    preg_match('/if \(\$state === \'new\'\) \{.{0,700}OLD2NEW_REFERRAL_PARAM.{0,700}return \'\';/s', $plugin) === 1,
+    'New-state banner must bail out for visitors without a valid o2n referral.'
+);
+hp_pm_old2new_assert(
+    preg_match('/function maybe_redirect_old2new_product.{0,2000}add_query_arg\(self::OLD2NEW_REFERRAL_PARAM/s', $plugin) === 1,
+    'Hard 301 redirect must tag its target URL with the o2n referral param.'
+);
+hp_pm_old2new_assert(
+    preg_match('/function render_old2new_product_card.{0,900}add_query_arg\(self::OLD2NEW_REFERRAL_PARAM/s', $plugin) === 1,
+    'Clickable banner cards must carry the o2n referral param.'
+);
+hp_pm_old2new_assert(
+    !str_contains($plugin, "add_query_arg(self::OLD2NEW_REFERRAL_PARAM, \$old_product_id, \$canonical"),
+    'Canonical URLs must stay clean of the o2n referral param.'
+);
+
+// 2.1.5 recommended target chip on multi-replacement banners.
+hp_pm_old2new_assert(str_contains($plugin, "esc_html__('Recommended', 'hp-products-manager')"), 'Multi-replacement banners must flag the recommended target card.');
+hp_pm_old2new_assert(str_contains($frontend_css, '.old2new-product-card__flag'), 'Frontend CSS must style the Recommended flag.');
+
+// 2.1.5 admin: hard-redirect banner-window countdown, consequence confirm on
+// promotion to hard_redirect, and a live View link per packet row.
+hp_pm_old2new_assert(str_contains($admin_js, 'bannerWindow'), 'Admin rows must show the hard-redirect banner window countdown.');
+hp_pm_old2new_assert(str_contains($admin_js, "originalStatus !== 'hard_redirect'"), 'Admin must confirm consequences before promoting a packet to Hard Redirect.');
+hp_pm_old2new_assert(str_contains($admin_js, 'target="_blank" rel="noopener"'), 'Admin rows must link to the live old product page.');
 
 // 2.1.4 commerce policy: discontinued old products never backorder and lose
 // price/add-to-cart everywhere once sold out.
@@ -132,7 +162,7 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.4'), 'README release notes must include 2.1.4.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.5'), 'README release notes must include 2.1.5.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');

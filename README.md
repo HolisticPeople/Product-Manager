@@ -33,6 +33,20 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.5
+
+- The new-product "now replacing" banner shows only to visitors who followed an
+  Old2New link: the hard 301 redirect and old-page banner card clicks carry an
+  `?o2n=<old-product-id>` referral param, the banner renders only when it
+  matches a known old product (narrowed to that product), and organic visitors
+  never see replacement history. Canonical URLs stay clean.
+- Multi-replacement banners flag the computed target (highest `total_sales`)
+  with a gold "Recommended" chip.
+- Old2New admin: hard-redirect rows show the banner-window countdown ("ends in
+  N days" / "hidden, 301 stays active"); promoting a packet to Hard Redirect
+  asks for confirmation with the exact consequence (old URL goes down, 301 to
+  target); each row gains a "View" link to the live old product page.
+
 ### 2.1.4
 
 - Old2New commerce policy for discontinued (old) products: backorders are

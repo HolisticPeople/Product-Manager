@@ -177,6 +177,18 @@
     color: #ffdd9e;
 }
 
+.hp-old2new-window {
+    display: inline-block;
+    margin-top: 4px;
+    color: var(--hp-admin-muted, #646970);
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.hp-old2new-window--expired {
+    color: #ffb4a2;
+}
+
 .hp-old2new-health {
     margin: 0;
     padding: 0;

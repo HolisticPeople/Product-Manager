@@ -32,8 +32,34 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.8'), 'Product Manager plugin header must bump to 2.1.8.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.8'"), 'Product Manager VERSION constant must bump to 2.1.8.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.9'), 'Product Manager plugin header must bump to 2.1.9.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.9'"), 'Product Manager VERSION constant must bump to 2.1.9.');
+
+// 2.1.9 production-review fixes.
+// F1: variations must be covered by purchasability + parent-SKU fallback.
+hp_pm_old2new_assert(str_contains($plugin, "add_filter('woocommerce_variation_is_purchasable', [\$this, 'filter_old2new_is_purchasable']"), 'Variation purchasability must be filtered too.');
+hp_pm_old2new_assert(preg_match('/function old2new_is_old_product.{0,900}get_parent_id\(\)/s', $plugin) === 1, 'Old-product check must fall back to the variation parent SKU.');
+// F2: canonical fallback must never double-print.
+hp_pm_old2new_assert(str_contains($plugin, "has_action('wp_head', 'rel_canonical')"), 'Canonical fallback must yield to core rel_canonical.');
+hp_pm_old2new_assert(str_contains($plugin, 'old2new_seo_canonical_emitted'), 'Canonical fallback must yield when an SEO plugin printed a canonical.');
+// F3: hard-redirect loop guard.
+hp_pm_old2new_assert(preg_match('/function maybe_redirect_old2new_product.{0,3000}target_packet\[\'status\'\] === \'hard_redirect\'.{0,80}return;/s', $plugin) === 1, 'Redirect must bail when the target is itself hard-redirected (loop guard).');
+hp_pm_old2new_assert(str_contains($plugin, 'Redirect loop risk'), 'Health must warn on redirect chains.');
+// F4: price/add-to-cart blanking limited to real frontend renders.
+hp_pm_old2new_assert(str_contains($plugin, 'function old2new_is_frontend_render'), 'Price blanking must be scoped to frontend renders.');
+hp_pm_old2new_assert(preg_match('/old2new_is_frontend_render.{0,300}wp_doing_cron.{0,200}WP_CLI.{0,200}REST_REQUEST/s', $plugin) === 1, 'Feeds, CLI, and REST must keep real price markup.');
+// F5: serialized-array SKU match must be exact, not substring.
+hp_pm_old2new_assert(str_contains($plugin, "'value' => '\"' . \$new_sku . '\"'"), 'New-SKU lookup must match the quote-delimited serialized value.');
+hp_pm_old2new_assert(str_contains($plugin, '!in_array($new_sku, $packet_new_skus, true)'), 'New-SKU resolver must verify the SKU against the resolved packet.');
+// F6: the SKU index must not silently cap enforcement.
+hp_pm_old2new_assert(preg_match('/old2new_old_sku_index\(\): array.{0,600}\'posts_per_page\' => -1/s', $plugin) === 1, 'SKU index must load all packets, not a capped page.');
+// F8: delete failures must be surfaced.
+hp_pm_old2new_assert(str_contains($admin_js, 'Unable to delete Old2New packet.'), 'Admin must surface failed deletes.');
+
+// 2.1.9 human-friendly guidelines: plain-language, per-status explanations.
+hp_pm_old2new_assert(str_contains($plugin, 'The old product keeps selling until its stock runs out'), 'Guidelines must explain Basic Discontinue in plain language.');
+hp_pm_old2new_assert(str_contains($plugin, 'The old page is taken down'), 'Guidelines must explain Hard Redirect in plain language.');
+hp_pm_old2new_assert(str_contains($plugin, 'Shoppers who follow an Old2New link or redirect'), 'Guidelines must explain the referral-gated banner.');
 
 // 2.1.8 canonical fallback: live QA showed no SEO plugin prints rel=canonical
 // on this site's product pages, so Product Manager must emit its own tag for
@@ -41,7 +67,7 @@ hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.8'"), 'Product 
 // product + canonical packet + valid target).
 hp_pm_old2new_assert(str_contains($plugin, "add_action('wp_head', [\$this, 'output_old2new_canonical_tag']"), 'Canonical fallback must hook wp_head.');
 hp_pm_old2new_assert(
-    preg_match('/function output_old2new_canonical_tag.{0,600}status.{0,40}!== \'canonical\'.{0,400}rel="canonical"/s', $plugin) === 1,
+    preg_match('/function output_old2new_canonical_tag.{0,1600}status.{0,40}!== \'canonical\'.{0,400}rel="canonical"/s', $plugin) === 1,
     'Canonical fallback must bail for non-canonical packets and print the rel=canonical tag.'
 );
 
@@ -213,7 +239,7 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.8'), 'README release notes must include 2.1.8.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.9'), 'README release notes must include 2.1.9.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');

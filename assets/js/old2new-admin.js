@@ -405,7 +405,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 method: 'DELETE',
                 headers: headers(),
                 credentials: 'same-origin'
-            }).then(loadPackets);
+            }).then(function (response) {
+                if (!response.ok) {
+                    setStatus('Unable to delete Old2New packet.');
+                }
+                return loadPackets();
+            });
         }
     });
 

@@ -33,6 +33,120 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.9
+
+- Rewrite the Old2New admin guidelines in plain language: one entry per
+  status describing what shoppers actually experience, plus how target
+  picking, referral-gated banners, and custom wording work.
+- Production-review fixes: variations now respect the sold-out
+  purchasability block (variation filter + parent-SKU fallback); the
+  canonical fallback yields to core/SEO-plugin canonicals so a page never
+  carries two tags; hard redirects refuse to start a loop when the target
+  is itself hard-redirected (with a health warning for redirect chains);
+  price/add-to-cart blanking no longer leaks into feeds, WP-CLI, or REST;
+  the new-SKU resolver matches exact SKUs instead of substrings; the SKU
+  index loads all packets (no 500-packet enforcement cliff); failed
+  deletes are reported in the admin.
+
+### 2.1.8
+
+- Canonical status now works regardless of SEO-plugin configuration: live QA
+  showed this site prints no rel=canonical on product pages (Yoast active but
+  its canonical output disabled), so Product Manager emits its own canonical
+  tag on canonical-status old product pages, pointing at the packet target.
+  The existing SEO-plugin filters remain, and both paths resolve the same URL,
+  so a site that does print canonicals cannot conflict with ours.
+
+### 2.1.7
+
+- Old2New packet editor now opens as a full-width popup with a 12-column grid
+  sized to each field (product pickers half-width, status/target/date/window a
+  quarter each, messages side by side, compact badge next to the live
+  preview); closes on Cancel, X, Escape, or backdrop click.
+- Product chips in the form (selected old product and each replacement) show
+  product thumbnails.
+- Packet rows replace the single "View" action with "View old" and "View new";
+  View new carries the o2n referral so the admin sees the replacement message
+  exactly as a referred customer would.
+
+### 2.1.6
+
+- Banner window is now admin-configurable per packet (default 180 days,
+  bounded 1-3650, fails closed to the default). The hard-redirect countdown,
+  expiry, and health warning all use the packet's own window.
+- The canonical/301 target is now admin-selectable per packet ("Canonical /
+  redirect target" in the form; default Auto keeps the highest-total_sales
+  pick). An invalid selection falls back to Auto; the row's Target cell says
+  "Selected by admin" vs the auto reason, and the frontend "Recommended" chip
+  follows the effective target.
+- Fix admin packet-row text spill: long health/status text now wraps inside
+  its column instead of running under the action buttons; warning text uses a
+  readable light red on the dark admin surface.
+
+### 2.1.5
+
+- The new-product "now replacing" banner shows only to visitors who followed an
+  Old2New link: the hard 301 redirect and old-page banner card clicks carry an
+  `?o2n=<old-product-id>` referral param, the banner renders only when it
+  matches a known old product (narrowed to that product), and organic visitors
+  never see replacement history. Canonical URLs stay clean.
+- Multi-replacement banners flag the computed target (highest `total_sales`)
+  with a gold "Recommended" chip.
+- Old2New admin: hard-redirect rows show the banner-window countdown ("ends in
+  N days" / "hidden, 301 stays active"); promoting a packet to Hard Redirect
+  asks for confirmation with the exact consequence (old URL goes down, 301 to
+  target); each row gains a "View" link to the live old product page.
+
+### 2.1.4
+
+- Old2New commerce policy for discontinued (old) products: backorders are
+  forced off so remaining stock sells through but never oversells; once sold
+  out, the product loses its price and add-to-cart everywhere (single product
+  page, shop/category loops, purchasability).
+- Stock-aware banner copy: while sellable stock remains, the old-product banner
+  says "being discontinued — limited stock remains" instead of contradicting
+  the live add-to-cart with "no longer available"; the sold-out copy is
+  unchanged. The admin form preview mirrors the same stock-aware default.
+- Stock-aware admin health warnings: flag stranded sellable stock on Canonical
+  and Hard Redirect packets, and suggest promotion once the old product sells
+  out.
+- Fix `&amp;` double-escaping in the Old2New admin product cards (summary names
+  now decode stored entities before the JS-side escape).
+- Surface real REST error messages in the Old2New admin (e.g. "An Old2New
+  packet already exists for this old SKU") instead of a generic save failure.
+
+### 2.1.3
+
+- Fix Old2New admin packet list styling on the dark HP-Zen admin surface: the
+  status capsule no longer renders as a white pill with invisible text, and the
+  product cards show one clean outline instead of boxing every text line
+  (HP-Zen's `[class*="-card"]` treatment was matching our BEM child elements).
+- Replace remaining hard-coded light backgrounds (thumb well, target preview,
+  selected-product chips, missing-product card) with HP-Zen admin tokens so
+  they read correctly on dark themes and fail dark, not white.
+
+### 2.1.2
+
+- Hand FiboSearch Old2New badge rendering to HP-Zen; Product Manager now keeps the badge REST endpoint and product-loop badges only.
+
+### 2.1.1
+
+- Add Product Manager thumbnail fallbacks for SO-1 and SO-2 so special-order
+  products show purpose-specific icons when no WooCommerce product image exists.
+- Hide Old2New stock labels from frontend product replacement cards while keeping backend admin stock labels visible.
+- Fix Old2New admin packet form inputs, selects, and select options for dark HP admin themes.
+
+### 2.1.0
+
+- Add Old2New lifecycle statuses, canonical target selection, hard 301 redirects, and a 180-day hard-redirect banner window.
+- Add compact old-product badges for product loops and expose the badge endpoint consumed by HP-Zen-owned FiboSearch rendering.
+- Add packet custom text fields, admin guidelines, target previews, and health warnings.
+
+### 2.0.9
+
+- Move Old2New product replacement packets and `[old2new_product_block]` ownership into Product Manager.
+- Add the Old2New admin tab with editable packet records, product cards, status, redirect type, and stock labels.
+
 ### 2.0.8
 
 - Cover list-backed product search inputs without explicit input types and stabilize wrapped product-detail tabs under HP-Zen styling.

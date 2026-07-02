@@ -1,0 +1,61 @@
+{
+  "plugin": "Product-Manager",
+  "repo": "HolisticPeople/Product-Manager",
+  "schema_version": "1.0",
+  "owns": [
+    "ERP product fields",
+    "product metrics",
+    "admin REST tooling",
+    "Old2New product replacement packets"
+  ],
+  "must_not_own": [
+    "WooCommerce core product ownership"
+  ],
+  "consumes": [
+    "WooCommerce products",
+    "HP-Catalog"
+  ],
+  "exposes": {
+    "cpts": [
+      "hp_old2new_packet"
+    ],
+    "rest": [
+      "hp-products-manager/v1/erp/debug",
+      "hp-products-manager/v1/erp/install-log",
+      "hp-products-manager/v1/erp/install-schema",
+      "hp-products-manager/v1/erp/logs",
+      "hp-products-manager/v1/erp/purge",
+      "hp-products-manager/v1/movements/rebuild-all/abort",
+      "hp-products-manager/v1/movements/rebuild-all/start",
+      "hp-products-manager/v1/movements/rebuild-all/status",
+      "hp-products-manager/v1/movements/rebuild-all/step",
+      "hp-products-manager/v1/product/{id}",
+      "hp-products-manager/v1/product/{id}/apply",
+      "hp-products-manager/v1/product/{id}/duplicate",
+      "hp-products-manager/v1/product/{id}/meta",
+      "hp-products-manager/v1/product/{id}/movements",
+      "hp-products-manager/v1/product/{id}/movements/logs",
+      "hp-products-manager/v1/product/{id}/movements/persist-from-logs",
+      "hp-products-manager/v1/product/{id}/movements/rebuild",
+      "hp-products-manager/v1/product/{id}/sales/daily",
+      "hp-products-manager/v1/old2new-packets",
+      "hp-products-manager/v1/old2new-packets/{id}",
+      "hp-products-manager/v1/old2new-badges",
+      "hp-products-manager/v1/old2new-products/search",
+      "hp-products-manager/v1/product/{id}/seo-audit",
+      "hp-products-manager/v1/products"
+    ],
+    "shortcodes": [
+      "old2new_product_block"
+    ],
+    "providers": []
+  },
+  "verification": {
+    "staging": {
+      "status": "unverified"
+    },
+    "production": {
+      "status": "unverified"
+    }
+  }
+}

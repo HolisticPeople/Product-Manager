@@ -32,8 +32,35 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.5'), 'Product Manager plugin header must bump to 2.1.5.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.5'"), 'Product Manager VERSION constant must bump to 2.1.5.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.6'), 'Product Manager plugin header must bump to 2.1.6.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.6'"), 'Product Manager VERSION constant must bump to 2.1.6.');
+
+// 2.1.6 admin-configurable lifecycle: per-packet banner window and explicit
+// target selection (validated against the packet's new products, bounded,
+// fail-closed to defaults).
+hp_pm_old2new_assert(str_contains($plugin, '_hp_old2new_banner_window_days'), 'Banner window days must persist per packet.');
+hp_pm_old2new_assert(str_contains($plugin, 'function old2new_sanitize_banner_window'), 'Banner window input must be bounded and fail closed.');
+hp_pm_old2new_assert(
+    preg_match('/old2new_sanitize_banner_window\(\$days\).{0,200}\$days < 1 \|\| \$days > 3650.{0,120}return self::OLD2NEW_BANNER_WINDOW_DAYS;/s', $plugin) === 1,
+    'Banner window must clamp to 1..3650 days and fall back to the 180-day default.'
+);
+hp_pm_old2new_assert(str_contains($plugin, '_hp_old2new_target_product_id'), 'Admin-selected target must persist per packet.');
+hp_pm_old2new_assert(
+    preg_match('/\$target_product_id > 0 && !in_array\(\$target_product_id, \$new_product_ids, true\).{0,80}\$target_product_id = 0;/s', $plugin) === 1,
+    'Admin-selected target must be one of the packet new products or fall back to auto.'
+);
+hp_pm_old2new_assert(str_contains($plugin, 'old2new_select_target_product(array $new_products, int $explicit_target_id = 0)'), 'Target selection must honor the explicit admin choice before the total_sales auto-pick.');
+hp_pm_old2new_assert(str_contains($plugin, "__('Selected by admin.', 'hp-products-manager')"), 'Target reason must say when the admin picked the target.');
+hp_pm_old2new_assert(str_contains($plugin, 'hp-old2new-target-select'), 'Packet form must expose the target selector.');
+hp_pm_old2new_assert(str_contains($plugin, 'hp-old2new-banner-window'), 'Packet form must expose the banner window field.');
+hp_pm_old2new_assert(str_contains($admin_js, 'renderTargetOptions'), 'Admin JS must rebuild target options from the selected new products.');
+hp_pm_old2new_assert(str_contains($admin_js, 'banner_window_days'), 'Admin JS must submit the banner window.');
+
+// 2.1.6 admin table spill regression: grid children must be allowed to wrap.
+hp_pm_old2new_assert(
+    preg_match('/\.hp-old2new-row > div \{[^}]*min-width: 0;[^}]*overflow-wrap: break-word;/s', $admin_css) === 1,
+    'Row cells must wrap long health/status text instead of spilling over the actions.'
+);
 
 // 2.1.5 referral gating: only visitors following an Old2New link see the
 // new-product replacement banner; organic visitors never do.
@@ -162,7 +189,7 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.5'), 'README release notes must include 2.1.5.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.6'), 'README release notes must include 2.1.6.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');

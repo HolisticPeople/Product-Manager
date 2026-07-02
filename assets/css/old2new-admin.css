@@ -52,6 +52,13 @@
     background: var(--hp-admin-card-bg, #fff);
 }
 
+/* Grid children default to min-width:auto, which lets long health/status text
+   spill over the actions column instead of wrapping. */
+.hp-old2new-row > div {
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
 .hp-old2new-product-stack {
     display: grid;
     gap: 8px;
@@ -200,8 +207,15 @@
 }
 
 .hp-old2new-health--warn {
-    margin-left: 16px;
-    color: #8a1f11;
+    margin: 0;
+    padding-left: 16px;
+    color: #ffb4a2;
+    list-style-position: outside;
+}
+
+.hp-old2new-health--warn li {
+    margin: 0 0 4px;
+    overflow-wrap: break-word;
 }
 
 .hp-old2new-target small {

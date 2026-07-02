@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var productList = document.getElementById('hp-old2new-products-list');
     var selectedNewProducts = document.getElementById('hp-old2new-selected-new-products');
     var statusSelect = document.getElementById('hp-old2new-status-select');
+    var targetSelect = document.getElementById('hp-old2new-target-select');
+    var bannerWindowInput = document.getElementById('hp-old2new-banner-window');
     var redirectType = document.getElementById('hp-old2new-redirect-type');
     var packetId = document.getElementById('hp-old2new-packet-id');
     var startedAt = document.getElementById('hp-old2new-hard-redirect-started-at');
@@ -225,8 +227,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (oldMessage) oldMessage.value = packet && packet.custom_old_message ? packet.custom_old_message : '';
         if (newMessage) newMessage.value = packet && packet.custom_new_message ? packet.custom_new_message : '';
         if (badgeText) badgeText.value = packet && packet.badge_text ? packet.badge_text : '';
+        if (bannerWindowInput) bannerWindowInput.value = packet && packet.banner_window_days ? String(packet.banner_window_days) : '';
         updateRedirectType();
-        renderSelectedNewProducts();
+        renderSelectedNewProducts(packet ? packet.target_product_id : 0);
         updatePreview();
     }
 
@@ -236,13 +239,25 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePreview();
     }
 
-    function renderSelectedNewProducts() {
+    function renderTargetOptions(selectedId) {
+        if (!targetSelect) return;
+        var current = selectedId !== undefined ? String(selectedId || 0) : targetSelect.value;
+        targetSelect.innerHTML = '<option value="0">Auto — highest total sales</option>'
+            + newProducts.map(function (product) {
+                return '<option value="' + escapeHtml(product.id) + '">' + escapeHtml(product.name + ' [' + (product.sku || '') + ']') + '</option>';
+            }).join('');
+        // Keep the choice if that product is still in the packet; else Auto.
+        targetSelect.value = newProducts.some(function (p) { return String(p.id) === current; }) ? current : '0';
+    }
+
+    function renderSelectedNewProducts(selectedTargetId) {
         selectedNewProducts.innerHTML = newProducts.map(function (product) {
             return '<span class="hp-old2new-chip">'
                 + escapeHtml(product.name) + ' (' + escapeHtml(product.sku || '') + ')'
                 + '<button type="button" class="button-link" data-remove-new="' + escapeHtml(product.id) + '">x</button>'
                 + '</span>';
         }).join('');
+        renderTargetOptions(selectedTargetId);
         updatePreview();
     }
 
@@ -373,6 +388,8 @@ document.addEventListener('DOMContentLoaded', function () {
             new_product_ids: newProducts.map(function (product) { return product.id; }),
             status: statusSelect.value,
             hard_redirect_started_at: startedAt.value,
+            target_product_id: targetSelect ? parseInt(targetSelect.value, 10) || 0 : 0,
+            banner_window_days: bannerWindowInput && bannerWindowInput.value ? parseInt(bannerWindowInput.value, 10) || 180 : 180,
             custom_old_message: oldMessage ? oldMessage.value : '',
             custom_new_message: newMessage ? newMessage.value : '',
             badge_text: badgeText ? badgeText.value : ''

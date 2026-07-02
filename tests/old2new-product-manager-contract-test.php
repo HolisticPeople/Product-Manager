@@ -32,8 +32,22 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.6'), 'Product Manager plugin header must bump to 2.1.6.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.6'"), 'Product Manager VERSION constant must bump to 2.1.6.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.7'), 'Product Manager plugin header must bump to 2.1.7.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.7'"), 'Product Manager VERSION constant must bump to 2.1.7.');
+
+// 2.1.7 admin editor UX: full-width popup, product thumbnails, dual view links.
+hp_pm_old2new_assert(str_contains($plugin, 'hp-old2new-modal'), 'Packet editor must render inside the full-width modal.');
+hp_pm_old2new_assert(str_contains($plugin, 'hp-old2new-selected-old'), 'Packet form must show the selected old product chip.');
+hp_pm_old2new_assert(str_contains($admin_css, '.hp-old2new-modal'), 'Admin CSS must style the packet editor modal overlay.');
+hp_pm_old2new_assert(str_contains($admin_css, '.hp-old2new-chip__thumb'), 'Product chips must show thumbnails.');
+hp_pm_old2new_assert(str_contains($admin_js, 'function productChip'), 'Admin JS must render product chips with thumbnails.');
+hp_pm_old2new_assert(str_contains($admin_js, 'function viewLinks'), 'Admin rows must render View old / View new links.');
+hp_pm_old2new_assert(str_contains($admin_js, 'View old') && str_contains($admin_js, 'View new'), 'Row actions must offer both View old and View new.');
+hp_pm_old2new_assert(
+    preg_match('/function viewLinks.{0,900}o2n=/s', $admin_js) === 1,
+    'View new must carry the o2n referral so the admin sees the replacement message.'
+);
+hp_pm_old2new_assert(str_contains($admin_js, "event.key === 'Escape'"), 'Modal must close on Escape.');
 
 // 2.1.6 admin-configurable lifecycle: per-packet banner window and explicit
 // target selection (validated against the packet's new products, bounded,
@@ -189,7 +203,7 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.6'), 'README release notes must include 2.1.6.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.7'), 'README release notes must include 2.1.7.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');

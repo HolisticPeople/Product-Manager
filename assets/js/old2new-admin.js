@@ -2,8 +2,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var config = window.HPOld2NewAdminData || {};
     var table = document.getElementById('hp-old2new-table');
     var form = document.getElementById('hp-old2new-form');
+    var modal = document.getElementById('hp-old2new-modal');
     var addButton = document.getElementById('hp-old2new-add');
     var cancelButton = document.getElementById('hp-old2new-cancel');
+    var closeButton = document.getElementById('hp-old2new-close');
+    var selectedOld = document.getElementById('hp-old2new-selected-old');
     var statusNode = document.getElementById('hp-old2new-status');
     var oldInput = document.getElementById('hp-old2new-old-product');
     var newInput = document.getElementById('hp-old2new-new-products');
@@ -120,6 +123,23 @@ document.addEventListener('DOMContentLoaded', function () {
             + ' (' + escapeHtml(packet.banner_expires_at) + ')</small>';
     }
 
+    function viewLinks(packet) {
+        var links = '';
+        var oldUrl = packet.old_product ? safeImageUrl(packet.old_product.permalink) : '';
+        if (oldUrl) {
+            links += '<a class="button" href="' + escapeHtml(oldUrl) + '" target="_blank" rel="noopener">View old</a>';
+        }
+        // "View new" opens the target with the o2n referral so the admin sees
+        // the replacement message exactly as a referred customer would.
+        var target = packet.target_product || (packet.new_products || [])[0];
+        var newUrl = target ? safeImageUrl(target.permalink) : '';
+        if (newUrl && packet.old_product) {
+            newUrl += (newUrl.indexOf('?') > -1 ? '&' : '?') + 'o2n=' + encodeURIComponent(packet.old_product.id);
+            links += '<a class="button" href="' + escapeHtml(newUrl) + '" target="_blank" rel="noopener">View new</a>';
+        }
+        return links;
+    }
+
     function renderTable() {
         if (!packets.length) {
             table.innerHTML = '<p>' + escapeHtml((config.i18n && config.i18n.empty) || 'No Old2New packets yet.') + '</p>';
@@ -139,9 +159,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 + '<div><strong>Target</strong><br>' + targetHtml + '</div>'
                 + '<div><strong>Health</strong><br>' + warnings(packet) + '</div>'
                 + '<div class="hp-old2new-actions">'
-                + (packet.old_product && safeImageUrl(packet.old_product.permalink)
-                    ? '<a class="button" href="' + escapeHtml(packet.old_product.permalink) + '" target="_blank" rel="noopener">View</a>'
-                    : '')
+                + viewLinks(packet)
                 + '<button type="button" class="button" data-action="edit">Edit</button>'
                 + '<button type="button" class="button" data-action="delete">Delete</button>'
                 + '</div>'
@@ -215,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function showForm(packet) {
-        form.hidden = false;
+        openModal();
         packetId.value = packet && packet.id ? String(packet.id) : '';
         originalStatus = packet && packet.status ? normalizeStatus(packet.status) : '';
         oldProduct = packet ? packet.old_product : null;
@@ -229,6 +247,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (badgeText) badgeText.value = packet && packet.badge_text ? packet.badge_text : '';
         if (bannerWindowInput) bannerWindowInput.value = packet && packet.banner_window_days ? String(packet.banner_window_days) : '';
         updateRedirectType();
+        renderSelectedOld();
         renderSelectedNewProducts(packet ? packet.target_product_id : 0);
         updatePreview();
     }
@@ -237,6 +256,28 @@ document.addEventListener('DOMContentLoaded', function () {
         var type = statusSelect.value === 'canonical' ? 'canonical' : (statusSelect.value === 'hard_redirect' ? '301' : 'none');
         redirectType.textContent = type;
         updatePreview();
+    }
+
+    function openModal() {
+        if (modal) modal.hidden = false;
+    }
+
+    function closeModal() {
+        if (modal) modal.hidden = true;
+    }
+
+    function productChip(product, removable) {
+        var img = safeImageUrl(product.image);
+        return '<span class="hp-old2new-chip">'
+            + (img ? '<img class="hp-old2new-chip__thumb" src="' + escapeHtml(img) + '" alt="" loading="lazy">' : '')
+            + escapeHtml(product.name) + ' (' + escapeHtml(product.sku || '') + ')'
+            + (removable ? '<button type="button" class="button-link" data-remove-new="' + escapeHtml(product.id) + '">x</button>' : '')
+            + '</span>';
+    }
+
+    function renderSelectedOld() {
+        if (!selectedOld) return;
+        selectedOld.innerHTML = oldProduct ? productChip(oldProduct, false) : '';
     }
 
     function renderTargetOptions(selectedId) {
@@ -252,10 +293,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderSelectedNewProducts(selectedTargetId) {
         selectedNewProducts.innerHTML = newProducts.map(function (product) {
-            return '<span class="hp-old2new-chip">'
-                + escapeHtml(product.name) + ' (' + escapeHtml(product.sku || '') + ')'
-                + '<button type="button" class="button-link" data-remove-new="' + escapeHtml(product.id) + '">x</button>'
-                + '</span>';
+            return productChip(product, true);
         }).join('');
         renderTargetOptions(selectedTargetId);
         updatePreview();
@@ -309,9 +347,16 @@ document.addEventListener('DOMContentLoaded', function () {
         showForm(null);
     });
 
-    cancelButton.addEventListener('click', function () {
-        form.hidden = true;
-    });
+    cancelButton.addEventListener('click', closeModal);
+    if (closeButton) closeButton.addEventListener('click', closeModal);
+    if (modal) {
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && !modal.hidden) closeModal();
+        });
+    }
 
     statusSelect.addEventListener('change', updateRedirectType);
     oldInput.addEventListener('input', function () { searchProducts(oldInput.value); });
@@ -322,6 +367,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     oldInput.addEventListener('change', function () {
         oldProduct = productFromInput(oldInput);
+        renderSelectedOld();
         updatePreview();
     });
 
@@ -418,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(function () {
-                form.hidden = true;
+                closeModal();
                 loadPackets();
             })
             .catch(function (error) {

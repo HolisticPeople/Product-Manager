@@ -33,6 +33,20 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.6
+
+- Banner window is now admin-configurable per packet (default 180 days,
+  bounded 1-3650, fails closed to the default). The hard-redirect countdown,
+  expiry, and health warning all use the packet's own window.
+- The canonical/301 target is now admin-selectable per packet ("Canonical /
+  redirect target" in the form; default Auto keeps the highest-total_sales
+  pick). An invalid selection falls back to Auto; the row's Target cell says
+  "Selected by admin" vs the auto reason, and the frontend "Recommended" chip
+  follows the effective target.
+- Fix admin packet-row text spill: long health/status text now wraps inside
+  its column instead of running under the action buttons; warning text uses a
+  readable light red on the dark admin surface.
+
 ### 2.1.5
 
 - The new-product "now replacing" banner shows only to visitors who followed an

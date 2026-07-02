@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.5
+ * Version: 2.1.6
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.5';
+    const VERSION = '2.1.6';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -494,7 +494,20 @@ final class HP_Products_Manager {
         ]);
     }
 
-    private function old2new_banner_expiry(string $started_at): array {
+    /**
+     * Clamp an admin-supplied banner window to sane bounds; anything invalid
+     * fails closed to the 180-day default.
+     */
+    private function old2new_sanitize_banner_window($days): int {
+        $days = absint($days);
+        if ($days < 1 || $days > 3650) {
+            return self::OLD2NEW_BANNER_WINDOW_DAYS;
+        }
+
+        return $days;
+    }
+
+    private function old2new_banner_expiry(string $started_at, int $window_days = self::OLD2NEW_BANNER_WINDOW_DAYS): array {
         if ($started_at === '') {
             return [
                 'banner_expires_at' => '',
@@ -502,7 +515,7 @@ final class HP_Products_Manager {
             ];
         }
 
-        $timestamp = strtotime($started_at . ' +' . self::OLD2NEW_BANNER_WINDOW_DAYS . ' days');
+        $timestamp = strtotime($started_at . ' +' . $window_days . ' days');
         if (!$timestamp) {
             return [
                 'banner_expires_at' => '',
@@ -518,7 +531,20 @@ final class HP_Products_Manager {
         ];
     }
 
-    private function old2new_select_target_product(array $new_products): ?array {
+    /**
+     * The canonical/301 target. An admin-selected target (stored per packet)
+     * wins; otherwise auto-pick by highest total_sales, tie-break by packet
+     * order.
+     */
+    private function old2new_select_target_product(array $new_products, int $explicit_target_id = 0): ?array {
+        if ($explicit_target_id > 0) {
+            foreach ($new_products as $product) {
+                if (is_array($product) && (int) ($product['id'] ?? 0) === $explicit_target_id) {
+                    return $product;
+                }
+            }
+        }
+
         $target = null;
         foreach ($new_products as $product) {
             if (!is_array($product) || empty($product['id'])) {
@@ -533,9 +559,13 @@ final class HP_Products_Manager {
         return $target;
     }
 
-    private function old2new_target_reason(?array $target): string {
+    private function old2new_target_reason(?array $target, bool $admin_selected = false): string {
         if (!$target) {
             return __('No valid target product.', 'hp-products-manager');
+        }
+
+        if ($admin_selected) {
+            return __('Selected by admin.', 'hp-products-manager');
         }
 
         return sprintf(
@@ -579,11 +609,14 @@ final class HP_Products_Manager {
             $health_warnings[] = __('No valid new products.', 'hp-products-manager');
         }
 
-        $target_product = $this->old2new_select_target_product($new_products);
+        $explicit_target_id = absint(get_post_meta($packet_id, '_hp_old2new_target_product_id', true));
+        $target_product = $this->old2new_select_target_product($new_products, $explicit_target_id);
+        $target_admin_selected = $explicit_target_id > 0 && $target_product && (int) ($target_product['id'] ?? 0) === $explicit_target_id;
+        $banner_window_days = $this->old2new_sanitize_banner_window(get_post_meta($packet_id, '_hp_old2new_banner_window_days', true) ?: self::OLD2NEW_BANNER_WINDOW_DAYS);
         $started_at = (string) get_post_meta($packet_id, '_hp_old2new_hard_redirect_started_at', true);
-        $expiry = $this->old2new_banner_expiry($started_at);
+        $expiry = $this->old2new_banner_expiry($started_at, $banner_window_days);
         if ($status === 'hard_redirect' && !empty($expiry['banner_expired'])) {
-            $health_warnings[] = sprintf(__('Hard redirect banner window is older than %s days.', 'hp-products-manager'), (string) self::OLD2NEW_BANNER_WINDOW_DAYS);
+            $health_warnings[] = sprintf(__('Hard redirect banner window is older than %s days.', 'hp-products-manager'), (string) $banner_window_days);
         }
 
         // Stock-aware lifecycle guidance: promoting a packet past
@@ -616,7 +649,10 @@ final class HP_Products_Manager {
             'status' => $status,
             'redirect_type' => $this->old2new_redirect_type($status),
             'target_product' => $target_product,
-            'target_reason' => $this->old2new_target_reason($target_product),
+            'target_product_id' => $explicit_target_id,
+            'target_admin_selected' => $target_admin_selected,
+            'target_reason' => $this->old2new_target_reason($target_product, $target_admin_selected),
+            'banner_window_days' => $banner_window_days,
             'health_warnings' => array_values(array_unique($health_warnings)),
             'custom_old_message' => $custom_old_message,
             'custom_new_message' => $custom_new_message,
@@ -703,6 +739,15 @@ final class HP_Products_Manager {
         if ($status === 'hard_redirect' && $started_at === '') {
             $started_at = gmdate('Y-m-d');
         }
+
+        // Admin-selected target must be one of the packet's new products;
+        // anything else falls back to auto (0).
+        $target_product_id = absint($payload['target_product_id'] ?? 0);
+        if ($target_product_id > 0 && !in_array($target_product_id, $new_product_ids, true)) {
+            $target_product_id = 0;
+        }
+
+        $banner_window_days = $this->old2new_sanitize_banner_window($payload['banner_window_days'] ?? self::OLD2NEW_BANNER_WINDOW_DAYS);
         $post_title = sprintf('%s -> %s', $old_sku, implode(', ', $new_skus));
         $post_data = [
             'post_type' => self::OLD2NEW_PACKET_CPT,
@@ -731,6 +776,8 @@ final class HP_Products_Manager {
         update_post_meta($saved_id, '_hp_old2new_custom_old_message', sanitize_textarea_field((string) ($payload['custom_old_message'] ?? '')));
         update_post_meta($saved_id, '_hp_old2new_custom_new_message', sanitize_textarea_field((string) ($payload['custom_new_message'] ?? '')));
         update_post_meta($saved_id, '_hp_old2new_badge_text', sanitize_text_field((string) ($payload['badge_text'] ?? '')));
+        update_post_meta($saved_id, '_hp_old2new_target_product_id', $target_product_id);
+        update_post_meta($saved_id, '_hp_old2new_banner_window_days', $banner_window_days);
 
         $this->old2new_old_sku_index = null;
 
@@ -895,8 +942,8 @@ final class HP_Products_Manager {
                     <p><strong><?php esc_html_e('Statuses:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Basic Discontinue shows banners and badges; Canonical adds SEO canonical; Hard Redirect sends old product URLs to the selected new product.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Visibility:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Full banners appear on product pages; compact badges appear only on old products in search, category, shop, grid, and list cards.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Redirects:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Canonical keeps old and new pages accessible; 301 redirect takes the old page down and sends traffic to the selected target.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Target:', 'hp-products-manager'); ?></strong> <?php esc_html_e('When multiple new products exist, Product Manager chooses highest Woo total_sales and uses packet order as the tie-break.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Banner window:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Hard Redirect keeps the new-product banner for 180 days after the start date, then hides the banner while the 301 remains active.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Target:', 'hp-products-manager'); ?></strong> <?php esc_html_e('You can pick the canonical/redirect target per packet; on Auto, Product Manager chooses highest Woo total_sales with packet order as the tie-break. The target card is flagged "Recommended" in multi-product banners.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Banner window:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Hard Redirect keeps the new-product banner for the packet\'s banner window (default 180 days) after the start date, then hides the banner while the 301 remains active.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Custom text:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Packet messages can use {old_product}, {new_product}, {new_products}, and {new_product_count}; output is escaped as plain text.', 'hp-products-manager'); ?></p>
                 </div>
                 <div id="hp-old2new-status" class="hp-old2new-status" role="status" aria-live="polite"></div>
@@ -922,9 +969,19 @@ final class HP_Products_Manager {
                             <option value="hard_redirect"><?php esc_html_e('Hard Redirect', 'hp-products-manager'); ?></option>
                         </select>
                     </label>
+                    <label for="hp-old2new-target-select">
+                        <?php esc_html_e('Canonical / redirect target', 'hp-products-manager'); ?>
+                        <select id="hp-old2new-target-select">
+                            <option value="0"><?php esc_html_e('Auto — highest total sales', 'hp-products-manager'); ?></option>
+                        </select>
+                    </label>
                     <label for="hp-old2new-hard-redirect-started-at">
                         <?php esc_html_e('Hard redirect started at', 'hp-products-manager'); ?>
                         <input id="hp-old2new-hard-redirect-started-at" type="date">
+                    </label>
+                    <label for="hp-old2new-banner-window">
+                        <?php esc_html_e('Banner window (days after hard redirect start)', 'hp-products-manager'); ?>
+                        <input id="hp-old2new-banner-window" type="number" min="1" max="3650" step="1" placeholder="180">
                     </label>
                     <p class="hp-old2new-derived"><?php esc_html_e('Redirect type:', 'hp-products-manager'); ?> <strong id="hp-old2new-redirect-type">none</strong></p>
                     <label for="hp-old2new-custom-old-message">

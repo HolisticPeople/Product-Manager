@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.8
+ * Version: 2.1.9
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.8';
+    const VERSION = '2.1.9';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -98,6 +98,14 @@ final class HP_Products_Manager {
     private $old2new_old_sku_index = null;
 
     /**
+     * True once an SEO plugin's canonical filter ran this request — i.e. that
+     * plugin is about to print its own rel=canonical, so our fallback must
+     * stay silent.
+     * @var bool
+     */
+    private $old2new_seo_canonical_emitted = false;
+
+    /**
      * Retrieve the singleton instance.
      */
     public static function instance(): self {
@@ -124,6 +132,9 @@ final class HP_Products_Manager {
         add_filter('wpseo_canonical', [$this, 'filter_old2new_canonical_url'], 10, 1);
         add_filter('rank_math/frontend/canonical', [$this, 'filter_old2new_canonical_url'], 10, 1);
         add_filter('aioseo_canonical_url', [$this, 'filter_old2new_canonical_url'], 10, 1);
+        add_filter('wpseo_canonical', [$this, 'flag_old2new_seo_canonical'], 999, 1);
+        add_filter('rank_math/frontend/canonical', [$this, 'flag_old2new_seo_canonical'], 999, 1);
+        add_filter('aioseo_canonical_url', [$this, 'flag_old2new_seo_canonical'], 999, 1);
         // Live QA showed this site renders NO rel=canonical on product pages
         // (Yoast active but its canonical output disabled), so the filters
         // above never reach the page. Emit our own tag for canonical-status
@@ -136,6 +147,8 @@ final class HP_Products_Manager {
         add_filter('woocommerce_product_get_backorders', [$this, 'filter_old2new_backorders'], 10, 2);
         add_filter('woocommerce_product_variation_get_backorders', [$this, 'filter_old2new_backorders'], 10, 2);
         add_filter('woocommerce_is_purchasable', [$this, 'filter_old2new_is_purchasable'], 10, 2);
+        // Variations run their own purchasability filter, not the generic one.
+        add_filter('woocommerce_variation_is_purchasable', [$this, 'filter_old2new_is_purchasable'], 10, 2);
         add_filter('woocommerce_get_price_html', [$this, 'filter_old2new_price_html'], 10, 2);
         add_filter('woocommerce_loop_add_to_cart_link', [$this, 'filter_old2new_loop_add_to_cart_link'], 10, 2);
 
@@ -625,6 +638,20 @@ final class HP_Products_Manager {
             $health_warnings[] = sprintf(__('Hard redirect banner window is older than %s days.', 'hp-products-manager'), (string) $banner_window_days);
         }
 
+        // Flag redirect chains: a target that is itself another packet's old
+        // product would bounce or loop customers.
+        if ($target_product && !empty($target_product['sku'])) {
+            $chained_packet_id = $this->find_old2new_packet_by_old_sku((string) $target_product['sku'], $packet_id);
+            if ($chained_packet_id > 0) {
+                $chained_status = $this->sanitize_old2new_status(get_post_meta($chained_packet_id, '_hp_old2new_status', true));
+                if ($chained_status === 'hard_redirect' && $status === 'hard_redirect') {
+                    $health_warnings[] = __('Redirect loop risk: the target product is itself hard-redirected by another packet. This redirect is disabled until one of them changes.', 'hp-products-manager');
+                } else {
+                    $health_warnings[] = __('The target product is also discontinued by another packet — consider pointing this packet at a current product.', 'hp-products-manager');
+                }
+            }
+        }
+
         // Stock-aware lifecycle guidance: promoting a packet past
         // basic_discontinue while sellable stock remains strands that stock.
         if ($old_product_summary) {
@@ -945,12 +972,12 @@ final class HP_Products_Manager {
                     <button type="button" class="button button-primary" id="hp-old2new-add"><?php esc_html_e('Add Old2New Packet', 'hp-products-manager'); ?></button>
                 </div>
                 <div class="hp-old2new-guidelines" aria-label="<?php esc_attr_e('Old2New guidelines', 'hp-products-manager'); ?>">
-                    <p><strong><?php esc_html_e('Statuses:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Basic Discontinue shows banners and badges; Canonical adds SEO canonical; Hard Redirect sends old product URLs to the selected new product.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Visibility:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Full banners appear on product pages; compact badges appear only on old products in search, category, shop, grid, and list cards.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Redirects:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Canonical keeps old and new pages accessible; 301 redirect takes the old page down and sends traffic to the selected target.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Target:', 'hp-products-manager'); ?></strong> <?php esc_html_e('You can pick the canonical/redirect target per packet; on Auto, Product Manager chooses highest Woo total_sales with packet order as the tie-break. The target card is flagged "Recommended" in multi-product banners.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Banner window:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Hard Redirect keeps the new-product banner for the packet\'s banner window (default 180 days) after the start date, then hides the banner while the 301 remains active.', 'hp-products-manager'); ?></p>
-                    <p><strong><?php esc_html_e('Custom text:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Packet messages can use {old_product}, {new_product}, {new_products}, and {new_product_count}; output is escaped as plain text.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Basic Discontinue:', 'hp-products-manager'); ?></strong> <?php esc_html_e('The old product keeps selling until its stock runs out (no backorders). Shoppers see a banner and badge pointing to the new product. Once sold out, the price and Add-to-Cart disappear.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Canonical:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Everything Basic Discontinue does, plus search engines are told to show the new product in results instead of the old one. Both pages stay reachable.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Hard Redirect:', 'hp-products-manager'); ?></strong> <?php esc_html_e('The old page is taken down: anyone opening it lands on the new product, where a short "this replaces..." note shows for the banner window (default 180 days). After that the note goes away but the redirect stays.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Picking the new product:', 'hp-products-manager'); ?></strong> <?php esc_html_e('If a packet has several replacements, "Auto" sends people to the best seller. Pick one yourself to override — it gets the gold "Recommended" tag in the banner and receives the redirect.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Who sees what:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Shoppers who follow an Old2New link or redirect see the replacement note on the new product; shoppers who find the new product on their own see a normal page.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Your own wording:', 'hp-products-manager'); ?></strong> <?php esc_html_e('You can rewrite the banner messages per packet; {old_product}, {new_product}, {new_products} and {new_product_count} are filled in automatically.', 'hp-products-manager'); ?></p>
                 </div>
                 <div id="hp-old2new-status" class="hp-old2new-status" role="status" aria-live="polite"></div>
                 <div id="hp-old2new-table" class="hp-old2new-table"></div>
@@ -4358,10 +4385,12 @@ final class HP_Products_Manager {
         }
 
         $this->old2new_old_sku_index = [];
+        // No page cap: a capped query would silently stop enforcing the
+        // commerce policy for the oldest packets past the cap.
         $query = new WP_Query([
             'post_type' => self::OLD2NEW_PACKET_CPT,
             'post_status' => ['publish', 'draft', 'private'],
-            'posts_per_page' => 500,
+            'posts_per_page' => -1,
             'fields' => 'ids',
             'no_found_rows' => true,
         ]);
@@ -4378,8 +4407,23 @@ final class HP_Products_Manager {
 
     private function old2new_is_old_product(WC_Product $product): bool {
         $sku = $this->normalize_old2new_sku((string) $product->get_sku());
+        if ($sku !== '' && isset($this->old2new_old_sku_index()[$sku])) {
+            return true;
+        }
 
-        return $sku !== '' && isset($this->old2new_old_sku_index()[$sku]);
+        // A variation carries its own SKU, but the packet may list the parent
+        // product's SKU — enforce the parent's discontinuation on children.
+        $parent_id = (int) $product->get_parent_id();
+        if ($parent_id > 0 && function_exists('wc_get_product')) {
+            $parent = wc_get_product($parent_id);
+            if ($parent instanceof WC_Product) {
+                $parent_sku = $this->normalize_old2new_sku((string) $parent->get_sku());
+
+                return $parent_sku !== '' && isset($this->old2new_old_sku_index()[$parent_sku]);
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -4428,9 +4472,31 @@ final class HP_Products_Manager {
         return $purchasable;
     }
 
+    /**
+     * The price/add-to-cart blanking is a THEME-render concern only. Feeds
+     * (GMC cron), WP-CLI, and REST/Store-API consumers must keep receiving
+     * real price markup for sold-out products.
+     */
+    private function old2new_is_frontend_render(): bool {
+        if (is_admin()) {
+            return false;
+        }
+        if (function_exists('wp_doing_cron') && wp_doing_cron()) {
+            return false;
+        }
+        if (defined('WP_CLI') && WP_CLI) {
+            return false;
+        }
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function filter_old2new_price_html($price_html, $product = null) {
         if (
-            !is_admin()
+            $this->old2new_is_frontend_render()
             && $product instanceof WC_Product
             && $this->old2new_is_old_product($product)
             && $this->old2new_old_product_sold_out($product)
@@ -4443,7 +4509,7 @@ final class HP_Products_Manager {
 
     public function filter_old2new_loop_add_to_cart_link($link, $product = null) {
         if (
-            !is_admin()
+            $this->old2new_is_frontend_render()
             && $product instanceof WC_Product
             && $this->old2new_is_old_product($product)
             && $this->old2new_old_product_sold_out($product)
@@ -4585,8 +4651,27 @@ final class HP_Products_Manager {
         return esc_url_raw((string) $packet['target_product']['permalink']);
     }
 
+    public function flag_old2new_seo_canonical($canonical) {
+        // Only flag when the plugin will actually print a URL — filters can
+        // run with an empty/false canonical when output is suppressed.
+        if (is_string($canonical) && $canonical !== '') {
+            $this->old2new_seo_canonical_emitted = true;
+        }
+
+        return $canonical;
+    }
+
     public function output_old2new_canonical_tag(): void {
         if (!function_exists('is_singular') || !is_singular('product')) {
+            return;
+        }
+
+        // True fallback only: if WP core's rel_canonical will print (it runs
+        // through our get_canonical_url filter) or an SEO plugin's canonical
+        // filter already ran this request (they apply it right before
+        // printing; a disabled canonical feature never runs it), bail so the
+        // page never carries two rel=canonical tags.
+        if (has_action('wp_head', 'rel_canonical') || $this->old2new_seo_canonical_emitted) {
             return;
         }
 
@@ -4626,6 +4711,15 @@ final class HP_Products_Manager {
             return;
         }
 
+        // Never start a redirect chain: if the target is itself the old
+        // product of another hard_redirect packet (e.g. a swap-back), two
+        // packets would 301 at each other forever. Keep the page up instead.
+        $target_id = (int) ($packet['target_product']['id'] ?? 0);
+        $target_packet = $target_id > 0 ? $this->old2new_old_packet_for_product_id($target_id) : null;
+        if ($target_packet && $target_packet['status'] === 'hard_redirect') {
+            return;
+        }
+
         // Tag the redirect so the new-product page shows the replacement
         // banner to this visitor (organic visitors never see it).
         $old_product_id = (int) ($packet['old_product']['id'] ?? $product_id);
@@ -4647,7 +4741,9 @@ final class HP_Products_Manager {
             'meta_query' => [
                 [
                     'key' => '_hp_old2new_new_skus',
-                    'value' => $new_sku,
+                    // The meta is a serialized array; match the exact
+                    // quote-delimited string so SKU "ABC" can't hit "ABC-2".
+                    'value' => '"' . $new_sku . '"',
                     'compare' => 'LIKE',
                 ],
             ],
@@ -4657,6 +4753,16 @@ final class HP_Products_Manager {
         $first_packet = null;
         foreach ($query->posts as $packet_id) {
             $packet = $this->old2new_packet_response((int) $packet_id);
+            // Belt and braces on top of the serialized LIKE: only accept
+            // packets whose resolved new products really include this SKU.
+            if ($packet && !empty($packet['new_products'])) {
+                $packet_new_skus = array_map(static function ($product): string {
+                    return is_array($product) ? (string) ($product['sku'] ?? '') : '';
+                }, $packet['new_products']);
+                if (!in_array($new_sku, $packet_new_skus, true)) {
+                    continue;
+                }
+            }
             if ($packet && isset($packet['old_product']) && empty($packet['banner_expired'])) {
                 $first_packet = $first_packet ?: $packet;
                 $old_products[$packet['old_product']['sku']] = $packet['old_product'];

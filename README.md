@@ -33,6 +33,21 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.9
+
+- Rewrite the Old2New admin guidelines in plain language: one entry per
+  status describing what shoppers actually experience, plus how target
+  picking, referral-gated banners, and custom wording work.
+- Production-review fixes: variations now respect the sold-out
+  purchasability block (variation filter + parent-SKU fallback); the
+  canonical fallback yields to core/SEO-plugin canonicals so a page never
+  carries two tags; hard redirects refuse to start a loop when the target
+  is itself hard-redirected (with a health warning for redirect chains);
+  price/add-to-cart blanking no longer leaks into feeds, WP-CLI, or REST;
+  the new-SKU resolver matches exact SKUs instead of substrings; the SKU
+  index loads all packets (no 500-packet enforcement cliff); failed
+  deletes are reported in the admin.
+
 ### 2.1.8
 
 - Canonical status now works regardless of SEO-plugin configuration: live QA

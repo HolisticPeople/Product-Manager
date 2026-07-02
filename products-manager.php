@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.3
+ * Version: 2.1.4
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.3';
+    const VERSION = '2.1.4';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -86,6 +86,14 @@ final class HP_Products_Manager {
     private $reserved_quantities_map = [];
 
     /**
+     * Per-request index of Old2New old SKUs (sku => packet ID). The commerce
+     * filters fire for every product render, so they must not run a query per
+     * product.
+     * @var array<string,int>|null
+     */
+    private $old2new_old_sku_index = null;
+
+    /**
      * Retrieve the singleton instance.
      */
     public static function instance(): self {
@@ -112,6 +120,14 @@ final class HP_Products_Manager {
         add_filter('wpseo_canonical', [$this, 'filter_old2new_canonical_url'], 10, 1);
         add_filter('rank_math/frontend/canonical', [$this, 'filter_old2new_canonical_url'], 10, 1);
         add_filter('aioseo_canonical_url', [$this, 'filter_old2new_canonical_url'], 10, 1);
+        // Old2New commerce policy: discontinued old products sell remaining
+        // stock but never backorder; once sold out they lose price and
+        // add-to-cart everywhere (single page, loops, cart re-adds).
+        add_filter('woocommerce_product_get_backorders', [$this, 'filter_old2new_backorders'], 10, 2);
+        add_filter('woocommerce_product_variation_get_backorders', [$this, 'filter_old2new_backorders'], 10, 2);
+        add_filter('woocommerce_is_purchasable', [$this, 'filter_old2new_is_purchasable'], 10, 2);
+        add_filter('woocommerce_get_price_html', [$this, 'filter_old2new_price_html'], 10, 2);
+        add_filter('woocommerce_loop_add_to_cart_link', [$this, 'filter_old2new_loop_add_to_cart_link'], 10, 2);
 
         if (!is_admin()) {
             return;
@@ -428,7 +444,9 @@ final class HP_Products_Manager {
         return [
             'id' => $product_id,
             'sku' => $sku,
-            'name' => wp_strip_all_tags((string) $product->get_name()),
+            // Decode stored entities (e.g. "&amp;") so JS-side escaping in the
+            // admin table doesn't double-encode them into visible "&amp;".
+            'name' => wp_specialchars_decode(wp_strip_all_tags((string) $product->get_name()), ENT_QUOTES),
             'image' => (string) ($this->product_image_url($product, 'woocommerce_thumbnail') ?: ''),
             'image_id' => $image_id,
             'permalink' => $product_id > 0 ? (string) get_permalink($product_id) : '',
@@ -564,6 +582,20 @@ final class HP_Products_Manager {
             $health_warnings[] = sprintf(__('Hard redirect banner window is older than %s days.', 'hp-products-manager'), (string) self::OLD2NEW_BANNER_WINDOW_DAYS);
         }
 
+        // Stock-aware lifecycle guidance: promoting a packet past
+        // basic_discontinue while sellable stock remains strands that stock.
+        if ($old_product_summary) {
+            $old_in_stock = $this->old2new_summary_in_stock($old_product_summary);
+            $old_stock_label = (string) ($old_product_summary['stock'] ?? $old_product_summary['stock_label']);
+            if ($old_in_stock && $status === 'hard_redirect') {
+                $health_warnings[] = sprintf(__('Old product still has sellable stock (%s) but the 301 redirect makes its page unreachable.', 'hp-products-manager'), $old_stock_label);
+            } elseif ($old_in_stock && $status === 'canonical') {
+                $health_warnings[] = sprintf(__('Old product still has sellable stock (%s); canonical steers search traffic to the new product.', 'hp-products-manager'), $old_stock_label);
+            } elseif (!$old_in_stock && $status === 'basic_discontinue') {
+                $health_warnings[] = __('Old product is sold out. Consider promoting to Canonical or Hard Redirect.', 'hp-products-manager');
+            }
+        }
+
         $custom_old_message = (string) get_post_meta($packet_id, '_hp_old2new_custom_old_message', true);
         $custom_new_message = (string) get_post_meta($packet_id, '_hp_old2new_custom_new_message', true);
         $badge_text = (string) get_post_meta($packet_id, '_hp_old2new_badge_text', true);
@@ -695,6 +727,8 @@ final class HP_Products_Manager {
         update_post_meta($saved_id, '_hp_old2new_custom_old_message', sanitize_textarea_field((string) ($payload['custom_old_message'] ?? '')));
         update_post_meta($saved_id, '_hp_old2new_custom_new_message', sanitize_textarea_field((string) ($payload['custom_new_message'] ?? '')));
         update_post_meta($saved_id, '_hp_old2new_badge_text', sanitize_text_field((string) ($payload['badge_text'] ?? '')));
+
+        $this->old2new_old_sku_index = null;
 
         return $this->old2new_packet_response($saved_id);
     }
@@ -2063,6 +2097,7 @@ final class HP_Products_Manager {
         }
 
         $deleted = wp_delete_post($packet_id, true);
+        $this->old2new_old_sku_index = null;
 
         return rest_ensure_response(['deleted' => (bool) $deleted, 'id' => $packet_id]);
     }
@@ -4244,6 +4279,108 @@ final class HP_Products_Manager {
         return is_array($saved);
     }
 
+    private function old2new_old_sku_index(): array {
+        if ($this->old2new_old_sku_index !== null) {
+            return $this->old2new_old_sku_index;
+        }
+
+        $this->old2new_old_sku_index = [];
+        $query = new WP_Query([
+            'post_type' => self::OLD2NEW_PACKET_CPT,
+            'post_status' => ['publish', 'draft', 'private'],
+            'posts_per_page' => 500,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+        ]);
+
+        foreach ($query->posts as $packet_id) {
+            $sku = $this->normalize_old2new_sku((string) get_post_meta((int) $packet_id, '_hp_old2new_old_sku', true));
+            if ($sku !== '') {
+                $this->old2new_old_sku_index[$sku] = (int) $packet_id;
+            }
+        }
+
+        return $this->old2new_old_sku_index;
+    }
+
+    private function old2new_is_old_product(WC_Product $product): bool {
+        $sku = $this->normalize_old2new_sku((string) $product->get_sku());
+
+        return $sku !== '' && isset($this->old2new_old_sku_index()[$sku]);
+    }
+
+    /**
+     * Sold-out check for discontinued old products. Backorders are forced off
+     * for them, so a managed product with zero quantity is sold out even if a
+     * stale "onbackorder" stock status is still stored.
+     */
+    private function old2new_old_product_sold_out(WC_Product $product): bool {
+        if ($product->managing_stock()) {
+            return (int) $product->get_stock_quantity() <= 0;
+        }
+
+        return $product->get_stock_status() !== 'instock';
+    }
+
+    /**
+     * In-stock check for a product summary array (mirrors
+     * old2new_old_product_sold_out for contexts that only have the summary).
+     */
+    private function old2new_summary_in_stock(array $summary): bool {
+        if (isset($summary['stock']) && $summary['stock'] !== null) {
+            return (int) $summary['stock'] > 0;
+        }
+
+        return (string) ($summary['stock_status'] ?? '') === 'instock';
+    }
+
+    public function filter_old2new_backorders($backorders, $product = null) {
+        if ($product instanceof WC_Product && $this->old2new_is_old_product($product)) {
+            return 'no';
+        }
+
+        return $backorders;
+    }
+
+    public function filter_old2new_is_purchasable($purchasable, $product = null) {
+        if (
+            $purchasable
+            && $product instanceof WC_Product
+            && $this->old2new_is_old_product($product)
+            && $this->old2new_old_product_sold_out($product)
+        ) {
+            return false;
+        }
+
+        return $purchasable;
+    }
+
+    public function filter_old2new_price_html($price_html, $product = null) {
+        if (
+            !is_admin()
+            && $product instanceof WC_Product
+            && $this->old2new_is_old_product($product)
+            && $this->old2new_old_product_sold_out($product)
+        ) {
+            return '';
+        }
+
+        return $price_html;
+    }
+
+    public function filter_old2new_loop_add_to_cart_link($link, $product = null) {
+        if (
+            !is_admin()
+            && $product instanceof WC_Product
+            && $this->old2new_is_old_product($product)
+            && $this->old2new_old_product_sold_out($product)
+        ) {
+            return '';
+        }
+
+        return $link;
+    }
+
     private function old2new_current_product_id(int $explicit_id = 0): int {
         if ($explicit_id > 0) {
             return $explicit_id;
@@ -4534,6 +4671,13 @@ final class HP_Products_Manager {
         if ($state === 'old') {
             if ($packet && !empty($packet['custom_old_message'])) {
                 $message = esc_html($this->old2new_render_message_text((string) $packet['custom_old_message'], $old_products, $new_products));
+            } elseif ($this->old2new_summary_in_stock($old_products[0])) {
+                // Remaining stock is still sellable: say "being discontinued",
+                // not "no longer available", so the copy doesn't contradict the
+                // live price and add-to-cart right below the banner.
+                $message = count($new_products) > 1
+                    ? sprintf(__('This product is being discontinued &mdash; limited stock remains. Dr. Cousens recommends these %s going forward.', 'hp-products-manager'), $highlight)
+                    : sprintf(__('This product is being discontinued &mdash; limited stock remains. Dr. Cousens recommends this %s going forward.', 'hp-products-manager'), $highlight);
             } else {
                 $message = count($new_products) > 1
                     ? sprintf(__('This product is no longer available. Follow Dr. Cousens\' recommendations for these %s.', 'hp-products-manager'), $highlight)

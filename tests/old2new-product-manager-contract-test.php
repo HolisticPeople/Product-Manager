@@ -32,8 +32,35 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.3'), 'Product Manager plugin header must bump to 2.1.3.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.3'"), 'Product Manager VERSION constant must bump to 2.1.3.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.4'), 'Product Manager plugin header must bump to 2.1.4.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.4'"), 'Product Manager VERSION constant must bump to 2.1.4.');
+
+// 2.1.4 commerce policy: discontinued old products never backorder and lose
+// price/add-to-cart everywhere once sold out.
+hp_pm_old2new_assert(str_contains($plugin, "add_filter('woocommerce_product_get_backorders', [\$this, 'filter_old2new_backorders']"), 'Old2New must force backorders off for old products.');
+hp_pm_old2new_assert(str_contains($plugin, "add_filter('woocommerce_product_variation_get_backorders', [\$this, 'filter_old2new_backorders']"), 'Old2New backorder policy must also cover variations.');
+hp_pm_old2new_assert(str_contains($plugin, "add_filter('woocommerce_is_purchasable', [\$this, 'filter_old2new_is_purchasable']"), 'Sold-out old products must stop being purchasable.');
+hp_pm_old2new_assert(str_contains($plugin, "add_filter('woocommerce_get_price_html', [\$this, 'filter_old2new_price_html']"), 'Sold-out old products must hide their price.');
+hp_pm_old2new_assert(str_contains($plugin, "add_filter('woocommerce_loop_add_to_cart_link', [\$this, 'filter_old2new_loop_add_to_cart_link']"), 'Sold-out old products must hide the loop add-to-cart button.');
+hp_pm_old2new_assert(
+    preg_match('/function filter_old2new_backorders[^}]*return \'no\';/s', $plugin) === 1,
+    'Backorder filter must return "no" for Old2New old products.'
+);
+hp_pm_old2new_assert(str_contains($plugin, 'old2new_old_sku_index'), 'Commerce filters must use the per-request old-SKU index, not per-product queries.');
+
+// 2.1.4 stock-aware copy: while old stock remains sellable the banner must not
+// claim the product is "no longer available".
+hp_pm_old2new_assert(str_contains($plugin, 'This product is being discontinued'), 'Old-product banner must have a stock-aware "being discontinued" variant.');
+hp_pm_old2new_assert(str_contains($plugin, 'old2new_summary_in_stock($old_products[0])'), 'Banner copy must branch on the old product stock state.');
+
+// 2.1.4 admin health: stock-aware lifecycle guidance.
+hp_pm_old2new_assert(str_contains($plugin, 'Old product still has sellable stock'), 'Health warnings must flag stranded stock on canonical/hard_redirect.');
+hp_pm_old2new_assert(str_contains($plugin, 'Old product is sold out. Consider promoting'), 'Health warnings must suggest promotion once the old product sells out.');
+
+// 2.1.4 bug regressions: entity double-escape + swallowed REST errors.
+hp_pm_old2new_assert(str_contains($plugin, 'wp_specialchars_decode(wp_strip_all_tags((string) $product->get_name()), ENT_QUOTES)'), 'Product summary names must decode stored entities to avoid &amp; double-escaping in the admin.');
+hp_pm_old2new_assert(str_contains($admin_js, 'error && error.message'), 'Admin JS must surface REST error messages instead of a generic save failure.');
+hp_pm_old2new_assert(str_contains($admin_js, 'oldProductInStock'), 'Admin preview must branch default copy on old product stock.');
 
 hp_pm_old2new_assert(str_contains($plugin, "register_post_type('hp_old2new_packet'"), 'Product Manager must register hidden hp_old2new_packet CPT.');
 hp_pm_old2new_assert(str_contains($plugin, "'public' => false"), 'Old2New packet CPT must not be public.');
@@ -105,7 +132,7 @@ hp_pm_old2new_assert(str_contains($contract, '"hp_old2new_packet"'), 'hp-contrac
 hp_pm_old2new_assert(str_contains($contract, '"old2new_product_block"'), 'hp-contract must expose old2new_product_block shortcode.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-packets'), 'hp-contract must expose Old2New packet REST routes.');
 hp_pm_old2new_assert(str_contains($contract, 'hp-products-manager/v1/old2new-badges'), 'hp-contract must expose Old2New badge REST route.');
-hp_pm_old2new_assert(str_contains($readme, '2.1.3'), 'README release notes must include 2.1.3.');
+hp_pm_old2new_assert(str_contains($readme, '2.1.4'), 'README release notes must include 2.1.4.');
 hp_pm_old2new_assert(str_contains($parking_lot, 'old2new-product-lifecycle-roadmap.md'), 'Product Manager parking lot must point to the Old2New lifecycle roadmap.');
 hp_pm_old2new_assert(str_contains($roadmap, 'Product Manager owns'), 'Old2New lifecycle roadmap must name Product Manager ownership.');
 hp_pm_old2new_assert(str_contains($roadmap, 'HP-UI'), 'Old2New lifecycle roadmap must document that HP-UI is no longer the owner.');

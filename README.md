@@ -33,6 +33,24 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.4
+
+- Old2New commerce policy for discontinued (old) products: backorders are
+  forced off so remaining stock sells through but never oversells; once sold
+  out, the product loses its price and add-to-cart everywhere (single product
+  page, shop/category loops, purchasability).
+- Stock-aware banner copy: while sellable stock remains, the old-product banner
+  says "being discontinued — limited stock remains" instead of contradicting
+  the live add-to-cart with "no longer available"; the sold-out copy is
+  unchanged. The admin form preview mirrors the same stock-aware default.
+- Stock-aware admin health warnings: flag stranded sellable stock on Canonical
+  and Hard Redirect packets, and suggest promotion once the old product sells
+  out.
+- Fix `&amp;` double-escaping in the Old2New admin product cards (summary names
+  now decode stored entities before the JS-side escape).
+- Surface real REST error messages in the Old2New admin (e.g. "An Old2New
+  packet already exists for this old SKU") instead of a generic save failure.
+
 ### 2.1.3
 
 - Fix Old2New admin packet list styling on the dark HP-Zen admin surface: the

@@ -163,11 +163,26 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/\{new_product_count\}/g, String(newProducts.length));
     }
 
+    function oldProductInStock() {
+        if (!oldProduct) return false;
+        if (oldProduct.stock !== null && oldProduct.stock !== undefined) {
+            return Number(oldProduct.stock) > 0;
+        }
+        return oldProduct.stock_status === 'instock';
+    }
+
     function updatePreview() {
         if (!preview) return;
-        var defaultOld = newProducts.length > 1
-            ? "This product is no longer available. Follow Dr. Cousens' recommendations for these {new_products}."
-            : "This product is no longer available. Follow Dr. Cousens' recommendation for this {new_product}.";
+        var defaultOld;
+        if (oldProductInStock()) {
+            defaultOld = newProducts.length > 1
+                ? 'This product is being discontinued — limited stock remains. Dr. Cousens recommends these {new_products} going forward.'
+                : 'This product is being discontinued — limited stock remains. Dr. Cousens recommends this {new_product} going forward.';
+        } else {
+            defaultOld = newProducts.length > 1
+                ? "This product is no longer available. Follow Dr. Cousens' recommendations for these {new_products}."
+                : "This product is no longer available. Follow Dr. Cousens' recommendation for this {new_product}.";
+        }
         var defaultNew = 'This product is now replacing the previous product.';
         var oldValue = oldMessage && oldMessage.value ? oldMessage.value : defaultOld;
         var newValue = newMessage && newMessage.value ? newMessage.value : defaultNew;
@@ -343,15 +358,23 @@ document.addEventListener('DOMContentLoaded', function () {
             body: JSON.stringify(body)
         })
             .then(function (response) {
-                if (!response.ok) throw new Error('save failed');
+                if (!response.ok) {
+                    // Surface the REST error message (e.g. duplicate old SKU)
+                    // instead of a generic failure.
+                    return response.json()
+                        .catch(function () { return {}; })
+                        .then(function (error) {
+                            throw new Error(error && error.message ? error.message : '');
+                        });
+                }
                 return response.json();
             })
             .then(function () {
                 form.hidden = true;
                 loadPackets();
             })
-            .catch(function () {
-                setStatus('Unable to save Old2New packet.');
+            .catch(function (error) {
+                setStatus(error && error.message ? error.message : 'Unable to save Old2New packet.');
             })
             .finally(function () {
                 if (saveButton) {

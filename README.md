@@ -33,6 +33,17 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.2.0
+
+- Stock quantity is now read-only in the product editor when HP-Inventory is
+  active: HP-Inventory owns stock truth (ledger, locations, batches,
+  allocations), and the Quantity field links to the product's Inventory
+  Levels row (`levels_search` deep link) where "Add transaction" records the
+  change with a reason and full propagation. The apply endpoint rejects
+  stock_quantity writes with an explicit 409 while ownership is active
+  (fail visibly, never silently). Fail-soft: with HP-Inventory absent,
+  editing works exactly as before. Filter: `hp_pm_stock_editing_disabled`.
+
 ### 2.1.9
 
 - Rewrite the Old2New admin guidelines in plain language: one entry per

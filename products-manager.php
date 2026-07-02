@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.9
+ * Version: 2.2.0
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.9';
+    const VERSION = '2.2.0';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -69,6 +69,27 @@ final class HP_Products_Manager {
     private function is_erp_enabled(): bool {
         // Allow enabling via filter without editing plugin
         return !$this->is_hp_inventory_erp_migrated() && (bool) apply_filters('hp_pm_erp_enabled', self::ERP_ENABLED);
+    }
+
+    /**
+     * HP-Inventory owns stock truth (ledger, locations, batches, allocations).
+     * When it is active, Product-Manager's Quantity field is read-only and
+     * stock changes go through HP-Inventory's Inventory Levels "Add
+     * transaction" — one write surface, no split-brain Woo `_stock` edits.
+     * Fail-soft: with HP-Inventory absent, editing works exactly as before.
+     */
+    private function is_stock_editing_owned_by_hp_inventory(): bool {
+        return (bool) apply_filters('hp_pm_stock_editing_disabled', defined('HP_INVENTORY_VERSION'));
+    }
+
+    /** Deep link to the product's Inventory Levels row (levels_search prefill). */
+    private function hp_inventory_stock_link(int $product_id): string {
+        $sku = '';
+        if ($product_id > 0 && function_exists('wc_get_product')) {
+            $product = wc_get_product($product_id);
+            $sku = $product ? (string) $product->get_sku() : '';
+        }
+        return admin_url('admin.php?page=hp-inventory&tab=inventory-levels' . ($sku !== '' ? '&levels_search=' . rawurlencode($sku) : ''));
     }
 
     private function is_erp_persist_enabled(): bool {
@@ -1446,7 +1467,16 @@ final class HP_Products_Manager {
                                         </tr>
                                         <tr class="hp-pm-stock-row">
                                             <th><?php esc_html_e('Quantity', 'hp-products-manager'); ?></th>
-                                            <td><input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text"></td>
+                                            <td>
+                                                <?php if ($this->is_stock_editing_owned_by_hp_inventory()) : ?>
+                                                    <input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text" disabled>
+                                                    <p class="description"><?php esc_html_e('Stock is owned by HP-Inventory.', 'hp-products-manager'); ?>
+                                                        <a href="<?php echo esc_url($this->hp_inventory_stock_link(absint($_GET['product_id'] ?? 0))); ?>"><?php esc_html_e('Adjust stock in HP-Inventory', 'hp-products-manager'); ?></a>
+                                                        <?php esc_html_e('(open the product row and use "Add transaction").', 'hp-products-manager'); ?></p>
+                                                <?php else : ?>
+                                                    <input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text">
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                         <tr class="hp-pm-stock-row">
                                             <th><?php esc_html_e('Allow backorders?', 'hp-products-manager'); ?></th>
@@ -3881,6 +3911,15 @@ final class HP_Products_Manager {
             $product->set_manage_stock(rest_sanitize_boolean($apply['manage_stock']));
         }
         if (isset($apply['stock_quantity'])) {
+            // Fail visibly, never silently: HP-Inventory owns stock truth, and a
+            // quantity write from here would bypass its ledger/allocations.
+            if ($this->is_stock_editing_owned_by_hp_inventory()) {
+                return new WP_Error(
+                    'hp_pm_stock_owned_by_hp_inventory',
+                    __('Stock quantity is owned by HP-Inventory. Adjust it there: Inventory Levels → open the product row → Add transaction.', 'hp-products-manager'),
+                    ['status' => 409]
+                );
+            }
             $product->set_stock_quantity($apply['stock_quantity'] === '' ? null : (int) $apply['stock_quantity']);
         }
         if (isset($apply['backorders'])) {

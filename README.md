@@ -33,6 +33,15 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.8
+
+- Canonical status now works regardless of SEO-plugin configuration: live QA
+  showed this site prints no rel=canonical on product pages (Yoast active but
+  its canonical output disabled), so Product Manager emits its own canonical
+  tag on canonical-status old product pages, pointing at the packet target.
+  The existing SEO-plugin filters remain, and both paths resolve the same URL,
+  so a site that does print canonicals cannot conflict with ours.
+
 ### 2.1.7
 
 - Old2New packet editor now opens as a full-width popup with a 12-column grid

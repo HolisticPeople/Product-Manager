@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.7
+ * Version: 2.1.8
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.7';
+    const VERSION = '2.1.8';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -124,6 +124,12 @@ final class HP_Products_Manager {
         add_filter('wpseo_canonical', [$this, 'filter_old2new_canonical_url'], 10, 1);
         add_filter('rank_math/frontend/canonical', [$this, 'filter_old2new_canonical_url'], 10, 1);
         add_filter('aioseo_canonical_url', [$this, 'filter_old2new_canonical_url'], 10, 1);
+        // Live QA showed this site renders NO rel=canonical on product pages
+        // (Yoast active but its canonical output disabled), so the filters
+        // above never reach the page. Emit our own tag for canonical-status
+        // old products; if an SEO plugin does print one, ours carries the
+        // identical href via the same resolver, so they cannot conflict.
+        add_action('wp_head', [$this, 'output_old2new_canonical_tag'], 20);
         // Old2New commerce policy: discontinued old products sell remaining
         // stock but never backorder; once sold out they lose price and
         // add-to-cart everywhere (single page, loops, cart re-adds).
@@ -4577,6 +4583,22 @@ final class HP_Products_Manager {
         }
 
         return esc_url_raw((string) $packet['target_product']['permalink']);
+    }
+
+    public function output_old2new_canonical_tag(): void {
+        if (!function_exists('is_singular') || !is_singular('product')) {
+            return;
+        }
+
+        $packet = $this->old2new_old_packet_for_product_id($this->old2new_current_product_id());
+        if (!$packet || $packet['status'] !== 'canonical' || empty($packet['target_product']['permalink'])) {
+            return;
+        }
+
+        printf(
+            '<link rel="canonical" href="%s" data-hp-old2new="canonical" />' . "\n",
+            esc_url((string) $packet['target_product']['permalink'])
+        );
     }
 
     public function maybe_redirect_old2new_product(): void {

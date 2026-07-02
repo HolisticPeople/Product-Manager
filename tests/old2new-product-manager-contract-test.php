@@ -32,8 +32,8 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.1.9'), 'Product Manager plugin header must bump to 2.1.9.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.1.9'"), 'Product Manager VERSION constant must bump to 2.1.9.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.2.0'), 'Product Manager plugin header must bump to 2.2.0.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.2.0'"), 'Product Manager VERSION constant must bump to 2.2.0.');
 
 // 2.1.9 production-review fixes.
 // F1: variations must be covered by purchasability + parent-SKU fallback.

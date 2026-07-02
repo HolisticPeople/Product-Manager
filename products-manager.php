@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.4
+ * Version: 2.1.5
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.4';
+    const VERSION = '2.1.5';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -47,6 +47,10 @@ final class HP_Products_Manager {
     private const OLD2NEW_LEGACY_MIGRATION_OPTION = 'hp_pm_old2new_legacy_pairs_migrated';
     private const OLD2NEW_STATUS_MIGRATION_OPTION = 'hp_pm_old2new_statuses_migrated';
     private const OLD2NEW_BANNER_WINDOW_DAYS = 180;
+    // Query param carried by Old2New links (301 redirect target, banner card
+    // clicks) so the new-product page can tell referred visitors from organic
+    // ones and only show the replacement banner to the former.
+    private const OLD2NEW_REFERRAL_PARAM = 'o2n';
     private const ALL_LOAD_THRESHOLD = 2500; // safety fallback if too many products
     private const METRICS_CACHE_KEY = 'metrics';
     private const CACHE_GROUP       = 'hp_products_manager';
@@ -4537,6 +4541,13 @@ final class HP_Products_Manager {
             return;
         }
 
+        // Tag the redirect so the new-product page shows the replacement
+        // banner to this visitor (organic visitors never see it).
+        $old_product_id = (int) ($packet['old_product']['id'] ?? $product_id);
+        if ($old_product_id > 0) {
+            $target_url = add_query_arg(self::OLD2NEW_REFERRAL_PARAM, $old_product_id, $target_url);
+        }
+
         wp_safe_redirect($target_url, 301, 'Product Manager Old2New');
         exit;
     }
@@ -4664,6 +4675,28 @@ final class HP_Products_Manager {
             return '';
         }
 
+        if ($state === 'new') {
+            // Only visitors who followed an Old2New link (301 redirect or a
+            // banner card click) see the replacement notice; organic visitors
+            // to the new product are not shown confusing history.
+            $referred_old_id = isset($_GET[self::OLD2NEW_REFERRAL_PARAM])
+                ? absint(wp_unslash($_GET[self::OLD2NEW_REFERRAL_PARAM]))
+                : 0;
+            if ($referred_old_id <= 0) {
+                return '';
+            }
+
+            $matched_old = array_values(array_filter($old_products, static function ($product) use ($referred_old_id): bool {
+                return is_array($product) && (int) ($product['id'] ?? 0) === $referred_old_id;
+            }));
+            if (empty($matched_old)) {
+                return '';
+            }
+
+            // Narrow the flow to the product the visitor actually came from.
+            $old_products = $matched_old;
+        }
+
         $highlight = count($new_products) > 1
             ? '<strong class="' . esc_attr($base_class) . '__highlight">' . esc_html__('new products', 'hp-products-manager') . '</strong>'
             : '<strong class="' . esc_attr($base_class) . '__highlight">' . esc_html__('new product', 'hp-products-manager') . '</strong>';
@@ -4693,13 +4726,19 @@ final class HP_Products_Manager {
             $new_clickable = false;
         }
 
+        $link_ref_id = $state === 'old' ? (int) ($old_products[0]['id'] ?? 0) : 0;
+        $recommended_id = 0;
+        if ($state === 'old' && count($new_products) > 1 && $packet && !empty($packet['target_product']['id'])) {
+            $recommended_id = (int) $packet['target_product']['id'];
+        }
+
         return sprintf(
             '<section class="%1$s %1$s--%2$s" data-old2new-state="%2$s" aria-label="%3$s"><div class="%1$s__copy"><p class="%1$s__message">%4$s</p></div>%5$s</section>',
             esc_attr($base_class),
             esc_attr($state),
             esc_attr__('Product replacement notice', 'hp-products-manager'),
             wp_kses_post($message),
-            $this->render_old2new_flow($old_products, $new_products, $new_clickable, $base_class)
+            $this->render_old2new_flow($old_products, $new_products, $new_clickable, $base_class, $link_ref_id, $recommended_id)
         );
     }
 
@@ -4718,38 +4757,48 @@ final class HP_Products_Manager {
         // Old2New badge REST endpoint directly inside its scoped search bridge.
     }
 
-    private function render_old2new_flow(array $old_products, array $new_products, bool $new_clickable, string $block_class): string {
+    private function render_old2new_flow(array $old_products, array $new_products, bool $new_clickable, string $block_class, int $link_ref_id = 0, int $recommended_id = 0): string {
         return sprintf(
             '<div class="%1$s__flow"><div class="%1$s__column %1$s__column--old">%2$s</div><span class="%1$s__arrow" aria-hidden="true">&rarr;</span><div class="%1$s__column %1$s__column--new">%3$s</div></div>',
             esc_attr($block_class),
             $this->render_old2new_product_cards($old_products, 'old', false),
-            $this->render_old2new_product_cards($new_products, 'new', $new_clickable)
+            $this->render_old2new_product_cards($new_products, 'new', $new_clickable, $link_ref_id, $recommended_id)
         );
     }
 
-    private function render_old2new_product_cards(array $products, string $role, bool $clickable): string {
+    private function render_old2new_product_cards(array $products, string $role, bool $clickable, int $link_ref_id = 0, int $recommended_id = 0): string {
         $cards = [];
         foreach ($products as $product) {
             if (is_array($product) && !empty($product['name'])) {
-                $cards[] = $this->render_old2new_product_card($product, $role, $clickable);
+                $recommended = $recommended_id > 0 && (int) ($product['id'] ?? 0) === $recommended_id;
+                $cards[] = $this->render_old2new_product_card($product, $role, $clickable, $link_ref_id, $recommended);
             }
         }
 
         return '<span class="old2new-product-block__cards">' . implode('', $cards) . '</span>';
     }
 
-    private function render_old2new_product_card(array $product, string $role, bool $clickable): string {
+    private function render_old2new_product_card(array $product, string $role, bool $clickable, int $link_ref_id = 0, bool $recommended = false): string {
         $base_class = 'old2new-product-card';
         $classes = $base_class . ' ' . $base_class . '--' . sanitize_html_class($role);
+        $permalink = (string) ($product['permalink'] ?? '');
+        if ($clickable && $link_ref_id > 0 && $permalink !== '') {
+            // Tag Old2New referral clicks so the new-product page knows the
+            // visitor followed a replacement link (the banner only shows then).
+            $permalink = add_query_arg(self::OLD2NEW_REFERRAL_PARAM, $link_ref_id, $permalink);
+        }
         $tag = $clickable ? 'a' : 'span';
-        $href = $clickable ? ' href="' . esc_url((string) ($product['permalink'] ?? '')) . '"' : '';
+        $href = $clickable ? ' href="' . esc_url($permalink) . '"' : '';
         $cta = $clickable ? sprintf('<span class="%1$s__cta" aria-hidden="true">&rarr;</span>', esc_attr($base_class)) : '';
         if ($clickable) {
             $classes .= ' ' . $base_class . '--clickable';
         }
+        $flag = $recommended
+            ? sprintf('<span class="%1$s__flag">%2$s</span>', esc_attr($base_class), esc_html__('Recommended', 'hp-products-manager'))
+            : '';
 
         return sprintf(
-            '<%1$s class="%2$s"%3$s data-old2new-product-role="%4$s">%5$s<span class="%6$s__body"><span class="%6$s__title">%7$s</span></span>%8$s</%1$s>',
+            '<%1$s class="%2$s"%3$s data-old2new-product-role="%4$s">%5$s<span class="%6$s__body"><span class="%6$s__title">%7$s</span>%8$s</span>%9$s</%1$s>',
             $tag,
             esc_attr($classes),
             $href,
@@ -4757,6 +4806,7 @@ final class HP_Products_Manager {
             $this->render_old2new_thumb($product, $base_class),
             esc_attr($base_class),
             esc_html((string) ($product['name'] ?? '')),
+            $flag,
             $cta
         );
     }

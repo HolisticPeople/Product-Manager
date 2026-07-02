@@ -168,6 +168,23 @@
     line-height: 1.2;
 }
 
+.old2new-product-card__flag {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-top: 3px;
+    padding: 1px 7px;
+    border: 1px solid var(--hp-zen-accent, rgba(241, 178, 43, 0.55));
+    border-radius: 999px;
+    background: var(--hp-zen-accent-soft, rgba(241, 178, 43, 0.13));
+    color: var(--hp-zen-accent, #f1b22b);
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
 .old2new-product-card__cta {
     display: inline-flex;
     align-items: center;

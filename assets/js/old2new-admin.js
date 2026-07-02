@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var packets = [];
     var oldProduct = null;
     var newProducts = [];
+    var originalStatus = '';
 
     var statusLabels = {
         basic_discontinue: 'Basic Discontinue',
@@ -101,6 +102,22 @@ document.addEventListener('DOMContentLoaded', function () {
             + '</ul>';
     }
 
+    function bannerWindow(packet) {
+        if (packet.status !== 'hard_redirect' || !packet.banner_expires_at) {
+            return '';
+        }
+        if (packet.banner_expired) {
+            return '<br><small class="hp-old2new-window hp-old2new-window--expired">Banner hidden (window over); 301 stays active</small>';
+        }
+        var expires = new Date(packet.banner_expires_at + 'T00:00:00Z');
+        var days = Math.ceil((expires.getTime() - Date.now()) / 86400000);
+        if (!isFinite(days)) {
+            return '';
+        }
+        return '<br><small class="hp-old2new-window">New-product banner ends in ' + days + ' day' + (days === 1 ? '' : 's')
+            + ' (' + escapeHtml(packet.banner_expires_at) + ')</small>';
+    }
+
     function renderTable() {
         if (!packets.length) {
             table.innerHTML = '<p>' + escapeHtml((config.i18n && config.i18n.empty) || 'No Old2New packets yet.') + '</p>';
@@ -115,11 +132,14 @@ document.addEventListener('DOMContentLoaded', function () {
             return '<div class="hp-old2new-row" data-packet-id="' + escapeHtml(packet.id) + '">'
                 + '<div>' + productCard(packet.old_product) + '</div>'
                 + '<div class="hp-old2new-product-stack">' + (packet.new_products || []).map(productCard).join('') + '</div>'
-                + '<div><strong>Status</strong><br><span class="hp-old2new-status-badge hp-old2new-status-badge--' + escapeHtml(packet.status || 'basic_discontinue') + '">' + escapeHtml(statusLabels[packet.status] || packet.status || 'Basic Discontinue') + '</span></div>'
+                + '<div><strong>Status</strong><br><span class="hp-old2new-status-badge hp-old2new-status-badge--' + escapeHtml(packet.status || 'basic_discontinue') + '">' + escapeHtml(statusLabels[packet.status] || packet.status || 'Basic Discontinue') + '</span>' + bannerWindow(packet) + '</div>'
                 + '<div><strong>Redirect</strong><br>' + escapeHtml(packet.redirect_type || 'none') + '</div>'
                 + '<div><strong>Target</strong><br>' + targetHtml + '</div>'
                 + '<div><strong>Health</strong><br>' + warnings(packet) + '</div>'
                 + '<div class="hp-old2new-actions">'
+                + (packet.old_product && safeImageUrl(packet.old_product.permalink)
+                    ? '<a class="button" href="' + escapeHtml(packet.old_product.permalink) + '" target="_blank" rel="noopener">View</a>'
+                    : '')
                 + '<button type="button" class="button" data-action="edit">Edit</button>'
                 + '<button type="button" class="button" data-action="delete">Delete</button>'
                 + '</div>'
@@ -195,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function showForm(packet) {
         form.hidden = false;
         packetId.value = packet && packet.id ? String(packet.id) : '';
+        originalStatus = packet && packet.status ? normalizeStatus(packet.status) : '';
         oldProduct = packet ? packet.old_product : null;
         newProducts = packet && Array.isArray(packet.new_products) ? packet.new_products.slice() : [];
         oldInput.value = oldProduct ? (oldProduct.name + ' [' + oldProduct.sku + ']') : '';
@@ -332,6 +353,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!oldProduct || !newProducts.length) {
             setStatus('Choose one old product and at least one new product.');
             return;
+        }
+
+        if (statusSelect.value === 'hard_redirect' && originalStatus !== 'hard_redirect') {
+            // Preview-first for the one transition that takes a live page down.
+            var oldUrl = oldProduct.permalink || 'the old product page';
+            if (!confirm('Hard Redirect takes the old product page down:\n\n'
+                + oldUrl + '\n\nwill return a 301 straight to the selected new product. '
+                + 'Customers can no longer reach the old page or buy remaining stock.\n\nContinue?')) {
+                return;
+            }
         }
 
         var id = packetId.value;

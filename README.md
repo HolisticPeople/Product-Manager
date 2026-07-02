@@ -33,6 +33,18 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.1.7
+
+- Old2New packet editor now opens as a full-width popup with a 12-column grid
+  sized to each field (product pickers half-width, status/target/date/window a
+  quarter each, messages side by side, compact badge next to the live
+  preview); closes on Cancel, X, Escape, or backdrop click.
+- Product chips in the form (selected old product and each replacement) show
+  product thumbnails.
+- Packet rows replace the single "View" action with "View old" and "View new";
+  View new carries the o2n referral so the admin sees the replacement message
+  exactly as a referred customer would.
+
 ### 2.1.6
 
 - Banner window is now admin-configurable per packet (default 180 days,

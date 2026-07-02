@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.1.6
+ * Version: 2.1.7
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.1.6';
+    const VERSION = '2.1.7';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -949,19 +949,24 @@ final class HP_Products_Manager {
                 <div id="hp-old2new-status" class="hp-old2new-status" role="status" aria-live="polite"></div>
                 <div id="hp-old2new-table" class="hp-old2new-table"></div>
 
-                <form id="hp-old2new-form" class="hp-old2new-form" hidden>
+                <div id="hp-old2new-modal" class="hp-old2new-modal" hidden>
+                <form id="hp-old2new-form" class="hp-old2new-form">
                     <input type="hidden" id="hp-old2new-packet-id" value="">
-                    <h3 id="hp-old2new-form-title"><?php esc_html_e('Old2New Packet', 'hp-products-manager'); ?></h3>
-                    <label for="hp-old2new-old-product">
+                    <div class="hp-old2new-form__header">
+                        <h3 id="hp-old2new-form-title"><?php esc_html_e('Old2New Packet', 'hp-products-manager'); ?></h3>
+                        <button type="button" class="button hp-old2new-form__close" id="hp-old2new-close" aria-label="<?php esc_attr_e('Close', 'hp-products-manager'); ?>">&times;</button>
+                    </div>
+                    <label for="hp-old2new-old-product" class="hp-old2new-field--half">
                         <?php esc_html_e('Old Product', 'hp-products-manager'); ?>
                         <input id="hp-old2new-old-product" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search old product by name or SKU', 'hp-products-manager'); ?>">
+                        <span id="hp-old2new-selected-old" class="hp-old2new-selected-products"></span>
                     </label>
-                    <label for="hp-old2new-new-products">
+                    <label for="hp-old2new-new-products" class="hp-old2new-field--half">
                         <?php esc_html_e('New Products', 'hp-products-manager'); ?>
                         <input id="hp-old2new-new-products" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search replacement product by name or SKU', 'hp-products-manager'); ?>">
+                        <span id="hp-old2new-selected-new-products" class="hp-old2new-selected-products"></span>
                     </label>
-                    <div id="hp-old2new-selected-new-products" class="hp-old2new-selected-products"></div>
-                    <label for="hp-old2new-status-select">
+                    <label for="hp-old2new-status-select" class="hp-old2new-field--quarter">
                         <?php esc_html_e('Status', 'hp-products-manager'); ?>
                         <select id="hp-old2new-status-select">
                             <option value="basic_discontinue"><?php esc_html_e('Basic Discontinue', 'hp-products-manager'); ?></option>
@@ -969,40 +974,41 @@ final class HP_Products_Manager {
                             <option value="hard_redirect"><?php esc_html_e('Hard Redirect', 'hp-products-manager'); ?></option>
                         </select>
                     </label>
-                    <label for="hp-old2new-target-select">
+                    <label for="hp-old2new-target-select" class="hp-old2new-field--quarter">
                         <?php esc_html_e('Canonical / redirect target', 'hp-products-manager'); ?>
                         <select id="hp-old2new-target-select">
                             <option value="0"><?php esc_html_e('Auto — highest total sales', 'hp-products-manager'); ?></option>
                         </select>
                     </label>
-                    <label for="hp-old2new-hard-redirect-started-at">
+                    <label for="hp-old2new-hard-redirect-started-at" class="hp-old2new-field--quarter">
                         <?php esc_html_e('Hard redirect started at', 'hp-products-manager'); ?>
                         <input id="hp-old2new-hard-redirect-started-at" type="date">
                     </label>
-                    <label for="hp-old2new-banner-window">
-                        <?php esc_html_e('Banner window (days after hard redirect start)', 'hp-products-manager'); ?>
+                    <label for="hp-old2new-banner-window" class="hp-old2new-field--quarter">
+                        <?php esc_html_e('Banner window (days)', 'hp-products-manager'); ?>
                         <input id="hp-old2new-banner-window" type="number" min="1" max="3650" step="1" placeholder="180">
                     </label>
-                    <p class="hp-old2new-derived"><?php esc_html_e('Redirect type:', 'hp-products-manager'); ?> <strong id="hp-old2new-redirect-type">none</strong></p>
-                    <label for="hp-old2new-custom-old-message">
+                    <p class="hp-old2new-derived hp-old2new-field--full"><?php esc_html_e('Redirect type:', 'hp-products-manager'); ?> <strong id="hp-old2new-redirect-type">none</strong></p>
+                    <label for="hp-old2new-custom-old-message" class="hp-old2new-field--half">
                         <?php esc_html_e('Old-product banner message override', 'hp-products-manager'); ?>
                         <textarea id="hp-old2new-custom-old-message" rows="3" placeholder="<?php esc_attr_e('Use default message', 'hp-products-manager'); ?>"></textarea>
                     </label>
-                    <label for="hp-old2new-custom-new-message">
+                    <label for="hp-old2new-custom-new-message" class="hp-old2new-field--half">
                         <?php esc_html_e('New-product banner message override', 'hp-products-manager'); ?>
                         <textarea id="hp-old2new-custom-new-message" rows="3" placeholder="<?php esc_attr_e('Use default message', 'hp-products-manager'); ?>"></textarea>
                     </label>
-                    <label for="hp-old2new-badge-text">
+                    <label for="hp-old2new-badge-text" class="hp-old2new-field--third">
                         <?php esc_html_e('Compact badge text', 'hp-products-manager'); ?>
                         <input id="hp-old2new-badge-text" type="text" placeholder="<?php esc_attr_e('See new product', 'hp-products-manager'); ?>">
                     </label>
-                    <div class="hp-old2new-preview" id="hp-old2new-message-preview" aria-live="polite"></div>
+                    <div class="hp-old2new-preview hp-old2new-field--twothirds" id="hp-old2new-message-preview" aria-live="polite"></div>
                     <datalist id="hp-old2new-products-list"></datalist>
-                    <div class="hp-old2new-actions">
+                    <div class="hp-old2new-actions hp-old2new-field--full">
                         <button type="submit" class="button button-primary" id="hp-old2new-save"><?php esc_html_e('Save Packet', 'hp-products-manager'); ?></button>
                         <button type="button" class="button" id="hp-old2new-cancel"><?php esc_html_e('Cancel', 'hp-products-manager'); ?></button>
                     </div>
                 </form>
+                </div>
             </section>
         </div>
         <?php

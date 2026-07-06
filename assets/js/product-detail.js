@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var metaKeys = [
     'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
     'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
-    'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+    'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer', 'gtin',
     'how_to_use', 'cautions', 'recommended_use', 'community_tips',
     'traditional_function', 'chinese_energy', 'ayurvedic_energy', 
     'supplement_type', 'expert_article', 'video', 'video_transcription', 'slogan', 'aka_product_name', 'description_long',
@@ -71,6 +71,52 @@ document.addEventListener('DOMContentLoaded', function () {
   ];
   var metaEls = {};
   metaKeys.forEach(function(k) { metaEls[k] = document.getElementById('hp-pm-pd-' + k); });
+
+  // --- UPC/GTIN validation (mirror of the server-side gtin_checksum_ok) ---
+  function gtinChecksumOk(d) {
+    if (!/^\d+$/.test(d) || [8, 12, 13, 14].indexOf(d.length) === -1) return false;
+    var body = d.slice(0, -1).split('').map(Number).reverse();
+    var sum = 0;
+    for (var i = 0; i < body.length; i++) { sum += (i % 2 === 0) ? body[i] * 3 : body[i]; }
+    return ((10 - (sum % 10)) % 10) === Number(d.slice(-1));
+  }
+  function validateGtin(v) {
+    var d = String(v == null ? '' : v).replace(/\D/g, '');
+    if (d === '') return { ok: true, digits: '', error: '' };
+    if ([8, 12, 13, 14].indexOf(d.length) === -1) return { ok: false, digits: d, error: 'UPC/GTIN must be 8, 12, 13, or 14 digits (you have ' + d.length + ').' };
+    if (!gtinChecksumOk(d)) return { ok: false, digits: d, error: 'UPC/GTIN check digit is invalid — re-check the barcode.' };
+    return { ok: true, digits: d, error: '' };
+  }
+  // Live inline feedback under the GTIN field (green = valid, red = invalid).
+  (function () {
+    var gEl = metaEls['gtin'];
+    if (!gEl) return;
+    var hint = document.createElement('p');
+    hint.className = 'description hp-pm-gtin-hint';
+    hint.style.margin = '4px 0 0';
+    gEl.parentNode.appendChild(hint);
+    function refresh() {
+      var r = validateGtin(gEl.value);
+      if (gEl.value.trim() === '') { hint.textContent = ''; gEl.style.borderColor = ''; return; }
+      if (!r.ok) {
+        hint.textContent = '✗ ' + r.error;
+        hint.style.color = '#b32d2e'; gEl.style.borderColor = '#b32d2e';
+        return;
+      }
+      // Valid barcode number — now the advisory brand-prefix check.
+      var prefixes = (original && original.gtin_brand_prefixes) || [];
+      if (prefixes.length && prefixes.indexOf(r.digits.slice(0, 6)) === -1) {
+        hint.textContent = '⚠ valid GTIN-' + r.digits.length + ', but prefix ' + r.digits.slice(0, 6) +
+          ' is unusual for this brand (normally ' + prefixes.join(', ') + ') — confirm it belongs to this product.';
+        hint.style.color = '#bf6a00'; gEl.style.borderColor = '#bf6a00';
+      } else {
+        hint.textContent = '✓ valid GTIN-' + r.digits.length + (prefixes.length ? ' · prefix matches this brand' : '');
+        hint.style.color = '#1a7f37'; gEl.style.borderColor = '#1a7f37';
+      }
+    }
+    gEl.addEventListener('input', refresh);
+    gEl.addEventListener('blur', refresh);
+  })();
 
   function setValue(el, v) { 
     if (!el) return;
@@ -736,6 +782,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (stageBtn) stageBtn.addEventListener('click', function () {
     var changes = gatherChanges();
+    // Gate UPC/GTIN before it can even be staged: checksum + length must pass.
+    if (Object.prototype.hasOwnProperty.call(changes, 'gtin')) {
+      var vg = validateGtin(changes.gtin);
+      if (!vg.ok) { alert(vg.error); return; }
+      changes.gtin = vg.digits; // stage the normalized bare-digit form
+    }
     if (Object.keys(changes).length === 0) return;
     var staged = readStaged(); Object.assign(staged, changes); writeStaged(staged);
   });
@@ -871,7 +923,14 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue(yoastFocusKwEl, original.yoast_focuskw); setValue(yoastTitleEl, original.yoast_title); setValue(yoastMetaDescEl, original.yoast_metadesc);
         if (imgEl) imgEl.src = safeImageUrl(original.image) || ''; currentImageId = original.image_id || null; currentGallery = (original.gallery_ids || []).slice(); galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; }); renderGallery(); imageDirty=false; galleryDirty=false;
       }
-      writeStaged({}); showNotice(data.i18n.applied, 'success');
+      writeStaged({});
+      var msgs = [];
+      // Hard rejections (value NOT saved): duplicate / invalid checksum / bad length.
+      if (payload && payload.warnings && payload.warnings.length) { msgs = msgs.concat(payload.warnings); }
+      // Advisories (value WAS saved, but worth a look): brand-prefix mismatch.
+      if (payload && payload.gtin_advisories && payload.gtin_advisories.length) { msgs = msgs.concat(payload.gtin_advisories); }
+      if (msgs.length) { alert(msgs.join('\n\n')); }
+      showNotice(data.i18n.applied, 'success');
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });

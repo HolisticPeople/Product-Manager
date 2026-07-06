@@ -33,6 +33,58 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.3.3
+
+- Fix the 2.3.2 brand-prefix advisory: PHP coerces numeric-string array keys to
+  integers, so the derived prefix list came back as ints (`[736313]`) and the
+  strict `in_array()` / JS `indexOf()` comparison against the string prefix
+  always failed — firing the "unusual prefix" advisory even when the prefix
+  matched. Prefixes are now normalized to strings (`array_map('strval', …)`).
+
+### 2.3.2
+
+- **UPC/GTIN brand-prefix verification (advisory).** Beyond the checksum
+  (which only proves a barcode is well-formed, not that it's the right
+  product), the field now checks the GTIN's GS1 **company prefix** against the
+  prefixes already used by the **brand's other products** — learned
+  automatically from the catalog, no map to maintain. On a mismatch it warns
+  (live under the field and after save) that the barcode may have been copied
+  from the wrong manufacturer, while still saving the value (advisory, not a
+  block — a brand can legitimately use more than one prefix). This is the
+  check that catches a valid-but-wrong UPC (e.g. a magnesium barcode from a
+  different manufacturer that passes the checksum but starts `884926` instead
+  of the brand's `736313`). Real product-identity verification still requires
+  the physical label or the manufacturer's official UPC list.
+
+### 2.3.1
+
+- **UPC/GTIN input validation.** The barcode field now validates **length
+  (8/12/13/14 digits) and the GS1 mod-10 check digit** before a value is
+  accepted — client-side (live green/red hint under the field, and staging is
+  blocked with a clear message on an invalid entry) and server-side (the apply
+  handler rejects a bad checksum with a warning, never storing it). Non-digits
+  are stripped so `0 12345 67890 5` normalizes to `012345678905`. Catches
+  mis-typed/wrong-length barcodes before they reach the GMC feed. Note:
+  checksum validity confirms the number is a well-formed barcode, not that it
+  belongs to this product — for that, verify against the physical label or the
+  manufacturer's official UPC list, and cross-check the GS1 company prefix
+  against the brand's other products.
+
+### 2.3.0
+
+- **UPC / GTIN field** added to the product editor's **Ingredients & Mfg →
+  Manufacturer Details** section. It reads and writes WooCommerce's NATIVE
+  GTIN field (`_global_unique_id`) — the single source of truth, the same
+  value shown in the core WC Inventory tab. Editing it propagates with zero
+  extra config to: the **GMC product feed** (hp-gmc-manager
+  `ProductDataFeed::getGtin()` reads `get_global_unique_id()` first), **Product
+  JSON-LD** (HP-Core `ProductStructuredDataService` probes `_global_unique_id`
+  first → emits `gtin8/12/13/14`), and the **HP-Agent-Gateway** agent product
+  payload. Input is normalized to digits on save; WooCommerce enforces
+  cross-product uniqueness and a duplicate/invalid-length barcode surfaces as
+  a warning instead of corrupting data or aborting the rest of the save. Also
+  wired into the comprehensive-update MCP tool.
+
 ### 2.2.0
 
 - Stock quantity is now read-only in the product editor when HP-Inventory is

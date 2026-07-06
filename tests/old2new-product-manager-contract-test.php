@@ -32,8 +32,39 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.2.0'), 'Product Manager plugin header must bump to 2.2.0.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.2.0'"), 'Product Manager VERSION constant must bump to 2.2.0.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.3.3'), 'Product Manager plugin header must bump to 2.3.3.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.3.3'"), 'Product Manager VERSION constant must bump to 2.3.3.');
+
+// 2.3.2 GTIN brand-prefix advisory — self-learning company-prefix check.
+hp_pm_old2new_assert(str_contains($plugin, 'private function gtin_brand_prefixes'), 'Server must derive brand GTIN prefixes from sibling products.');
+// 2.3.3: prefixes MUST be strings — PHP int-coerces numeric array keys, which broke
+// the strict in_array()/JS indexOf() comparison and mis-fired the advisory.
+hp_pm_old2new_assert(str_contains($plugin, "array_map('strval', array_keys(\$prefixes))"), 'Brand prefixes must be normalized to strings (numeric array-key coercion bug).');
+hp_pm_old2new_assert(str_contains($plugin, '!in_array(substr($gtin_digits, 0, 6), $brand_prefixes, true)'), 'Apply handler must advise on a company-prefix mismatch.');
+hp_pm_old2new_assert(str_contains($plugin, "'gtin_advisories' => \$gtin_advisories"), 'Response must carry gtin advisories (saved-but-check) separately from hard warnings.');
+hp_pm_old2new_assert(str_contains($plugin, "'gtin_brand_prefixes'     => \$this->gtin_brand_prefixes(\$product_id)"), 'Page snapshot must expose brand prefixes for the live hint.');
+$pm_js_p = (string) file_get_contents($root . '/assets/js/product-detail.js');
+hp_pm_old2new_assert(str_contains($pm_js_p, 'original.gtin_brand_prefixes'), 'Client live hint must consult the brand prefixes.');
+hp_pm_old2new_assert(str_contains($pm_js_p, 'payload.gtin_advisories'), 'Client must surface post-save GTIN advisories.');
+
+// 2.3.1 UPC/GTIN input validation — checksum + length gate before a value is stored.
+hp_pm_old2new_assert(str_contains($plugin, 'private static function gtin_checksum_ok'), 'Server must expose a GS1 checksum validator.');
+hp_pm_old2new_assert(str_contains($plugin, '!self::gtin_checksum_ok($gtin_digits)'), 'Apply handler must reject an invalid GTIN check digit before writing.');
+hp_pm_old2new_assert(preg_match('/\(\(10 - \$sum % 10\) % 10\) === \$check/', $plugin) === 1, 'Checksum must use GS1 mod-10 (not Luhn).');
+$pm_js_v = (string) file_get_contents($root . '/assets/js/product-detail.js');
+hp_pm_old2new_assert(str_contains($pm_js_v, 'function gtinChecksumOk') && str_contains($pm_js_v, 'function validateGtin'), 'Client must validate GTIN checksum + length.');
+hp_pm_old2new_assert(str_contains($pm_js_v, "if (!vg.ok) { alert(vg.error); return; }"), 'Staging must be blocked when the GTIN is invalid.');
+
+// 2.3.0 UPC/GTIN field — must be the WC-native single source of truth, never a parallel meta key.
+hp_pm_old2new_assert(str_contains($plugin, "'country_of_manufacturer', 'gtin',"), 'gtin must be in the apply allowlist (Ingredients & Mfg group).');
+hp_pm_old2new_assert(str_contains($plugin, "\$product->set_global_unique_id(\$gtin_digits)"), 'gtin must be written to WC native _global_unique_id via set_global_unique_id(), NOT a plain meta key.');
+hp_pm_old2new_assert(!preg_match("/update_post_meta\(\\\$id, 'gtin'/", $plugin), 'gtin must NOT be written as its own post meta (that would drift from _global_unique_id).');
+hp_pm_old2new_assert(preg_match("/in_array\(strlen\(\\\$gtin_digits\), \[8, 12, 13, 14\]/", $plugin) === 1, 'gtin must be length-validated (8/12/13/14 digits) before write.');
+hp_pm_old2new_assert(str_contains($plugin, "catch (\\WC_Data_Exception \$e)"), 'gtin write must catch the WC duplicate-GTIN exception so one duplicate does not abort the save.');
+hp_pm_old2new_assert(str_contains($plugin, "render_acf_field('gtin'"), 'The UPC/GTIN field must render in the product editor.');
+hp_pm_old2new_assert(str_contains($plugin, "'gtin'                    => get_post_meta(\$id, '_global_unique_id', true)"), 'Read/apply snapshots must expose gtin from _global_unique_id.');
+$pm_js = (string) file_get_contents($root . '/assets/js/product-detail.js');
+hp_pm_old2new_assert(str_contains($pm_js, "'country_of_manufacturer', 'gtin',"), 'JS metaKeys must include gtin so it hydrates and gathers.');
 
 // 2.1.9 production-review fixes.
 // F1: variations must be covered by purchasability + parent-SKU fallback.

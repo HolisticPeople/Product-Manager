@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.2.0
+ * Version: 2.3.3
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.2.0';
+    const VERSION = '2.3.3';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -1237,6 +1237,8 @@ final class HP_Products_Manager {
                     'sku_mfr'                 => get_post_meta($product_id, 'sku_mfr', true),
                     'manufacturer_acf'        => get_post_meta($product_id, 'manufacturer_acf', true),
                     'country_of_manufacturer' => get_post_meta($product_id, 'country_of_manufacturer', true),
+                    'gtin'                    => get_post_meta($product_id, '_global_unique_id', true),
+                    'gtin_brand_prefixes'     => $this->gtin_brand_prefixes($product_id),
                     // Instructions & Safety
                     'how_to_use'      => get_post_meta($product_id, 'how_to_use', true),
                     'cautions'        => get_post_meta($product_id, 'cautions', true),
@@ -1606,6 +1608,10 @@ final class HP_Products_Manager {
                                             echo $this->render_acf_field('sku_mfr', __('Manufacturer SKU', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'sku_mfr', true));
                                             echo $this->render_acf_field('manufacturer_acf', __('Manufacturer Name', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'manufacturer_acf', true));
                                             echo $this->render_acf_field('country_of_manufacturer', __('Country of Manufacture', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'country_of_manufacturer', true));
+                                            // UPC/GTIN stored in WooCommerce's NATIVE GTIN field (_global_unique_id) — the
+                                            // single source of truth shared with the WC Inventory tab, the GMC feed, and
+                                            // Product JSON-LD. Editing here propagates to all of them.
+                                            echo $this->render_acf_field('gtin', __('UPC / GTIN (barcode)', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, '_global_unique_id', true));
                                         ?>
                                     </table>
                                 </section>
@@ -3798,6 +3804,7 @@ final class HP_Products_Manager {
             'sku_mfr'                 => get_post_meta($id, 'sku_mfr', true),
             'manufacturer_acf'        => get_post_meta($id, 'manufacturer_acf', true),
             'country_of_manufacturer' => get_post_meta($id, 'country_of_manufacturer', true),
+            'gtin'                    => get_post_meta($id, '_global_unique_id', true),
             // Instructions & Safety
             'how_to_use'      => get_post_meta($id, 'how_to_use', true),
             'cautions'        => get_post_meta($id, 'cautions', true),
@@ -3847,6 +3854,75 @@ final class HP_Products_Manager {
     /**
      * REST: Apply staged changes to a product
      */
+    /**
+     * GS1 mod-10 check-digit validation for a bare-digit GTIN/UPC/EAN.
+     * Length must already be 8/12/13/14. Weight the body digits ×3/×1
+     * alternating from the right (NOT the Luhn algorithm), sum, and the
+     * check digit is (10 - sum % 10) % 10.
+     */
+    private static function gtin_checksum_ok(string $digits): bool {
+        if (!ctype_digit($digits) || !in_array(strlen($digits), [8, 12, 13, 14], true)) {
+            return false;
+        }
+        $body = array_map('intval', str_split(substr($digits, 0, -1)));
+        $check = (int) substr($digits, -1);
+        $sum = 0;
+        foreach (array_reverse($body) as $i => $v) {
+            $sum += ($i % 2 === 0) ? $v * 3 : $v;
+        }
+        return ((10 - $sum % 10) % 10) === $check;
+    }
+
+    /**
+     * The distinct GS1 company-prefix roots (first 6 digits) of GTINs already
+     * stored on OTHER products of the same brand(s). Used as an advisory
+     * "does this barcode belong to this brand?" check — a self-building
+     * verification that needs no maintained map and catches a UPC copied from
+     * the wrong manufacturer (which still passes the checksum). Returns [] when
+     * the product has no brand or no sibling GTINs to learn from.
+     *
+     * @return array<int, string>
+     */
+    private function gtin_brand_prefixes(int $product_id): array {
+        $tax = $this->get_active_brand_taxonomy();
+        if (!$tax) {
+            return [];
+        }
+        $term_ids = wp_get_object_terms($product_id, $tax, ['fields' => 'ids']);
+        if (is_wp_error($term_ids) || empty($term_ids)) {
+            return [];
+        }
+        $q = new WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => 'any',
+            'posts_per_page' => 300,
+            'post__not_in'   => [$product_id],
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'tax_query'      => [[
+                'taxonomy' => $tax,
+                'field'    => 'term_id',
+                'terms'    => $term_ids,
+            ]],
+            'meta_query'     => [[
+                'key'     => '_global_unique_id',
+                'value'   => '',
+                'compare' => '!=',
+            ]],
+        ]);
+        $prefixes = [];
+        foreach ($q->posts as $sib_id) {
+            $g = preg_replace('/\D/', '', (string) get_post_meta((int) $sib_id, '_global_unique_id', true));
+            if (strlen($g) >= 6) {
+                $prefixes[substr($g, 0, 6)] = true;
+            }
+        }
+        // strval: PHP coerces numeric-string array keys to ints, so array_keys()
+        // would return e.g. [736313] (int). Both the strict in_array() advisory
+        // check and the JS side (JSON would emit a bare number) need strings.
+        return array_map('strval', array_keys($prefixes));
+    }
+
     public function rest_apply_product_changes(WP_REST_Request $request) {
         try {
         $id = (int) $request['id'];
@@ -3872,7 +3948,7 @@ final class HP_Products_Manager {
             'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
             'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
             // Ingredients & Mfg
-            'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+            'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer', 'gtin',
             // Instructions & Safety
             'how_to_use', 'cautions', 'recommended_use', 'community_tips',
             // Expert Info
@@ -4053,6 +4129,52 @@ final class HP_Products_Manager {
             update_post_meta($id, 'site_catalog', $val);
         }
 
+        // UPC/GTIN — write to WooCommerce's NATIVE field (_global_unique_id) so it stays
+        // the single source of truth shared with the WC Inventory tab, the GMC feed
+        // (hp-gmc-manager ProductDataFeed reads get_global_unique_id() first) and Product
+        // JSON-LD (HP-Core probes _global_unique_id first). Never a parallel meta key that
+        // would drift from the 200+ GTINs already stored there. Strip separators to digits;
+        // WC enforces cross-product uniqueness and throws WC_Data_Exception on a duplicate,
+        // which we surface as a warning instead of corrupting data or aborting the save.
+        $gtin_warnings = [];
+        $gtin_advisories = [];
+        if (isset($apply['gtin'])) {
+            $gtin_digits = preg_replace('/\D/', '', (string) $apply['gtin']);
+            if ($gtin_digits === '') {
+                $product->set_global_unique_id('');
+            } elseif (!in_array(strlen($gtin_digits), [8, 12, 13, 14], true)) {
+                $gtin_warnings[] = __('UPC/GTIN not saved: a barcode must be 8, 12, 13, or 14 digits.', 'hp-products-manager');
+            } elseif (!self::gtin_checksum_ok($gtin_digits)) {
+                // A GS1 mod-10 failure means the number is not a real barcode (mis-typed
+                // or a wrong-length transcription) — reject rather than store garbage that
+                // would flow to the GMC feed and disapprove.
+                $gtin_warnings[] = __('UPC/GTIN not saved: the barcode check digit is invalid — re-check the number.', 'hp-products-manager');
+            } else {
+                try {
+                    $product->set_global_unique_id($gtin_digits);
+                    // Advisory (not a rejection): the barcode is well-formed and saved,
+                    // but if its GS1 company prefix does not match the brand's other
+                    // products it is likely a UPC copied from the wrong manufacturer —
+                    // exactly the failure a valid checksum can't catch. Warn, don't block.
+                    $brand_prefixes = $this->gtin_brand_prefixes($id);
+                    if (!empty($brand_prefixes) && !in_array(substr($gtin_digits, 0, 6), $brand_prefixes, true)) {
+                        $gtin_advisories[] = sprintf(
+                            /* translators: 1: this GTIN's 6-digit prefix, 2: comma-separated prefixes seen on the brand's other products */
+                            __('Saved, but double-check: this UPC\'s prefix (%1$s) is not one this brand normally uses (%2$s). If the barcode was copied from a different manufacturer it will be the wrong product.', 'hp-products-manager'),
+                            substr($gtin_digits, 0, 6),
+                            implode(', ', $brand_prefixes)
+                        );
+                    }
+                } catch (\WC_Data_Exception $e) {
+                    $gtin_warnings[] = sprintf(
+                        /* translators: %s: WooCommerce error message */
+                        __('UPC/GTIN not saved: %s', 'hp-products-manager'),
+                        $e->getMessage()
+                    );
+                }
+            }
+        }
+
         $product->save();
 
         if ($pending_cost !== null) {
@@ -4111,6 +4233,7 @@ final class HP_Products_Manager {
             'sku_mfr'                 => get_post_meta($id, 'sku_mfr', true),
             'manufacturer_acf'        => get_post_meta($id, 'manufacturer_acf', true),
             'country_of_manufacturer' => get_post_meta($id, 'country_of_manufacturer', true),
+            'gtin'                    => get_post_meta($id, '_global_unique_id', true),
             // Instructions & Safety
             'how_to_use'      => get_post_meta($id, 'how_to_use', true),
             'cautions'        => get_post_meta($id, 'cautions', true),
@@ -4138,6 +4261,9 @@ final class HP_Products_Manager {
             'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
             'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
             'viewLink'   => get_permalink($id),
+            'warnings'   => $gtin_warnings,
+            'gtin_advisories' => $gtin_advisories,
+            'gtin_brand_prefixes' => $this->gtin_brand_prefixes($id),
         ];
         return rest_ensure_response($snapshot);
         } catch (\Throwable $e) {

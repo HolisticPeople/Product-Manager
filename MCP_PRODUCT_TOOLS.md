@@ -60,6 +60,7 @@ Updates a product with core WooCommerce data, ACF fields, and SEO metadata in a 
           "sku_mfr": { "type": "string" },
           "manufacturer_acf": { "type": "string" },
           "country_of_manufacturer": { "type": "string" },
+          "gtin": { "type": "string", "description": "UPC/GTIN barcode (8/12/13/14 digits). Stored in WooCommerce native _global_unique_id; propagates to the GMC feed, Product JSON-LD, and the agent gateway. Non-digits are stripped; duplicates/invalid lengths are rejected with a warning." },
           "how_to_use": { "type": "string" },
           "cautions": { "type": "string" },
           "recommended_use": { "type": "string" },

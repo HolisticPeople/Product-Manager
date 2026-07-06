@@ -33,6 +33,20 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.3.1
+
+- **UPC/GTIN input validation.** The barcode field now validates **length
+  (8/12/13/14 digits) and the GS1 mod-10 check digit** before a value is
+  accepted — client-side (live green/red hint under the field, and staging is
+  blocked with a clear message on an invalid entry) and server-side (the apply
+  handler rejects a bad checksum with a warning, never storing it). Non-digits
+  are stripped so `0 12345 67890 5` normalizes to `012345678905`. Catches
+  mis-typed/wrong-length barcodes before they reach the GMC feed. Note:
+  checksum validity confirms the number is a well-formed barcode, not that it
+  belongs to this product — for that, verify against the physical label or the
+  manufacturer's official UPC list, and cross-check the GS1 company prefix
+  against the brand's other products.
+
 ### 2.3.0
 
 - **UPC / GTIN field** added to the product editor's **Ingredients & Mfg →

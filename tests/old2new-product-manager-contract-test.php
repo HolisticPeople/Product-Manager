@@ -32,8 +32,16 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.3.0'), 'Product Manager plugin header must bump to 2.3.0.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.3.0'"), 'Product Manager VERSION constant must bump to 2.3.0.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.3.1'), 'Product Manager plugin header must bump to 2.3.1.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.3.1'"), 'Product Manager VERSION constant must bump to 2.3.1.');
+
+// 2.3.1 UPC/GTIN input validation — checksum + length gate before a value is stored.
+hp_pm_old2new_assert(str_contains($plugin, 'private static function gtin_checksum_ok'), 'Server must expose a GS1 checksum validator.');
+hp_pm_old2new_assert(str_contains($plugin, '!self::gtin_checksum_ok($gtin_digits)'), 'Apply handler must reject an invalid GTIN check digit before writing.');
+hp_pm_old2new_assert(preg_match('/\(\(10 - \$sum % 10\) % 10\) === \$check/', $plugin) === 1, 'Checksum must use GS1 mod-10 (not Luhn).');
+$pm_js_v = (string) file_get_contents($root . '/assets/js/product-detail.js');
+hp_pm_old2new_assert(str_contains($pm_js_v, 'function gtinChecksumOk') && str_contains($pm_js_v, 'function validateGtin'), 'Client must validate GTIN checksum + length.');
+hp_pm_old2new_assert(str_contains($pm_js_v, "if (!vg.ok) { alert(vg.error); return; }"), 'Staging must be blocked when the GTIN is invalid.');
 
 // 2.3.0 UPC/GTIN field — must be the WC-native single source of truth, never a parallel meta key.
 hp_pm_old2new_assert(str_contains($plugin, "'country_of_manufacturer', 'gtin',"), 'gtin must be in the apply allowlist (Ingredients & Mfg group).');

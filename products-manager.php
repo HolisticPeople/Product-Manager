@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.0
+ * Version: 2.3.1
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.3.0';
+    const VERSION = '2.3.1';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -3853,6 +3853,25 @@ final class HP_Products_Manager {
     /**
      * REST: Apply staged changes to a product
      */
+    /**
+     * GS1 mod-10 check-digit validation for a bare-digit GTIN/UPC/EAN.
+     * Length must already be 8/12/13/14. Weight the body digits ×3/×1
+     * alternating from the right (NOT the Luhn algorithm), sum, and the
+     * check digit is (10 - sum % 10) % 10.
+     */
+    private static function gtin_checksum_ok(string $digits): bool {
+        if (!ctype_digit($digits) || !in_array(strlen($digits), [8, 12, 13, 14], true)) {
+            return false;
+        }
+        $body = array_map('intval', str_split(substr($digits, 0, -1)));
+        $check = (int) substr($digits, -1);
+        $sum = 0;
+        foreach (array_reverse($body) as $i => $v) {
+            $sum += ($i % 2 === 0) ? $v * 3 : $v;
+        }
+        return ((10 - $sum % 10) % 10) === $check;
+    }
+
     public function rest_apply_product_changes(WP_REST_Request $request) {
         try {
         $id = (int) $request['id'];
@@ -4071,7 +4090,14 @@ final class HP_Products_Manager {
             $gtin_digits = preg_replace('/\D/', '', (string) $apply['gtin']);
             if ($gtin_digits === '') {
                 $product->set_global_unique_id('');
-            } elseif (in_array(strlen($gtin_digits), [8, 12, 13, 14], true)) {
+            } elseif (!in_array(strlen($gtin_digits), [8, 12, 13, 14], true)) {
+                $gtin_warnings[] = __('UPC/GTIN not saved: a barcode must be 8, 12, 13, or 14 digits.', 'hp-products-manager');
+            } elseif (!self::gtin_checksum_ok($gtin_digits)) {
+                // A GS1 mod-10 failure means the number is not a real barcode (mis-typed
+                // or a wrong-length transcription) — reject rather than store garbage that
+                // would flow to the GMC feed and disapprove.
+                $gtin_warnings[] = __('UPC/GTIN not saved: the barcode check digit is invalid — re-check the number.', 'hp-products-manager');
+            } else {
                 try {
                     $product->set_global_unique_id($gtin_digits);
                 } catch (\WC_Data_Exception $e) {
@@ -4081,8 +4107,6 @@ final class HP_Products_Manager {
                         $e->getMessage()
                     );
                 }
-            } else {
-                $gtin_warnings[] = __('UPC/GTIN not saved: a barcode must be 8, 12, 13, or 14 digits.', 'hp-products-manager');
             }
         }
 

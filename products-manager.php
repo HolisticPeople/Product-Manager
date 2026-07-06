@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.2
+ * Version: 2.3.3
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.3.2';
+    const VERSION = '2.3.3';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -3917,7 +3917,10 @@ final class HP_Products_Manager {
                 $prefixes[substr($g, 0, 6)] = true;
             }
         }
-        return array_keys($prefixes);
+        // strval: PHP coerces numeric-string array keys to ints, so array_keys()
+        // would return e.g. [736313] (int). Both the strict in_array() advisory
+        // check and the JS side (JSON would emit a bare number) need strings.
+        return array_map('strval', array_keys($prefixes));
     }
 
     public function rest_apply_product_changes(WP_REST_Request $request) {

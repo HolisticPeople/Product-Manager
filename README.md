@@ -33,6 +33,14 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.3.3
+
+- Fix the 2.3.2 brand-prefix advisory: PHP coerces numeric-string array keys to
+  integers, so the derived prefix list came back as ints (`[736313]`) and the
+  strict `in_array()` / JS `indexOf()` comparison against the string prefix
+  always failed — firing the "unusual prefix" advisory even when the prefix
+  matched. Prefixes are now normalized to strings (`array_map('strval', …)`).
+
 ### 2.3.2
 
 - **UPC/GTIN brand-prefix verification (advisory).** Beyond the checksum

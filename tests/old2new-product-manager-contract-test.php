@@ -32,8 +32,19 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.2.0'), 'Product Manager plugin header must bump to 2.2.0.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.2.0'"), 'Product Manager VERSION constant must bump to 2.2.0.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.3.0'), 'Product Manager plugin header must bump to 2.3.0.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.3.0'"), 'Product Manager VERSION constant must bump to 2.3.0.');
+
+// 2.3.0 UPC/GTIN field — must be the WC-native single source of truth, never a parallel meta key.
+hp_pm_old2new_assert(str_contains($plugin, "'country_of_manufacturer', 'gtin',"), 'gtin must be in the apply allowlist (Ingredients & Mfg group).');
+hp_pm_old2new_assert(str_contains($plugin, "\$product->set_global_unique_id(\$gtin_digits)"), 'gtin must be written to WC native _global_unique_id via set_global_unique_id(), NOT a plain meta key.');
+hp_pm_old2new_assert(!preg_match("/update_post_meta\(\\\$id, 'gtin'/", $plugin), 'gtin must NOT be written as its own post meta (that would drift from _global_unique_id).');
+hp_pm_old2new_assert(preg_match("/in_array\(strlen\(\\\$gtin_digits\), \[8, 12, 13, 14\]/", $plugin) === 1, 'gtin must be length-validated (8/12/13/14 digits) before write.');
+hp_pm_old2new_assert(str_contains($plugin, "catch (\\WC_Data_Exception \$e)"), 'gtin write must catch the WC duplicate-GTIN exception so one duplicate does not abort the save.');
+hp_pm_old2new_assert(str_contains($plugin, "render_acf_field('gtin'"), 'The UPC/GTIN field must render in the product editor.');
+hp_pm_old2new_assert(str_contains($plugin, "'gtin'                    => get_post_meta(\$id, '_global_unique_id', true)"), 'Read/apply snapshots must expose gtin from _global_unique_id.');
+$pm_js = (string) file_get_contents($root . '/assets/js/product-detail.js');
+hp_pm_old2new_assert(str_contains($pm_js, "'country_of_manufacturer', 'gtin',"), 'JS metaKeys must include gtin so it hydrates and gathers.');
 
 // 2.1.9 production-review fixes.
 // F1: variations must be covered by purchasability + parent-SKU fallback.

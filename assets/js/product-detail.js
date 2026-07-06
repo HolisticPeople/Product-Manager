@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var metaKeys = [
     'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
     'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
-    'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+    'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer', 'gtin',
     'how_to_use', 'cautions', 'recommended_use', 'community_tips',
     'traditional_function', 'chinese_energy', 'ayurvedic_energy', 
     'supplement_type', 'expert_article', 'video', 'video_transcription', 'slogan', 'aka_product_name', 'description_long',
@@ -871,7 +871,12 @@ document.addEventListener('DOMContentLoaded', function () {
         setValue(yoastFocusKwEl, original.yoast_focuskw); setValue(yoastTitleEl, original.yoast_title); setValue(yoastMetaDescEl, original.yoast_metadesc);
         if (imgEl) imgEl.src = safeImageUrl(original.image) || ''; currentImageId = original.image_id || null; currentGallery = (original.gallery_ids || []).slice(); galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; }); renderGallery(); imageDirty=false; galleryDirty=false;
       }
-      writeStaged({}); showNotice(data.i18n.applied, 'success');
+      writeStaged({});
+      if (payload && payload.warnings && payload.warnings.length) {
+        // e.g. duplicate/invalid UPC/GTIN — surface instead of silently dropping.
+        alert(payload.warnings.join('\n'));
+      }
+      showNotice(data.i18n.applied, 'success');
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });
   });

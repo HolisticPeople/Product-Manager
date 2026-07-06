@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.1
+ * Version: 2.3.2
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.3.1';
+    const VERSION = '2.3.2';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -1238,6 +1238,7 @@ final class HP_Products_Manager {
                     'manufacturer_acf'        => get_post_meta($product_id, 'manufacturer_acf', true),
                     'country_of_manufacturer' => get_post_meta($product_id, 'country_of_manufacturer', true),
                     'gtin'                    => get_post_meta($product_id, '_global_unique_id', true),
+                    'gtin_brand_prefixes'     => $this->gtin_brand_prefixes($product_id),
                     // Instructions & Safety
                     'how_to_use'      => get_post_meta($product_id, 'how_to_use', true),
                     'cautions'        => get_post_meta($product_id, 'cautions', true),
@@ -3872,6 +3873,53 @@ final class HP_Products_Manager {
         return ((10 - $sum % 10) % 10) === $check;
     }
 
+    /**
+     * The distinct GS1 company-prefix roots (first 6 digits) of GTINs already
+     * stored on OTHER products of the same brand(s). Used as an advisory
+     * "does this barcode belong to this brand?" check — a self-building
+     * verification that needs no maintained map and catches a UPC copied from
+     * the wrong manufacturer (which still passes the checksum). Returns [] when
+     * the product has no brand or no sibling GTINs to learn from.
+     *
+     * @return array<int, string>
+     */
+    private function gtin_brand_prefixes(int $product_id): array {
+        $tax = $this->get_active_brand_taxonomy();
+        if (!$tax) {
+            return [];
+        }
+        $term_ids = wp_get_object_terms($product_id, $tax, ['fields' => 'ids']);
+        if (is_wp_error($term_ids) || empty($term_ids)) {
+            return [];
+        }
+        $q = new WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => 'any',
+            'posts_per_page' => 300,
+            'post__not_in'   => [$product_id],
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'tax_query'      => [[
+                'taxonomy' => $tax,
+                'field'    => 'term_id',
+                'terms'    => $term_ids,
+            ]],
+            'meta_query'     => [[
+                'key'     => '_global_unique_id',
+                'value'   => '',
+                'compare' => '!=',
+            ]],
+        ]);
+        $prefixes = [];
+        foreach ($q->posts as $sib_id) {
+            $g = preg_replace('/\D/', '', (string) get_post_meta((int) $sib_id, '_global_unique_id', true));
+            if (strlen($g) >= 6) {
+                $prefixes[substr($g, 0, 6)] = true;
+            }
+        }
+        return array_keys($prefixes);
+    }
+
     public function rest_apply_product_changes(WP_REST_Request $request) {
         try {
         $id = (int) $request['id'];
@@ -4086,6 +4134,7 @@ final class HP_Products_Manager {
         // WC enforces cross-product uniqueness and throws WC_Data_Exception on a duplicate,
         // which we surface as a warning instead of corrupting data or aborting the save.
         $gtin_warnings = [];
+        $gtin_advisories = [];
         if (isset($apply['gtin'])) {
             $gtin_digits = preg_replace('/\D/', '', (string) $apply['gtin']);
             if ($gtin_digits === '') {
@@ -4100,6 +4149,19 @@ final class HP_Products_Manager {
             } else {
                 try {
                     $product->set_global_unique_id($gtin_digits);
+                    // Advisory (not a rejection): the barcode is well-formed and saved,
+                    // but if its GS1 company prefix does not match the brand's other
+                    // products it is likely a UPC copied from the wrong manufacturer —
+                    // exactly the failure a valid checksum can't catch. Warn, don't block.
+                    $brand_prefixes = $this->gtin_brand_prefixes($id);
+                    if (!empty($brand_prefixes) && !in_array(substr($gtin_digits, 0, 6), $brand_prefixes, true)) {
+                        $gtin_advisories[] = sprintf(
+                            /* translators: 1: this GTIN's 6-digit prefix, 2: comma-separated prefixes seen on the brand's other products */
+                            __('Saved, but double-check: this UPC\'s prefix (%1$s) is not one this brand normally uses (%2$s). If the barcode was copied from a different manufacturer it will be the wrong product.', 'hp-products-manager'),
+                            substr($gtin_digits, 0, 6),
+                            implode(', ', $brand_prefixes)
+                        );
+                    }
                 } catch (\WC_Data_Exception $e) {
                     $gtin_warnings[] = sprintf(
                         /* translators: %s: WooCommerce error message */
@@ -4197,6 +4259,8 @@ final class HP_Products_Manager {
             'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
             'viewLink'   => get_permalink($id),
             'warnings'   => $gtin_warnings,
+            'gtin_advisories' => $gtin_advisories,
+            'gtin_brand_prefixes' => $this->gtin_brand_prefixes($id),
         ];
         return rest_ensure_response($snapshot);
         } catch (\Throwable $e) {

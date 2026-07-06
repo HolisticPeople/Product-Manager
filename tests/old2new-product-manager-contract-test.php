@@ -32,8 +32,17 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.3.1'), 'Product Manager plugin header must bump to 2.3.1.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.3.1'"), 'Product Manager VERSION constant must bump to 2.3.1.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.3.2'), 'Product Manager plugin header must bump to 2.3.2.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.3.2'"), 'Product Manager VERSION constant must bump to 2.3.2.');
+
+// 2.3.2 GTIN brand-prefix advisory — self-learning company-prefix check.
+hp_pm_old2new_assert(str_contains($plugin, 'private function gtin_brand_prefixes'), 'Server must derive brand GTIN prefixes from sibling products.');
+hp_pm_old2new_assert(str_contains($plugin, '!in_array(substr($gtin_digits, 0, 6), $brand_prefixes, true)'), 'Apply handler must advise on a company-prefix mismatch.');
+hp_pm_old2new_assert(str_contains($plugin, "'gtin_advisories' => \$gtin_advisories"), 'Response must carry gtin advisories (saved-but-check) separately from hard warnings.');
+hp_pm_old2new_assert(str_contains($plugin, "'gtin_brand_prefixes'     => \$this->gtin_brand_prefixes(\$product_id)"), 'Page snapshot must expose brand prefixes for the live hint.');
+$pm_js_p = (string) file_get_contents($root . '/assets/js/product-detail.js');
+hp_pm_old2new_assert(str_contains($pm_js_p, 'original.gtin_brand_prefixes'), 'Client live hint must consult the brand prefixes.');
+hp_pm_old2new_assert(str_contains($pm_js_p, 'payload.gtin_advisories'), 'Client must surface post-save GTIN advisories.');
 
 // 2.3.1 UPC/GTIN input validation — checksum + length gate before a value is stored.
 hp_pm_old2new_assert(str_contains($plugin, 'private static function gtin_checksum_ok'), 'Server must expose a GS1 checksum validator.');

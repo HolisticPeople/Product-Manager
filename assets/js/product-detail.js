@@ -98,9 +98,21 @@ document.addEventListener('DOMContentLoaded', function () {
     function refresh() {
       var r = validateGtin(gEl.value);
       if (gEl.value.trim() === '') { hint.textContent = ''; gEl.style.borderColor = ''; return; }
-      hint.textContent = r.ok ? ('✓ valid GTIN-' + r.digits.length) : ('✗ ' + r.error);
-      hint.style.color = r.ok ? '#1a7f37' : '#b32d2e';
-      gEl.style.borderColor = r.ok ? '#1a7f37' : '#b32d2e';
+      if (!r.ok) {
+        hint.textContent = '✗ ' + r.error;
+        hint.style.color = '#b32d2e'; gEl.style.borderColor = '#b32d2e';
+        return;
+      }
+      // Valid barcode number — now the advisory brand-prefix check.
+      var prefixes = (original && original.gtin_brand_prefixes) || [];
+      if (prefixes.length && prefixes.indexOf(r.digits.slice(0, 6)) === -1) {
+        hint.textContent = '⚠ valid GTIN-' + r.digits.length + ', but prefix ' + r.digits.slice(0, 6) +
+          ' is unusual for this brand (normally ' + prefixes.join(', ') + ') — confirm it belongs to this product.';
+        hint.style.color = '#bf6a00'; gEl.style.borderColor = '#bf6a00';
+      } else {
+        hint.textContent = '✓ valid GTIN-' + r.digits.length + (prefixes.length ? ' · prefix matches this brand' : '');
+        hint.style.color = '#1a7f37'; gEl.style.borderColor = '#1a7f37';
+      }
     }
     gEl.addEventListener('input', refresh);
     gEl.addEventListener('blur', refresh);
@@ -912,10 +924,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (imgEl) imgEl.src = safeImageUrl(original.image) || ''; currentImageId = original.image_id || null; currentGallery = (original.gallery_ids || []).slice(); galleryThumbs = {}; (original.gallery || []).forEach(function (g){ galleryThumbs[g.id] = g.url; }); renderGallery(); imageDirty=false; galleryDirty=false;
       }
       writeStaged({});
-      if (payload && payload.warnings && payload.warnings.length) {
-        // e.g. duplicate/invalid UPC/GTIN — surface instead of silently dropping.
-        alert(payload.warnings.join('\n'));
-      }
+      var msgs = [];
+      // Hard rejections (value NOT saved): duplicate / invalid checksum / bad length.
+      if (payload && payload.warnings && payload.warnings.length) { msgs = msgs.concat(payload.warnings); }
+      // Advisories (value WAS saved, but worth a look): brand-prefix mismatch.
+      if (payload && payload.gtin_advisories && payload.gtin_advisories.length) { msgs = msgs.concat(payload.gtin_advisories); }
+      if (msgs.length) { alert(msgs.join('\n\n')); }
       showNotice(data.i18n.applied, 'success');
     })
     .catch(function (e) { alert('Failed to apply changes: ' + (e && e.message ? e.message : '')); });

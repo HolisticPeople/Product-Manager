@@ -33,6 +33,21 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.3.0
+
+- **UPC / GTIN field** added to the product editor's **Ingredients & Mfg →
+  Manufacturer Details** section. It reads and writes WooCommerce's NATIVE
+  GTIN field (`_global_unique_id`) — the single source of truth, the same
+  value shown in the core WC Inventory tab. Editing it propagates with zero
+  extra config to: the **GMC product feed** (hp-gmc-manager
+  `ProductDataFeed::getGtin()` reads `get_global_unique_id()` first), **Product
+  JSON-LD** (HP-Core `ProductStructuredDataService` probes `_global_unique_id`
+  first → emits `gtin8/12/13/14`), and the **HP-Agent-Gateway** agent product
+  payload. Input is normalized to digits on save; WooCommerce enforces
+  cross-product uniqueness and a duplicate/invalid-length barcode surfaces as
+  a warning instead of corrupting data or aborting the rest of the save. Also
+  wired into the comprehensive-update MCP tool.
+
 ### 2.2.0
 
 - Stock quantity is now read-only in the product editor when HP-Inventory is

@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.2.0
+ * Version: 2.3.0
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.2.0';
+    const VERSION = '2.3.0';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -1237,6 +1237,7 @@ final class HP_Products_Manager {
                     'sku_mfr'                 => get_post_meta($product_id, 'sku_mfr', true),
                     'manufacturer_acf'        => get_post_meta($product_id, 'manufacturer_acf', true),
                     'country_of_manufacturer' => get_post_meta($product_id, 'country_of_manufacturer', true),
+                    'gtin'                    => get_post_meta($product_id, '_global_unique_id', true),
                     // Instructions & Safety
                     'how_to_use'      => get_post_meta($product_id, 'how_to_use', true),
                     'cautions'        => get_post_meta($product_id, 'cautions', true),
@@ -1606,6 +1607,10 @@ final class HP_Products_Manager {
                                             echo $this->render_acf_field('sku_mfr', __('Manufacturer SKU', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'sku_mfr', true));
                                             echo $this->render_acf_field('manufacturer_acf', __('Manufacturer Name', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'manufacturer_acf', true));
                                             echo $this->render_acf_field('country_of_manufacturer', __('Country of Manufacture', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'country_of_manufacturer', true));
+                                            // UPC/GTIN stored in WooCommerce's NATIVE GTIN field (_global_unique_id) — the
+                                            // single source of truth shared with the WC Inventory tab, the GMC feed, and
+                                            // Product JSON-LD. Editing here propagates to all of them.
+                                            echo $this->render_acf_field('gtin', __('UPC / GTIN (barcode)', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, '_global_unique_id', true));
                                         ?>
                                     </table>
                                 </section>
@@ -3798,6 +3803,7 @@ final class HP_Products_Manager {
             'sku_mfr'                 => get_post_meta($id, 'sku_mfr', true),
             'manufacturer_acf'        => get_post_meta($id, 'manufacturer_acf', true),
             'country_of_manufacturer' => get_post_meta($id, 'country_of_manufacturer', true),
+            'gtin'                    => get_post_meta($id, '_global_unique_id', true),
             // Instructions & Safety
             'how_to_use'      => get_post_meta($id, 'how_to_use', true),
             'cautions'        => get_post_meta($id, 'cautions', true),
@@ -3872,7 +3878,7 @@ final class HP_Products_Manager {
             'serving_size', 'servings_per_container', 'serving_form_unit', 'supplement_form',
             'bottle_size_eu', 'bottle_size_units_eu', 'bottle_size_usa', 'bottle_size_units_usa',
             // Ingredients & Mfg
-            'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer',
+            'ingredients', 'ingredients_other', 'potency', 'potency_units', 'sku_mfr', 'manufacturer_acf', 'country_of_manufacturer', 'gtin',
             // Instructions & Safety
             'how_to_use', 'cautions', 'recommended_use', 'community_tips',
             // Expert Info
@@ -4053,6 +4059,33 @@ final class HP_Products_Manager {
             update_post_meta($id, 'site_catalog', $val);
         }
 
+        // UPC/GTIN — write to WooCommerce's NATIVE field (_global_unique_id) so it stays
+        // the single source of truth shared with the WC Inventory tab, the GMC feed
+        // (hp-gmc-manager ProductDataFeed reads get_global_unique_id() first) and Product
+        // JSON-LD (HP-Core probes _global_unique_id first). Never a parallel meta key that
+        // would drift from the 200+ GTINs already stored there. Strip separators to digits;
+        // WC enforces cross-product uniqueness and throws WC_Data_Exception on a duplicate,
+        // which we surface as a warning instead of corrupting data or aborting the save.
+        $gtin_warnings = [];
+        if (isset($apply['gtin'])) {
+            $gtin_digits = preg_replace('/\D/', '', (string) $apply['gtin']);
+            if ($gtin_digits === '') {
+                $product->set_global_unique_id('');
+            } elseif (in_array(strlen($gtin_digits), [8, 12, 13, 14], true)) {
+                try {
+                    $product->set_global_unique_id($gtin_digits);
+                } catch (\WC_Data_Exception $e) {
+                    $gtin_warnings[] = sprintf(
+                        /* translators: %s: WooCommerce error message */
+                        __('UPC/GTIN not saved: %s', 'hp-products-manager'),
+                        $e->getMessage()
+                    );
+                }
+            } else {
+                $gtin_warnings[] = __('UPC/GTIN not saved: a barcode must be 8, 12, 13, or 14 digits.', 'hp-products-manager');
+            }
+        }
+
         $product->save();
 
         if ($pending_cost !== null) {
@@ -4111,6 +4144,7 @@ final class HP_Products_Manager {
             'sku_mfr'                 => get_post_meta($id, 'sku_mfr', true),
             'manufacturer_acf'        => get_post_meta($id, 'manufacturer_acf', true),
             'country_of_manufacturer' => get_post_meta($id, 'country_of_manufacturer', true),
+            'gtin'                    => get_post_meta($id, '_global_unique_id', true),
             // Instructions & Safety
             'how_to_use'      => get_post_meta($id, 'how_to_use', true),
             'cautions'        => get_post_meta($id, 'cautions', true),
@@ -4138,6 +4172,7 @@ final class HP_Products_Manager {
             'gallery'    => (function() use ($product){ $out=[]; if (method_exists($product, 'get_gallery_image_ids')) { foreach ($product->get_gallery_image_ids() as $gid) { $out[] = ['id'=>$gid,'url'=> wp_get_attachment_image_url($gid,'thumbnail')]; } } return $out; })(),
             'editLink'   => admin_url('post.php?post=' . $id . '&action=edit'),
             'viewLink'   => get_permalink($id),
+            'warnings'   => $gtin_warnings,
         ];
         return rest_ensure_response($snapshot);
         } catch (\Throwable $e) {

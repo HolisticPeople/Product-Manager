@@ -33,6 +33,21 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.3.2
+
+- **UPC/GTIN brand-prefix verification (advisory).** Beyond the checksum
+  (which only proves a barcode is well-formed, not that it's the right
+  product), the field now checks the GTIN's GS1 **company prefix** against the
+  prefixes already used by the **brand's other products** — learned
+  automatically from the catalog, no map to maintain. On a mismatch it warns
+  (live under the field and after save) that the barcode may have been copied
+  from the wrong manufacturer, while still saving the value (advisory, not a
+  block — a brand can legitimately use more than one prefix). This is the
+  check that catches a valid-but-wrong UPC (e.g. a magnesium barcode from a
+  different manufacturer that passes the checksum but starts `884926` instead
+  of the brand's `736313`). Real product-identity verification still requires
+  the physical label or the manufacturer's official UPC list.
+
 ### 2.3.1
 
 - **UPC/GTIN input validation.** The barcode field now validates **length

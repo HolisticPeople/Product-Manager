@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.3
+ * Version: 2.3.4
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager

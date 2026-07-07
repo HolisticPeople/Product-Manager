@@ -227,10 +227,6 @@
     outline: none;
 }
 
-.old2new-product-badge--fibo {
-    margin: 4px 0 0;
-}
-
 @media (max-width: 900px) {
     .old2new-product-block {
         grid-template-columns: 1fr;

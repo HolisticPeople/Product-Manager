@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.4
+ * Version: 2.3.5
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.3.4';
+    const VERSION = '2.3.5';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -4772,10 +4772,21 @@ final class HP_Products_Manager {
             return null;
         }
 
+        // old2new badge-URL fix (2026-07-09): the "See new product" badge must
+        // link to the REPLACEMENT product, not the old (self) product. Prefer the
+        // resolved target, then the first new product; only fall back to the old
+        // permalink if a packet somehow has no usable new product.
+        $replacement_url = '';
+        if (!empty($packet['target_product']['permalink'])) {
+            $replacement_url = (string) $packet['target_product']['permalink'];
+        } elseif (!empty($packet['new_products'][0]['permalink'])) {
+            $replacement_url = (string) $packet['new_products'][0]['permalink'];
+        }
+
         return [
             'packet_id' => (int) $packet['id'],
             'text' => (string) ($packet['badge_text'] ?: $this->old2new_default_badge_text()),
-            'url' => (string) ($packet['old_product']['permalink'] ?? get_permalink($product_id)),
+            'url' => $replacement_url !== '' ? $replacement_url : (string) get_permalink($product_id),
             'status' => (string) $packet['status'],
             'target_product' => $packet['target_product'],
         ];

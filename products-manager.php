@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.5
+ * Version: 2.3.6
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.3.5';
+    const VERSION = '2.3.6';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -90,6 +90,43 @@ final class HP_Products_Manager {
             $sku = $product ? (string) $product->get_sku() : '';
         }
         return admin_url('admin.php?page=hp-inventory&tab=inventory-levels' . ($sku !== '' ? '&levels_search=' . rawurlencode($sku) : ''));
+    }
+
+    /**
+     * Read HP-Inventory's versioned, permission-protected inventory-levels
+     * contract and return its authoritative location summary for one product.
+     *
+     * Fail-soft: an absent/older HP-Inventory release or an unavailable route
+     * leaves Product-Manager's stock total visible without inventing a split.
+     */
+    private function hp_inventory_location_summary(int $product_id, int $variation_id = 0): string {
+        if ($product_id < 1 || !function_exists('rest_do_request')) {
+            return '';
+        }
+
+        $request = new WP_REST_Request('GET', '/hp-inventory/v1/inventory-levels');
+        $response = rest_do_request($request);
+        if (is_wp_error($response) || !method_exists($response, 'get_data')) {
+            return '';
+        }
+
+        $data = $response->get_data();
+        if (!is_array($data) || !isset($data['rows']) || !is_array($data['rows'])) {
+            return '';
+        }
+
+        foreach ($data['rows'] as $row) {
+            if (!is_array($row)
+                || (int) ($row['product_id'] ?? 0) !== $product_id
+                || (int) ($row['variation_id'] ?? 0) !== $variation_id
+            ) {
+                continue;
+            }
+
+            return sanitize_text_field((string) ($row['position_summary'] ?? ''));
+        }
+
+        return '';
     }
 
     private function is_erp_persist_enabled(): bool {
@@ -1141,6 +1178,11 @@ final class HP_Products_Manager {
             return;
         }
 
+        $stock_owned_by_hp_inventory = $this->is_stock_editing_owned_by_hp_inventory();
+        $stock_location_summary = $stock_owned_by_hp_inventory
+            ? $this->hp_inventory_location_summary($product->get_parent_id() ?: $product_id, $product->get_parent_id() ? $product_id : 0)
+            : '';
+
         $title = sprintf(__('Product: %s', 'hp-products-manager'), $product->get_name());
 
         // Enqueue product detail assets and bootstrap data for JS
@@ -1470,8 +1512,13 @@ final class HP_Products_Manager {
                                         <tr class="hp-pm-stock-row">
                                             <th><?php esc_html_e('Quantity', 'hp-products-manager'); ?></th>
                                             <td>
-                                                <?php if ($this->is_stock_editing_owned_by_hp_inventory()) : ?>
-                                                    <input id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text" disabled>
+                                                <?php if ($stock_owned_by_hp_inventory) : ?>
+                                                    <span id="hp-pm-pd-stock-qty-display" class="hp-pm-readonly-stock"><?php echo esc_html((string) ($product->get_stock_quantity() ?? 0)); ?></span>
+                                                    <?php if ($stock_location_summary !== '') : ?>
+                                                        <p class="description hp-pm-stock-locations"><strong><?php esc_html_e('By location:', 'hp-products-manager'); ?></strong> <?php echo esc_html($stock_location_summary); ?></p>
+                                                    <?php else : ?>
+                                                        <p class="description hp-pm-stock-locations"><?php esc_html_e('No HP-Inventory location breakdown is available for this product.', 'hp-products-manager'); ?></p>
+                                                    <?php endif; ?>
                                                     <p class="description"><?php esc_html_e('Stock is owned by HP-Inventory.', 'hp-products-manager'); ?>
                                                         <a href="<?php echo esc_url($this->hp_inventory_stock_link(absint($_GET['product_id'] ?? 0))); ?>"><?php esc_html_e('Adjust stock in HP-Inventory', 'hp-products-manager'); ?></a>
                                                         <?php esc_html_e('(open the product row and use "Add transaction").', 'hp-products-manager'); ?></p>

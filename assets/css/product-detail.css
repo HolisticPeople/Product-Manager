@@ -190,6 +190,18 @@ textarea.auto-expand {
     padding: 10px 0;
 }
 
+.hp-pm-readonly-stock {
+    display: inline-block;
+    color: var(--hp-admin-heading, #fffaf0);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.hp-pm-stock-locations {
+    margin: 4px 0 0;
+}
+
 /* Full width section for long text */
 .hp-pm-tab-pane section.full-width {
     grid-column: 1 / -1;

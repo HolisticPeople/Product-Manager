@@ -33,6 +33,16 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.3.6
+
+- Replace the HP-Inventory-owned Quantity input with a plain read-only stock
+  value in the product editor. The inventory-levels v1 contract now supplies
+  the same per-location position summary shown by HP-Inventory (for example,
+  `12 position, 5 in Wilton, 7 in Seattle`) beneath the total. If the contract
+  is unavailable, Product-Manager keeps the stock total visible and reports
+  that no location breakdown is available; when HP-Inventory is absent, the
+  original editable quantity input remains available.
+
 ### 2.3.3
 
 - Fix the 2.3.2 brand-prefix advisory: PHP coerces numeric-string array keys to

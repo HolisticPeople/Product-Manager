@@ -27,13 +27,22 @@ hp_pm_stock_ownership_assert(
     'The stock ownership gate must key on HP-Inventory presence behind the hp_pm_stock_editing_disabled filter.'
 );
 
-// UI: the Quantity input renders disabled with the HP-Inventory deep link
-// when ownership is active, and editable otherwise.
+// UI: Quantity renders as text (not an input) with an authoritative location
+// breakdown and the HP-Inventory deep link when ownership is active. The
+// editable input remains the fail-soft fallback when HP-Inventory is absent.
 hp_pm_stock_ownership_assert(
-    strpos($plugin, 'is_stock_editing_owned_by_hp_inventory()) : ?>') !== false
-    && strpos($plugin, 'id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text" disabled') !== false
+    strpos($plugin, 'if ($stock_owned_by_hp_inventory) : ?>') !== false
+    && strpos($plugin, 'id="hp-pm-pd-stock-qty-display" class="hp-pm-readonly-stock"') !== false
+    && strpos($plugin, 'id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text" disabled') === false
+    && strpos($plugin, 'id="hp-pm-pd-stock-qty" type="number" step="1" class="regular-text"') !== false
     && strpos($plugin, 'hp_inventory_stock_link(absint($_GET[\'product_id\'] ?? 0))') !== false,
-    'The Quantity field must render disabled with the HP-Inventory link when ownership is active.'
+    'Quantity must render as text with the HP-Inventory link while preserving the editable fallback.'
+);
+hp_pm_stock_ownership_assert(
+    strpos($plugin, "new WP_REST_Request('GET', '/hp-inventory/v1/inventory-levels')") !== false
+    && strpos($plugin, "(string) (\$row['position_summary'] ?? '')") !== false
+    && strpos($plugin, "esc_html_e('By location:', 'hp-products-manager')") !== false,
+    'The read-only stock display must consume and render HP-Inventory location detail fail-soft.'
 );
 hp_pm_stock_ownership_assert(
     strpos($plugin, "levels_search=' . rawurlencode(\$sku)") !== false

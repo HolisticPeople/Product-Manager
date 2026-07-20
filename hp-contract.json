@@ -13,7 +13,8 @@
   ],
   "consumes": [
     "WooCommerce products",
-    "HP-Catalog"
+    "HP-Catalog",
+    "HP-Inventory hp-inventory/v1/inventory-levels (read-only, fail-soft)"
   ],
   "exposes": {
     "cpts": [

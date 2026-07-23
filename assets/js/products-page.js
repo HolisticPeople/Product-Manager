@@ -66,21 +66,31 @@ document.addEventListener('DOMContentLoaded', function () {
         { title: 'Price', field: 'price', width: 110, hozAlign: 'right', formatter: currencyFormatter },
         { title: 'Margin', field: 'margin', width: 90, hozAlign: 'right', formatter: marginFormatter },
         { title: 'Brand', field: 'brand', width: 170, formatter: textFormatter },
-        { title: 'QOH', field: 'stock', width: 80, hozAlign: 'right', formatter: quantityFormatter },
-        { title: 'Reserved', field: 'stock_reserved', width: 90, hozAlign: 'right', formatter: quantityFormatter },
+        {
+            title: 'QOH',
+            field: 'stock',
+            width: 80,
+            hozAlign: 'right',
+            formatter: function (cell) {
+                return locationQuantityFormatter(cell, 'qoh', 'QOH');
+            }
+        },
+        {
+            title: 'Reserved',
+            field: 'stock_reserved',
+            width: 90,
+            hozAlign: 'right',
+            formatter: function (cell) {
+                return locationQuantityFormatter(cell, 'reserved', 'Reserved');
+            }
+        },
         {
             title: 'Available',
             field: 'stock_available',
             width: 110,
             hozAlign: 'right',
             formatter: function (cell) {
-                var value = cell.getValue();
-                if (value === null || typeof value === 'undefined') {
-                    return '<span class="hp-pm-cell-muted">&mdash;</span>';
-                }
-                var num = parseFloat(value);
-                var klass = num > 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low';
-                return '<span class="' + klass + '">' + num + '</span>';
+                return locationQuantityFormatter(cell, 'available', 'Available', true);
             }
         },
         { title: 'Status', field: 'status', width: 130, formatter: textFormatter },
@@ -95,6 +105,11 @@ document.addEventListener('DOMContentLoaded', function () {
         columns: columns,
         placeholder: (config.i18n && config.i18n.loading) || 'Loading products...'
     });
+
+    var allProducts = [];
+    var allLocations = [];
+    var locationOptionInputs = [];
+    var restoredLocationIds = [];
 
     populateBrands(config.brands || []);
     restoreFilters();
@@ -123,6 +138,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (filters.qoh_gt0 && qohGt0) qohGt0.checked = true;
             if (filters.res_gt0 && reservedGt0) reservedGt0.checked = true;
             if (filters.avail_lt0 && availableLt0) availableLt0.checked = true;
+            if (Array.isArray(filters.location_ids)) {
+                restoredLocationIds = filters.location_ids.map(String);
+            }
         } catch (e) {
             console.warn('Failed to restore filters:', e);
         }
@@ -143,11 +161,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (filterForm) {
                 filterForm.reset();
             }
+            locationOptionInputs.forEach(function (input) {
+                input.checked = false;
+            });
             applyFilters();
         });
     }
-
-    var allProducts = [];
 
     function collectFilters() {
         var filters = {};
@@ -181,6 +200,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (reservedGt0 && reservedGt0.checked) filters.res_gt0 = true;
         if (availableLt0 && availableLt0.checked) filters.avail_lt0 = true;
 
+        var locationIds = locationOptionInputs
+            .filter(function (input) { return input.checked; })
+            .map(function (input) { return String(input.value); });
+        if (locationIds.length) {
+            filters.location_ids = locationIds;
+        }
+
         return filters;
     }
 
@@ -205,11 +231,11 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .then(function (payload) {
                 allProducts = Array.isArray(payload.products) ? payload.products : [];
-                table.setData(allProducts);
+                allLocations = Array.isArray(payload.locations) ? payload.locations : [];
+                populateLocations(allLocations);
                 updateMetrics(payload.metrics || {});
                 wireLiveFilters();
                 applyFilters(); // Initial filter apply from restored session
-                updateCount(allProducts.length);
             })
             .catch(function (error) {
                 console.error('Products Manager:', error);
@@ -237,8 +263,15 @@ document.addEventListener('DOMContentLoaded', function () {
         var qohFlag = !!filters.qoh_gt0;
         var resFlag = !!filters.res_gt0;
         var availFlag = !!filters.avail_lt0;
+        var selectedLocationIds = Array.isArray(filters.location_ids) ? filters.location_ids.map(String) : [];
 
-        var filtered = allProducts.filter(function (row) {
+        var filtered = allProducts.map(function (row) {
+            return scopeRowToLocations(row, selectedLocationIds);
+        }).filter(function (row) {
+            if (selectedLocationIds.length && !row._has_selected_location_activity) {
+                return false;
+            }
+
             // Search in name or SKU
             if (searchValue) {
                 var name = (row.name || '').toLowerCase();
@@ -278,6 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         table.setData(filtered);
         updateCount(filtered.length);
+        updateLocationSummary(selectedLocationIds);
     }
 
     function wireLiveFilters() {
@@ -307,6 +341,103 @@ document.addEventListener('DOMContentLoaded', function () {
         if (qoh) qoh.addEventListener('change', applyFilters);
         if (res) res.addEventListener('change', applyFilters);
         if (avail) avail.addEventListener('change', applyFilters);
+    }
+
+    function populateLocations(locations) {
+        var container = document.getElementById('hp-pm-filter-location-options');
+        var details = document.getElementById('hp-pm-filter-locations');
+        locationOptionInputs = [];
+        if (!container || !details) {
+            return;
+        }
+
+        container.innerHTML = '';
+        if (!Array.isArray(locations) || !locations.length) {
+            details.hidden = true;
+            return;
+        }
+        details.hidden = false;
+
+        locations.forEach(function (location) {
+            if (!location || !location.id || !location.name) {
+                return;
+            }
+
+            var label = document.createElement('label');
+            var input = document.createElement('input');
+            var name = document.createElement('span');
+            var meta = document.createElement('small');
+            input.type = 'checkbox';
+            input.value = String(location.id);
+            input.checked = restoredLocationIds.indexOf(input.value) !== -1;
+            input.addEventListener('change', applyFilters);
+            name.textContent = location.name;
+            meta.textContent = location.role === 'quarantine' ? 'Quarantine' : '';
+            label.appendChild(input);
+            label.appendChild(name);
+            label.appendChild(meta);
+            container.appendChild(label);
+            locationOptionInputs.push(input);
+        });
+    }
+
+    function updateLocationSummary(selectedLocationIds) {
+        var summary = document.getElementById('hp-pm-filter-locations-summary');
+        if (!summary) {
+            return;
+        }
+        if (!selectedLocationIds.length) {
+            summary.textContent = (config.i18n && config.i18n.allLocations) || 'All locations';
+            return;
+        }
+
+        var selectedNames = allLocations
+            .filter(function (location) {
+                return selectedLocationIds.indexOf(String(location.id)) !== -1;
+            })
+            .map(function (location) { return location.name; });
+        summary.textContent = selectedNames.length < 3
+            ? selectedNames.join(', ')
+            : selectedNames.length + ' locations';
+    }
+
+    function scopeRowToLocations(row, selectedLocationIds) {
+        var scopedRow = Object.assign({}, row);
+        var positions = Array.isArray(row.stock_locations) ? row.stock_locations : [];
+        if (!positions.length || !allLocations.length) {
+            scopedRow.stock_location_breakdown = [];
+            scopedRow._has_selected_location_activity = selectedLocationIds.length === 0;
+            return scopedRow;
+        }
+
+        var positionsByLocation = {};
+        positions.forEach(function (position) {
+            positionsByLocation[String(position.location_id)] = position;
+        });
+
+        var scopedLocations = allLocations.filter(function (location) {
+            return !selectedLocationIds.length || selectedLocationIds.indexOf(String(location.id)) !== -1;
+        });
+        var breakdown = scopedLocations.map(function (location) {
+            var position = positionsByLocation[String(location.id)] || {};
+            return {
+                location_id: String(location.id),
+                location_name: location.name,
+                qoh: Number(position.qoh || 0),
+                reserved: Number(position.reserved || 0),
+                available: Number(position.available || 0),
+                non_sellable: Number(position.non_sellable || 0)
+            };
+        });
+
+        scopedRow.stock = breakdown.reduce(function (sum, position) { return sum + position.qoh; }, 0);
+        scopedRow.stock_reserved = breakdown.reduce(function (sum, position) { return sum + position.reserved; }, 0);
+        scopedRow.stock_available = breakdown.reduce(function (sum, position) { return sum + position.available; }, 0);
+        scopedRow.stock_location_breakdown = breakdown;
+        scopedRow._has_selected_location_activity = selectedLocationIds.length === 0 || breakdown.some(function (position) {
+            return position.qoh !== 0 || position.reserved !== 0 || position.non_sellable !== 0;
+        });
+        return scopedRow;
     }
 
     function updateCount(count) {
@@ -422,7 +553,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function quantityFormatter(cell) {
+    function locationQuantityFormatter(cell, metric, label, colorAvailable) {
         var value = cell.getValue();
         if (value === null || typeof value === 'undefined') {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
@@ -431,7 +562,21 @@ document.addEventListener('DOMContentLoaded', function () {
         if (Number.isNaN(num)) {
             return '<span class="hp-pm-cell-muted">&mdash;</span>';
         }
-        return String(num);
+
+        var data = cell.getRow().getData();
+        var breakdown = data && Array.isArray(data.stock_location_breakdown)
+            ? data.stock_location_breakdown
+            : [];
+        var klass = colorAvailable ? (num > 0 ? 'hp-pm-stock-ok' : 'hp-pm-stock-low') : '';
+        if (!breakdown.length) {
+            return '<span class="' + klass + '">' + num + '</span>';
+        }
+
+        var tooltip = label + ' by location\n' + breakdown.map(function (position) {
+            return position.location_name + ': ' + position[metric];
+        }).join('\n');
+        return '<span class="hp-pm-location-quantity ' + klass + '" tabindex="0" title="'
+            + escapeHtml(tooltip) + '" aria-label="' + escapeHtml(tooltip) + '">' + num + '</span>';
     }
 
     function marginFormatter(cell) {

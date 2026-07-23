@@ -33,6 +33,17 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.0
+
+- Add a persistent multi-select Locations filter to the products table using
+  HP-Inventory's active locations, including non-sellable quarantine
+  locations. Selecting locations scopes the visible products and recomputes
+  QOH, Reserved, and Available from those locations.
+- Add per-location hover/focus breakdowns to the QOH, Reserved, and Available
+  values. With no location filter, the breakdown covers every active location;
+  with a filter, it shows only the selected locations. The integration remains
+  fail-soft when HP-Inventory is absent or its REST contracts are unavailable.
+
 ### 2.3.6
 
 - Replace the HP-Inventory-owned Quantity input with a plain read-only stock

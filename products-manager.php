@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.3.6
+ * Version: 2.4.0
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.3.6';
+    const VERSION = '2.4.0';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -146,6 +146,125 @@ final class HP_Products_Manager {
      * @var array<int,int>
      */
     private $reserved_quantities_map = [];
+
+    /**
+     * HP-Inventory positions keyed by parent product ID.
+     *
+     * @var array<int,array<int,array<string,mixed>>>
+     */
+    private $product_location_positions_map = [];
+
+    /**
+     * Read HP-Inventory's active locations and batch-backed stock positions.
+     *
+     * Product Manager consumes only HP-Inventory's permission-protected REST
+     * contracts. Quarantine locations remain present even though they are
+     * non-sellable, allowing admins to inspect their physical QOH separately.
+     *
+     * @return array{locations:array<int,array<string,mixed>>,positions:array<int,array<int,array<string,mixed>>>}
+     */
+    private function hp_inventory_product_location_data(): array {
+        $empty = [
+            'locations' => [],
+            'positions' => [],
+        ];
+
+        if (!defined('HP_INVENTORY_VERSION') || !function_exists('rest_do_request')) {
+            return $empty;
+        }
+
+        $settings_response = rest_do_request(new WP_REST_Request('GET', '/hp-inventory/v1/settings'));
+        $dashboard_response = rest_do_request(new WP_REST_Request('GET', '/hp-inventory/v1/dashboard'));
+        if (is_wp_error($settings_response)
+            || is_wp_error($dashboard_response)
+            || !method_exists($settings_response, 'get_data')
+            || !method_exists($dashboard_response, 'get_data')
+        ) {
+            return $empty;
+        }
+
+        $settings_data = $settings_response->get_data();
+        $dashboard_data = $dashboard_response->get_data();
+        $raw_locations = is_array($settings_data) && isset($settings_data['locations']) && is_array($settings_data['locations'])
+            ? $settings_data['locations']
+            : [];
+        $inventory_rows = is_array($dashboard_data) && isset($dashboard_data['inventory_rows']) && is_array($dashboard_data['inventory_rows'])
+            ? $dashboard_data['inventory_rows']
+            : [];
+
+        $locations = [];
+        $location_ids_by_name = [];
+        foreach ($raw_locations as $raw_location) {
+            $location = is_object($raw_location) ? get_object_vars($raw_location) : $raw_location;
+            if (!is_array($location)) {
+                continue;
+            }
+
+            $location_id = absint($location['id'] ?? 0);
+            $location_name = sanitize_text_field((string) ($location['name'] ?? ''));
+            if ($location_id < 1 || $location_name === '' || (isset($location['is_active']) && !(bool) $location['is_active'])) {
+                continue;
+            }
+
+            $locations[] = [
+                'id' => $location_id,
+                'name' => $location_name,
+                'role' => sanitize_key((string) ($location['role'] ?? 'warehouse')),
+                'is_sellable' => !empty($location['is_sellable']),
+            ];
+            $location_ids_by_name[$location_name] = $location_id;
+        }
+
+        if (!$locations) {
+            return $empty;
+        }
+
+        $positions = [];
+        foreach ($inventory_rows as $raw_row) {
+            $row = is_object($raw_row) ? get_object_vars($raw_row) : $raw_row;
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $product_id = absint($row['product_id'] ?? 0);
+            $location_name = sanitize_text_field((string) ($row['location_name'] ?? ''));
+            $location_id = $location_ids_by_name[$location_name] ?? 0;
+            if ($product_id < 1 || $location_id < 1) {
+                continue;
+            }
+
+            if (!isset($positions[$product_id][$location_id])) {
+                $positions[$product_id][$location_id] = [
+                    'location_id' => $location_id,
+                    'location_name' => $location_name,
+                    'qoh' => 0,
+                    'reserved' => 0,
+                    'non_sellable' => 0,
+                    'available' => 0,
+                ];
+            }
+
+            $positions[$product_id][$location_id]['qoh'] += (int) ($row['qoh'] ?? 0);
+            $positions[$product_id][$location_id]['reserved'] += (int) ($row['allocated'] ?? 0);
+            $positions[$product_id][$location_id]['non_sellable'] += (int) ($row['non_sellable'] ?? 0);
+        }
+
+        foreach ($positions as &$product_positions) {
+            foreach ($product_positions as &$position) {
+                $position['available'] = (int) $position['qoh']
+                    - (int) $position['reserved']
+                    - (int) $position['non_sellable'];
+            }
+            unset($position);
+            $product_positions = array_values($product_positions);
+        }
+        unset($product_positions);
+
+        return [
+            'locations' => $locations,
+            'positions' => $positions,
+        ];
+    }
 
     /**
      * Per-request index of Old2New old SKUs (sku => packet ID). The commerce
@@ -321,6 +440,7 @@ final class HP_Products_Manager {
                     'loading'   => __('Loading products...', 'hp-products-manager'),
                     'loadError' => __('Unable to load products. Please try again.', 'hp-products-manager'),
                     'allBrands' => __('All brands', 'hp-products-manager'),
+                    'allLocations' => __('All locations', 'hp-products-manager'),
                 ],
             ]
         );
@@ -972,6 +1092,15 @@ final class HP_Products_Manager {
                             <option value="hidden"><?php esc_html_e('Hidden', 'hp-products-manager'); ?></option>
                         </select>
                     </label>
+                </div>
+                <div class="hp-pm-filter-group hp-pm-location-filter">
+                    <span class="hp-pm-filter-label"><?php esc_html_e('Locations', 'hp-products-manager'); ?></span>
+                    <details id="hp-pm-filter-locations" hidden>
+                        <summary>
+                            <span id="hp-pm-filter-locations-summary"><?php esc_html_e('All locations', 'hp-products-manager'); ?></span>
+                        </summary>
+                        <div id="hp-pm-filter-location-options" class="hp-pm-location-options" role="group" aria-label="<?php esc_attr_e('Filter products by inventory locations', 'hp-products-manager'); ?>"></div>
+                    </details>
                 </div>
                 <div class="hp-pm-filter-group">
                     <label>
@@ -2348,6 +2477,8 @@ final class HP_Products_Manager {
      */
     public function rest_get_products(WP_REST_Request $request) {
         $t0       = microtime(true);
+        $inventory_location_data = $this->hp_inventory_product_location_data();
+        $this->product_location_positions_map = $inventory_location_data['positions'];
         $page     = max(1, (int) $request->get_param('page'));
         $per_page_param = $request->get_param('per_page');
         $per_page = min(200, max(1, (int) $per_page_param ?: 50));
@@ -2452,6 +2583,7 @@ final class HP_Products_Manager {
                 'total_pages' => (int) max(1, $query->max_num_pages),
             ],
             'metrics'    => $this->get_metrics_data(),
+            'locations'  => $inventory_location_data['locations'],
             'timing'     => [
                 'build_ms' => $build_ms,
             ],
@@ -2479,6 +2611,12 @@ final class HP_Products_Manager {
 
         $reserved = isset($this->reserved_quantities_map[$product_id]) ? (int) $this->reserved_quantities_map[$product_id] : 0;
         $available = $stock_qty !== null ? ((int) $stock_qty - $reserved) : null;
+        $stock_locations = $this->product_location_positions_map[$product_id] ?? [];
+        if ($stock_locations) {
+            $stock_qty = array_sum(array_column($stock_locations, 'qoh'));
+            $reserved = array_sum(array_column($stock_locations, 'reserved'));
+            $available = array_sum(array_column($stock_locations, 'available'));
+        }
 
         return [
             'id'           => $product_id,
@@ -2492,6 +2630,7 @@ final class HP_Products_Manager {
             'stock'        => $stock_qty,
             'stock_reserved' => $reserved,
             'stock_available'=> $available,
+            'stock_locations'=> $stock_locations,
             'stock_detail' => $stock_status,
             'status'       => $product->get_status() === 'publish' ? __('Enabled', 'hp-products-manager') : __('Disabled', 'hp-products-manager'),
             'visibility'   => $this->map_visibility_label($product->get_catalog_visibility()),

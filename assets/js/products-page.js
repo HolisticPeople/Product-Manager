@@ -372,7 +372,9 @@ document.addEventListener('DOMContentLoaded', function () {
             input.checked = restoredLocationIds.indexOf(input.value) !== -1;
             input.addEventListener('change', applyFilters);
             name.textContent = location.name;
-            meta.textContent = location.role === 'quarantine' ? 'Quarantine' : '';
+            meta.textContent = location.location_type === 'quarantine' || location.role === 'quarantine'
+                ? 'Quarantine'
+                : '';
             label.appendChild(input);
             label.appendChild(name);
             label.appendChild(meta);

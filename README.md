@@ -33,6 +33,14 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.1
+
+- Consume HP-Inventory's dedicated, fail-soft
+  `hp-inventory/v1/location-positions` contract instead of the heavyweight
+  dashboard/settings combination. This keeps the products table available
+  when unrelated dashboard metrics fail and preserves the explicit quarantine
+  parent/child location model.
+
 ### 2.4.0
 
 - Add a persistent multi-select Locations filter to the products table using

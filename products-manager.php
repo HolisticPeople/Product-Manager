@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.4.0
+ * Version: 2.4.1
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.4.0';
+    const VERSION = '2.4.1';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -173,27 +173,37 @@ final class HP_Products_Manager {
             return $empty;
         }
 
-        $settings_response = rest_do_request(new WP_REST_Request('GET', '/hp-inventory/v1/settings'));
-        $dashboard_response = rest_do_request(new WP_REST_Request('GET', '/hp-inventory/v1/dashboard'));
-        if (is_wp_error($settings_response)
-            || is_wp_error($dashboard_response)
-            || !method_exists($settings_response, 'get_data')
-            || !method_exists($dashboard_response, 'get_data')
-        ) {
+        try {
+            $response = rest_do_request(new WP_REST_Request('GET', '/hp-inventory/v1/location-positions'));
+        } catch (\Throwable $error) {
+            error_log((string) wp_json_encode([
+                'event' => 'product_manager.inventory.location_positions_failed',
+                'error_class' => get_class($error),
+                'message' => $error->getMessage(),
+            ]));
             return $empty;
         }
 
-        $settings_data = $settings_response->get_data();
-        $dashboard_data = $dashboard_response->get_data();
-        $raw_locations = is_array($settings_data) && isset($settings_data['locations']) && is_array($settings_data['locations'])
-            ? $settings_data['locations']
+        $status = is_object($response) && method_exists($response, 'get_status')
+            ? (int) $response->get_status()
+            : 500;
+        if (is_wp_error($response) || $status >= 400 || !method_exists($response, 'get_data')) {
+            error_log((string) wp_json_encode([
+                'event' => 'product_manager.inventory.location_positions_unavailable',
+                'status' => $status,
+            ]));
+            return $empty;
+        }
+
+        $data = $response->get_data();
+        $raw_locations = is_array($data) && isset($data['locations']) && is_array($data['locations'])
+            ? $data['locations']
             : [];
-        $inventory_rows = is_array($dashboard_data) && isset($dashboard_data['inventory_rows']) && is_array($dashboard_data['inventory_rows'])
-            ? $dashboard_data['inventory_rows']
+        $inventory_rows = is_array($data) && isset($data['positions']) && is_array($data['positions'])
+            ? $data['positions']
             : [];
 
         $locations = [];
-        $location_ids_by_name = [];
         foreach ($raw_locations as $raw_location) {
             $location = is_object($raw_location) ? get_object_vars($raw_location) : $raw_location;
             if (!is_array($location)) {
@@ -210,9 +220,10 @@ final class HP_Products_Manager {
                 'id' => $location_id,
                 'name' => $location_name,
                 'role' => sanitize_key((string) ($location['role'] ?? 'warehouse')),
+                'location_type' => sanitize_key((string) ($location['location_type'] ?? 'stocked')),
+                'parent_location_id' => absint($location['parent_location_id'] ?? 0),
                 'is_sellable' => !empty($location['is_sellable']),
             ];
-            $location_ids_by_name[$location_name] = $location_id;
         }
 
         if (!$locations) {
@@ -227,8 +238,7 @@ final class HP_Products_Manager {
             }
 
             $product_id = absint($row['product_id'] ?? 0);
-            $location_name = sanitize_text_field((string) ($row['location_name'] ?? ''));
-            $location_id = $location_ids_by_name[$location_name] ?? 0;
+            $location_id = absint($row['location_id'] ?? 0);
             if ($product_id < 1 || $location_id < 1) {
                 continue;
             }
@@ -236,7 +246,6 @@ final class HP_Products_Manager {
             if (!isset($positions[$product_id][$location_id])) {
                 $positions[$product_id][$location_id] = [
                     'location_id' => $location_id,
-                    'location_name' => $location_name,
                     'qoh' => 0,
                     'reserved' => 0,
                     'non_sellable' => 0,
@@ -245,7 +254,7 @@ final class HP_Products_Manager {
             }
 
             $positions[$product_id][$location_id]['qoh'] += (int) ($row['qoh'] ?? 0);
-            $positions[$product_id][$location_id]['reserved'] += (int) ($row['allocated'] ?? 0);
+            $positions[$product_id][$location_id]['reserved'] += (int) ($row['reserved'] ?? 0);
             $positions[$product_id][$location_id]['non_sellable'] += (int) ($row['non_sellable'] ?? 0);
         }
 

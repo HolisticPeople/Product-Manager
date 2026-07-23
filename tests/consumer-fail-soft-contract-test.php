@@ -17,16 +17,16 @@ $assert = static function (bool $condition, string $message): void {
 };
 
 $assert(
-    str_contains($plugin, "'/hp-inventory/v1/settings'")
-        && str_contains($plugin, "'/hp-inventory/v1/dashboard'"),
+    str_contains($plugin, "'/hp-inventory/v1/location-positions'"),
     'Location data must come from HP-Inventory permission-protected REST contracts.'
 );
 $assert(
     str_contains($plugin, "!defined('HP_INVENTORY_VERSION')")
         && str_contains($plugin, "!function_exists('rest_do_request')")
-        && str_contains($plugin, 'is_wp_error($settings_response)')
-        && str_contains($plugin, 'is_wp_error($dashboard_response)'),
-    'The HP-Inventory consumer must fail soft when the provider or either contract is unavailable.'
+        && str_contains($plugin, 'catch (\Throwable $error)')
+        && str_contains($plugin, 'product_manager.inventory.location_positions_failed')
+        && str_contains($plugin, '$status >= 400'),
+    'The HP-Inventory consumer must log and fail soft when the provider or contract is unavailable.'
 );
 $assert(
     str_contains($plugin, "'role' => sanitize_key")

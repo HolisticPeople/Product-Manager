@@ -14,7 +14,7 @@
   "consumes": [
     "WooCommerce products",
     "HP-Catalog",
-    "HP-Inventory hp-inventory/v1 inventory-levels/settings/dashboard contracts (read-only, fail-soft)"
+    "HP-Inventory hp-inventory/v1 inventory-levels/location-positions contracts (read-only, fail-soft)"
   ],
   "exposes": {
     "cpts": [

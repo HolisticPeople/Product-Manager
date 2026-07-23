@@ -32,8 +32,8 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.4.0'), 'Product Manager plugin header must be 2.4.0.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.4.0'"), 'Product Manager VERSION constant must be 2.4.0.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.4.1'), 'Product Manager plugin header must be 2.4.1.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.4.1'"), 'Product Manager VERSION constant must be 2.4.1.');
 
 // 2.3.2 GTIN brand-prefix advisory — self-learning company-prefix check.
 hp_pm_old2new_assert(str_contains($plugin, 'private function gtin_brand_prefixes'), 'Server must derive brand GTIN prefixes from sibling products.');

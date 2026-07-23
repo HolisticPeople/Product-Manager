@@ -33,6 +33,37 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.3
+
+- Preserve HP-Inventory's authoritative per-location Available value when
+  aggregating product positions. This keeps quarantine QOH visible while its
+  non-sellable availability remains zero.
+
+### 2.4.2
+
+- Force the products/location REST request to bypass browser and intermediary
+  caches so QOH, Reserved, Available, and their location tooltips always use
+  the current HP-Inventory positions after adjustments or deployments.
+
+### 2.4.1
+
+- Consume HP-Inventory's dedicated, fail-soft
+  `hp-inventory/v1/location-positions` contract instead of the heavyweight
+  dashboard/settings combination. This keeps the products table available
+  when unrelated dashboard metrics fail and preserves the explicit quarantine
+  parent/child location model.
+
+### 2.4.0
+
+- Add a persistent multi-select Locations filter to the products table using
+  HP-Inventory's active locations, including non-sellable quarantine
+  locations. Selecting locations scopes the visible products and recomputes
+  QOH, Reserved, and Available from those locations.
+- Add per-location hover/focus breakdowns to the QOH, Reserved, and Available
+  values. With no location filter, the breakdown covers every active location;
+  with a filter, it shows only the selected locations. The integration remains
+  fail-soft when HP-Inventory is absent or its REST contracts are unavailable.
+
 ### 2.3.6
 
 - Replace the HP-Inventory-owned Quantity input with a plain read-only stock

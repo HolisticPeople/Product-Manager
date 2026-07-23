@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.2
+
+- Force the products/location REST request to bypass browser and intermediary
+  caches so QOH, Reserved, Available, and their location tooltips always use
+  the current HP-Inventory positions after adjustments or deployments.
+
 ### 2.4.1
 
 - Consume HP-Inventory's dedicated, fail-soft

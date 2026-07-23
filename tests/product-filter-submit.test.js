@@ -72,7 +72,8 @@ function makeElement(id) {
         return elements.get(id) || null;
       },
     },
-    fetch() {
+    fetch(url, options) {
+      assert.strictEqual(options.cache, 'no-store', 'inventory product requests must bypass stale HTTP caches');
       return Promise.resolve({
         ok: true,
         json() {

@@ -217,6 +217,7 @@ document.addEventListener('DOMContentLoaded', function () {
         table.clearData();
 
         fetch(url.toString(), {
+            cache: 'no-store',
             headers: {
                 'X-WP-Nonce': config.nonce || '',
                 'Accept': 'application/json'

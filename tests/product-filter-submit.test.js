@@ -91,7 +91,7 @@ function makeElement(id) {
                 stock_available: 4,
                 stock_locations: [
                   { location_id: 10, location_name: 'Wilton', qoh: 5, reserved: 1, non_sellable: 0, available: 4 },
-                  { location_id: 11, location_name: 'Wilton Quarantine', qoh: 2, reserved: 0, non_sellable: 2, available: 0 },
+                  { location_id: 11, location_name: 'Wilton Quarantine', qoh: 2, reserved: 0, non_sellable: 0, available: 0 },
                 ],
               },
               {

@@ -38,6 +38,11 @@ $assert(
     'Product rows must expose normalized per-location stock positions.'
 );
 $assert(
+    str_contains($plugin, "\$positions[\$product_id][\$location_id]['available'] += (int) (\$row['available'] ?? 0)")
+        && !str_contains($plugin, "\$position['available'] = (int) \$position['qoh']"),
+    'Product Manager must preserve HP-Inventory availability instead of recomputing away location sellability.'
+);
+$assert(
     str_contains($script, 'location_ids')
         && str_contains($script, 'scopeRowToLocations')
         && str_contains($script, 'locationQuantityFormatter')

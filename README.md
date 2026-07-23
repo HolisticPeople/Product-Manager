@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.3
+
+- Preserve HP-Inventory's authoritative per-location Available value when
+  aggregating product positions. This keeps quarantine QOH visible while its
+  non-sellable availability remains zero.
+
 ### 2.4.2
 
 - Force the products/location REST request to bypass browser and intermediary

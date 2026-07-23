@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.4.2
+ * Version: 2.4.3
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.4.2';
+    const VERSION = '2.4.3';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -256,15 +256,10 @@ final class HP_Products_Manager {
             $positions[$product_id][$location_id]['qoh'] += (int) ($row['qoh'] ?? 0);
             $positions[$product_id][$location_id]['reserved'] += (int) ($row['reserved'] ?? 0);
             $positions[$product_id][$location_id]['non_sellable'] += (int) ($row['non_sellable'] ?? 0);
+            $positions[$product_id][$location_id]['available'] += (int) ($row['available'] ?? 0);
         }
 
         foreach ($positions as &$product_positions) {
-            foreach ($product_positions as &$position) {
-                $position['available'] = (int) $position['qoh']
-                    - (int) $position['reserved']
-                    - (int) $position['non_sellable'];
-            }
-            unset($position);
             $product_positions = array_values($product_positions);
         }
         unset($product_positions);

@@ -32,6 +32,7 @@ function makeElement(id) {
   let domReady;
   let lastTableData = null;
   let tableOptions = null;
+  let tableBuilt = false;
 
   const elements = new Map();
   [
@@ -129,11 +130,22 @@ function makeElement(id) {
     Tabulator: function Tabulator(element, options) {
       tableOptions = options;
       return {
-        clearData() {},
+        clearData() {
+          throw new Error('clearData must not run before the tableBuilt lifecycle event');
+        },
+        on(event, callback) {
+          assert.strictEqual(event, 'tableBuilt', 'initial data loading should wait for Tabulator tableBuilt');
+          Promise.resolve().then(() => {
+            tableBuilt = true;
+            callback();
+          });
+        },
         replaceData(data) {
+          assert.strictEqual(tableBuilt, true, 'table data must not be replaced before tableBuilt');
           lastTableData = data;
         },
         setData(data) {
+          assert.strictEqual(tableBuilt, true, 'table data must not be set before tableBuilt');
           lastTableData = data;
         },
       };

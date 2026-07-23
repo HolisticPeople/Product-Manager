@@ -114,7 +114,11 @@ document.addEventListener('DOMContentLoaded', function () {
     populateBrands(config.brands || []);
     restoreFilters();
     updateMetrics(config.metrics || {});
-    loadAllOnce();
+    if (typeof table.on === 'function') {
+        table.on('tableBuilt', loadAllOnce);
+    } else {
+        loadAllOnce();
+    }
 
     function restoreFilters() {
         var saved = sessionStorage.getItem('hp_pm_last_filters');
@@ -213,8 +217,6 @@ document.addEventListener('DOMContentLoaded', function () {
     function loadAllOnce() {
         var url = new URL(config.restUrl);
         url.searchParams.set('per_page', 'all');
-
-        table.clearData();
 
         fetch(url.toString(), {
             cache: 'no-store',

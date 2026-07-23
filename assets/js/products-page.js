@@ -114,11 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
     populateBrands(config.brands || []);
     restoreFilters();
     updateMetrics(config.metrics || {});
-    if (typeof table.on === 'function') {
-        table.on('tableBuilt', loadAllOnce);
-    } else {
-        loadAllOnce();
-    }
+    loadAllOnce();
 
     function restoreFilters() {
         var saved = sessionStorage.getItem('hp_pm_last_filters');

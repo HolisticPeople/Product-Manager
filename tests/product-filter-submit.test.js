@@ -129,16 +129,12 @@ function makeElement(id) {
     },
     Tabulator: function Tabulator(element, options) {
       tableOptions = options;
+      Promise.resolve().then(() => {
+        tableBuilt = true;
+      });
       return {
         clearData() {
           throw new Error('clearData must not run before the tableBuilt lifecycle event');
-        },
-        on(event, callback) {
-          assert.strictEqual(event, 'tableBuilt', 'initial data loading should wait for Tabulator tableBuilt');
-          Promise.resolve().then(() => {
-            tableBuilt = true;
-            callback();
-          });
         },
         replaceData(data) {
           assert.strictEqual(tableBuilt, true, 'table data must not be replaced before tableBuilt');

@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.5
+
+- Start the product request immediately after constructing Tabulator while
+  retaining the 2.4.4 removal of the unsafe pre-build `clearData` call. This
+  avoids missing an early `tableBuilt` event on faster production pages.
+
 ### 2.4.4
 
 - Wait for Tabulator's `tableBuilt` lifecycle event before loading product

@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.4.4
+
+- Wait for Tabulator's `tableBuilt` lifecycle event before loading product
+  data. This prevents location-filter changes from leaving the product grid on
+  its loading placeholder in production browsers.
+
 ### 2.4.3
 
 - Preserve HP-Inventory's authoritative per-location Available value when

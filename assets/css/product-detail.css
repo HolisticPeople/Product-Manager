@@ -155,6 +155,82 @@
     padding: 20px !important;
 }
 
+.hp-pm-context-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0 16px;
+    padding: 10px 14px;
+    background: var(--hp-admin-card-bg-solid, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--hp-admin-divider, rgba(255, 255, 255, 0.1));
+    border-radius: 12px;
+    color: var(--hp-admin-text, rgba(246, 241, 232, 0.92));
+}
+
+.hp-pm-context-media {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--hp-admin-input-bg, rgba(5, 7, 5, 0.72));
+}
+
+.hp-pm-context-media img {
+    width: 48px;
+    height: 48px;
+    display: block;
+    object-fit: cover;
+}
+
+.hp-pm-context-main {
+    min-width: 220px;
+    flex: 1 1 360px;
+}
+
+.hp-pm-context-name {
+    margin-bottom: 4px;
+    color: var(--hp-admin-heading, rgba(255, 250, 240, 0.98));
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.hp-pm-context-meta,
+.hp-pm-context-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.hp-pm-context-meta {
+    color: var(--hp-admin-muted, rgba(246, 241, 232, 0.74));
+    font-size: 13px;
+}
+
+.hp-pm-context-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 1px 8px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 999px;
+    color: var(--hp-admin-text, rgba(246, 241, 232, 0.92));
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.hp-pm-context-status--enabled {
+    border-color: rgba(134, 209, 162, 0.5);
+}
+
+.hp-pm-context-links {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
 .hp-pm-tab-pane {
     display: none;
     padding: 0;
@@ -301,4 +377,12 @@ textarea.auto-expand {
 #hp-pm-erp-table td:nth-child(5) { width: 120px; }
 #hp-pm-erp-table th:nth-child(1),
 #hp-pm-erp-table td:nth-child(1) { width: 170px; white-space: nowrap; }
+
+.hp-pm-erp-qty-positive {
+    color: var(--hp-admin-success, rgba(134, 209, 162, 0.95));
+}
+
+.hp-pm-erp-qty-negative {
+    color: var(--hp-admin-danger, rgba(244, 114, 114, 0.95));
+}
 

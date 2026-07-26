@@ -1089,8 +1089,32 @@ document.addEventListener('DOMContentLoaded', function () {
     var stats90 = document.getElementById('hp-pm-erp-90');
     var stats30 = document.getElementById('hp-pm-erp-30');
     var stats7 = document.getElementById('hp-pm-erp-7');
+    var diffBox = document.getElementById('hp-pm-erp-qoh-diff');
+    var wcStock = original.stock_quantity == null || original.stock_quantity === '' ? 0 : parseInt(original.stock_quantity, 10);
+    if (isNaN(wcStock)) wcStock = 0;
+    function showStockHistoryUnavailable(){
+      var pane = document.getElementById('tab-erp');
+      if (!pane || pane.querySelector('.hp-pm-erp-history-notice')) return;
+      var notice = document.createElement('p');
+      notice.className = 'notice notice-warning hp-pm-erp-history-notice';
+      notice.textContent = 'Stock history is unavailable right now (HP-Inventory did not respond).';
+      pane.insertBefore(notice, table);
+    }
+    function setStockStats(summary){
+      if (qohSpan) qohSpan.textContent = summary && summary.qoh != null ? summary.qoh : '--';
+      if (resSpan) resSpan.textContent = summary && summary.reserved != null ? summary.reserved : '--';
+      if (availSpan) availSpan.textContent = summary && summary.available != null ? summary.available : '--';
+      if (diffBox) diffBox.textContent = summary && summary.qoh != null ? (parseInt(summary.qoh, 10) - wcStock) : '--';
+    }
+    function setMovementHeaders(labels){
+      if (!table) return;
+      var ths = table.querySelectorAll('thead th');
+      if (ths.length !== labels.length) return;
+      labels.forEach(function(label, i){ ths[i].textContent = label; });
+    }
     function render(payload){
         var rows = (payload && payload.rows) || [];
+        setMovementHeaders(['Date', 'Type', 'Qty', 'Order / Customer', 'QOH After (computed)', 'Source']);
         if (tbody) {
           tbody.innerHTML = '';
           rows.forEach(function(m){
@@ -1110,28 +1134,77 @@ document.addEventListener('DOMContentLoaded', function () {
           if (stats90) stats90.textContent = payload.stats.sales_90 || 0;
           if (stats30) stats30.textContent = payload.stats.sales_30 || 0;
           if (stats7) stats7.textContent = payload.stats.sales_7 || 0;
-          var diffBox = document.getElementById('hp-pm-erp-qoh-diff');
           if (diffBox && payload.stats && typeof payload.stats.qoh_diff !== 'undefined') {
             diffBox.textContent = payload.stats.qoh_diff;
           }
         }
     }
-
-    // Try DB movements first, then fall back to logs if empty
-    var urlDb = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements?limit=200';
-    fetch(urlDb, { headers: { 'X-WP-Nonce': data.nonce } })
-      .then(function(r){ return r.json(); })
-      .then(function(payload){
-        if (payload && payload.rows && payload.rows.length) { render(payload); }
-        else {
+    function renderInventoryHistory(payload){
+      var rows = (payload && Array.isArray(payload.history)) ? payload.history : [];
+      setStockStats(payload.summary);
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      rows.forEach(function(m){
+        var tr = document.createElement('tr');
+        var noteParts = [m.batch_code, m.po_number, m.note].filter(function(part){ return part != null && String(part) !== ''; });
+        var qty = m.quantity_change == null ? '' : parseInt(m.quantity_change, 10);
+        var qtyCell;
+        appendTextCell(tr, m.occurred_at || '');
+        appendTextCell(tr, m.type || '');
+        qtyCell = appendTextCell(tr, qty === '' || isNaN(qty) ? '' : (qty > 0 ? '+' + qty : qty));
+        if (qty > 0) qtyCell.className = 'hp-pm-erp-qty-positive';
+        if (qty < 0) qtyCell.className = 'hp-pm-erp-qty-negative';
+        appendTextCell(tr, m.location_name || '');
+        appendTextCell(tr, m.qoh_after == null ? '' : m.qoh_after);
+        appendTextCell(tr, noteParts.join(' · '));
+        tbody.appendChild(tr);
+      });
+    }
+    function loadLegacyMovements(){
+      // Try DB movements first, then fall back to logs if empty.
+      var urlDb = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements?limit=200';
+      return fetch(urlDb, { headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){ return r.json(); })
+        .then(function(payload){
+          if (payload && payload.rows && payload.rows.length) { render(payload); return payload; }
           var urlLogs = dbgBase + '/product/' + encodeURIComponent(productId) + '/movements/logs?limit=200';
-          fetch(urlLogs, { headers: { 'X-WP-Nonce': data.nonce } })
+          return fetch(urlLogs, { headers: { 'X-WP-Nonce': data.nonce } })
             .then(function(r){ return r.json(); })
-            .then(render)
-            .catch(function(){ /* ignore */ });
+            .then(function(logPayload){ render(logPayload); return logPayload; });
+        });
+    }
+    function loadInventoryHistory(){
+      var contractProductId = original.parent_id ? original.parent_id : productId;
+      var params = new URLSearchParams();
+      params.set('product_id', contractProductId);
+      if (original.parent_id) params.set('variation_id', productId);
+      params.set('limit', '200');
+      return fetch(data.hpInvHistoryUrl + '?' + params.toString(), { headers: { 'X-WP-Nonce': data.nonce } })
+        .then(function(r){
+          if (!r.ok) throw new Error('hp_inventory_history_unavailable');
+          return r.json();
+        })
+        .then(function(payload){
+          if (!payload || !payload.summary || typeof payload.summary !== 'object') {
+            throw new Error('hp_inventory_history_malformed');
+          }
+          renderInventoryHistory(payload);
+          return payload;
+        });
+    }
+
+    if (data.hpInvHistoryAvailable && data.hpInvHistoryUrl) {
+      loadInventoryHistory().catch(function(){
+        if (data.erpRetired) {
+          setStockStats(null);
+          showStockHistoryUnavailable();
+          return;
         }
-      })
-      .catch(function(){ /* ignore */ });
+        loadLegacyMovements().catch(function(){ /* ignore */ });
+      });
+    } else {
+      loadLegacyMovements().catch(function(){ /* ignore */ });
+    }
 
     var persistBtn = document.getElementById('hp-pm-erp-persist');
     if (persistBtn) persistBtn.addEventListener('click', function(){

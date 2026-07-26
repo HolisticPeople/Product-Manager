@@ -33,6 +33,16 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.0
+
+- Add a product context header to the detail page with identity, SKU, status,
+  price, live stock orientation, and one-click HP-Inventory/site links.
+- Rename the detail ERP tab to Stock & History and consume HP-Inventory's
+  read-only product-history contract for stock stats and movements when
+  available, with a fail-soft fallback to legacy PM movements.
+- Hide retired PM ERP rebuild/purge toolbar controls once HP-Inventory owns
+  stock history while keeping PM sales analytics unchanged.
+
 ### 2.4.5
 
 - Start the product request immediately after constructing Tabulator while

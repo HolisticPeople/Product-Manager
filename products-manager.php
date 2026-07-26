@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.4.5
+ * Version: 2.5.0
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.4.5';
+    const VERSION = '2.5.0';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -1358,8 +1358,12 @@ final class HP_Products_Manager {
             [
                 'restBase' => rest_url(self::REST_NAMESPACE . '/product/' . $product_id),
                 'nonce'    => wp_create_nonce('wp_rest'),
+                'hpInvHistoryUrl' => esc_url_raw(rest_url('hp-inventory/v1/product-history')),
+                'hpInvHistoryAvailable' => defined('HP_INVENTORY_VERSION') && version_compare(HP_INVENTORY_VERSION, '2.17.0', '>='),
+                'erpRetired' => $this->is_hp_inventory_erp_migrated(),
                 'product'  => [
                     'id'         => $product->get_id(),
+                    'parent_id'  => $product->get_parent_id(),
                     'name'       => $product->get_name(),
                     'sku'        => $product->get_sku(),
                     'price'      => ($product->get_price('edit') !== '' ? (float) $product->get_price('edit') : null),
@@ -1507,6 +1511,33 @@ final class HP_Products_Manager {
             <p class="hp-pm-version"><?php printf(esc_html__('Version %s', 'hp-products-manager'), esc_html(self::VERSION)); ?></p>
 
             <div class="hp-pm-pd-container">
+                <div class="hp-pm-context-header">
+                    <div class="hp-pm-context-media">
+                        <?php echo wp_kses_post($product->get_image('thumbnail')); ?>
+                    </div>
+                    <div class="hp-pm-context-main">
+                        <div class="hp-pm-context-name"><?php echo esc_html($product->get_name()); ?></div>
+                        <div class="hp-pm-context-meta">
+                            <span><?php esc_html_e('SKU:', 'hp-products-manager'); ?> <?php echo esc_html($product->get_sku() ?: __('None', 'hp-products-manager')); ?></span>
+                            <?php if ($product->get_status() === 'publish') : ?>
+                                <span class="hp-pm-context-status hp-pm-context-status--enabled"><?php esc_html_e('Enabled', 'hp-products-manager'); ?></span>
+                            <?php else : ?>
+                                <span class="hp-pm-context-status hp-pm-context-status--disabled"><?php esc_html_e('Disabled', 'hp-products-manager'); ?></span>
+                            <?php endif; ?>
+                            <span><?php echo wp_kses_post(wc_price($product->get_price())); ?></span>
+                            <?php if ($stock_location_summary !== '') : ?>
+                                <span><?php esc_html_e('By location:', 'hp-products-manager'); ?> <?php echo esc_html($stock_location_summary); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="hp-pm-context-links">
+                        <?php if ($stock_owned_by_hp_inventory) : ?>
+                            <a class="button" href="<?php echo esc_url($this->hp_inventory_stock_link($product_id)); ?>"><?php esc_html_e('Stock & fulfillment', 'hp-products-manager'); ?></a>
+                        <?php endif; ?>
+                        <a class="button" href="<?php echo esc_url(get_permalink($product_id)); ?>" target="_blank" rel="noopener"><?php esc_html_e('View on site', 'hp-products-manager'); ?></a>
+                    </div>
+                </div>
+
                 <div class="card hp-pm-header-card" style="max-width: 1200px; margin-bottom: 20px;">
                     <div class="hp-pm-pd-header">
                         <div class="hp-pm-pd-image">
@@ -1550,7 +1581,7 @@ final class HP_Products_Manager {
                             'linked'       => __('Linked Products', 'hp-products-manager'),
                             'seo'          => __('SEO', 'hp-products-manager'),
                             'admin'        => __('Admin', 'hp-products-manager'),
-                            'erp'          => __('Sales & ERP', 'hp-products-manager'),
+                            'erp'          => __('Stock & History', 'hp-products-manager'),
                         ];
                         // Default to 'core' unless 'tab' is explicitly in URL (for legacy support or direct links)
                         $active_tab_id = isset($_GET['tab']) && isset($tabs[$_GET['tab']]) ? $_GET['tab'] : 'core';
@@ -1937,7 +1968,7 @@ final class HP_Products_Manager {
                                 <div style="margin:12px 0 4px 0;">
                                     <canvas id="hp-pm-erp-sales-chart" height="110"></canvas>
                                 </div>
-                                <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug) : ?>
+                                <?php $hp_pm_show_debug = current_user_can('manage_woocommerce'); if ($hp_pm_show_debug && !$this->is_hp_inventory_erp_migrated()) : ?>
                                 <div class="hp-pm-erp-toolbar" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 10px;">
                                     <div class="hp-pm-erp-actions" style="display:flex; gap:8px; align-items:center;">
                                         <button id="hp-pm-erp-rebuild-product" class="button button-small"><?php esc_html_e('Rebuild 90d (this product)', 'hp-products-manager'); ?></button>
@@ -1973,9 +2004,9 @@ final class HP_Products_Manager {
                                         <th><?php esc_html_e('Date', 'hp-products-manager'); ?></th>
                                         <th><?php esc_html_e('Type', 'hp-products-manager'); ?></th>
                                         <th><?php esc_html_e('Qty', 'hp-products-manager'); ?></th>
-                                        <th><?php esc_html_e('Order / Customer', 'hp-products-manager'); ?></th>
-                                        <th><?php esc_html_e('QOH After (computed)', 'hp-products-manager'); ?></th>
-                                        <th><?php esc_html_e('Source', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('Location', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('QOH After', 'hp-products-manager'); ?></th>
+                                        <th><?php esc_html_e('Note', 'hp-products-manager'); ?></th>
                                     </tr>
                                     </thead>
                                     <tbody></tbody>

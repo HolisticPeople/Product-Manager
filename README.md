@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.1
+
+- Attribute the Old2New shortcode owner as `products-manager` in HP-Core
+  shortcode-registry metadata so live contract verification assigns
+  `[old2new_product_block]` to Product Manager.
+
 ### 2.5.0
 
 - Add a product context header to the detail page with identity, SKU, status,

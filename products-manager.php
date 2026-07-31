@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.5.0
+ * Version: 2.5.1
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -39,7 +39,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.5.0';
+    const VERSION = '2.5.1';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -563,6 +563,7 @@ final class HP_Products_Manager {
     public function register_old2new_shortcode(): void {
         if (function_exists('HP_Core\register_shortcode')) {
             \HP_Core\register_shortcode('old2new_product_block', [
+                'plugin' => 'products-manager',
                 'label' => 'Old2New Product Block',
                 'description' => 'Displays Product Manager Old2New replacement packets.',
                 'callback' => [$this, 'render_old2new_product_block'],

@@ -17,3 +17,6 @@ Backups/
 Plans and reports/
 Ref Plugins/
 WPCode snippets/
+
+# Dev-only validation assets (never needed at runtime)
+tests/

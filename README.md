@@ -33,6 +33,11 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.3
+
+- Resolve ACF's persisted numeric field-group parent through the exact governed
+  raw group key before the serving-form registry status/apply/rollback guard.
+
 ### 2.5.2
 
 - Normalize the governed ACF serving-form registry with the exact plain

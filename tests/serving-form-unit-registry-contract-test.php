@@ -11,6 +11,19 @@ if (!function_exists('wp_json_encode')) {
     }
 }
 
+$hpPmRegistryTestGroups = [
+    28 => ['key' => 'group_60630bdd97bfa'],
+    29 => ['key' => 'group_unrelated'],
+];
+
+if (!function_exists('acf_get_raw_field_group')) {
+    function acf_get_raw_field_group(int|string $parent): array|false
+    {
+        global $hpPmRegistryTestGroups;
+        return $hpPmRegistryTestGroups[(int) $parent] ?? false;
+    }
+}
+
 require_once dirname(__DIR__) . '/includes/class-hp-pm-serving-form-unit-registry.php';
 
 function hp_pm_registry_assert(bool $condition, string $message): void
@@ -74,6 +87,41 @@ hp_pm_registry_assert(
     'A field outside the exact key/name/group identity must not change.'
 );
 
+$numericParentField = $baseline;
+$numericParentField['parent'] = 28;
+hp_pm_registry_assert(
+    HP_PM_Serving_Form_Unit_Registry::normalize_field($numericParentField)['choices'] === $expectedChoices,
+    'The persisted numeric ACF parent may normalize only when its raw group resolves to the governed key.'
+);
+
+$numericStringParentField = $baseline;
+$numericStringParentField['parent'] = '28';
+hp_pm_registry_assert(
+    HP_PM_Serving_Form_Unit_Registry::normalize_field($numericStringParentField)['choices'] === $expectedChoices,
+    'The persisted numeric-string ACF parent may normalize only through the same governed group resolution.'
+);
+
+$unrelatedNumericParentField = $baseline;
+$unrelatedNumericParentField['parent'] = 29;
+hp_pm_registry_assert(
+    HP_PM_Serving_Form_Unit_Registry::normalize_field($unrelatedNumericParentField) === $unrelatedNumericParentField,
+    'A numeric ACF parent resolving to an unrelated group must not normalize.'
+);
+
+$missingNumericParentField = $baseline;
+$missingNumericParentField['parent'] = 30;
+hp_pm_registry_assert(
+    HP_PM_Serving_Form_Unit_Registry::normalize_field($missingNumericParentField) === $missingNumericParentField,
+    'An unresolved numeric ACF parent must not normalize.'
+);
+
+$wrongTypeField = $baseline;
+$wrongTypeField['type'] = 'text';
+hp_pm_registry_assert(
+    HP_PM_Serving_Form_Unit_Registry::normalize_field($wrongTypeField) === $wrongTypeField,
+    'The centralized identity guard must retain the exact select type requirement.'
+);
+
 $bookChanges = [
     'serving_form_unit' => 'Dropper',
     'name' => 'Existing title',
@@ -95,6 +143,7 @@ $pluginSource = (string) file_get_contents(dirname(__DIR__) . '/products-manager
 hp_pm_registry_assert(str_contains($registrySource, "hp-products-manager acf-registry serving-form-unit"), 'The bounded WP-CLI command must be registered.');
 hp_pm_registry_assert(str_contains($registrySource, "['status', 'apply', 'rollback']"), 'The command must expose status/apply/rollback only.');
 hp_pm_registry_assert(str_contains($registrySource, 'acf_update_field('), 'Schema writes must use the WordPress-native ACF field API.');
+hp_pm_registry_assert(str_contains($registrySource, 'acf_get_raw_field_group($parentId)'), 'Numeric parents must resolve through the raw ACF field-group API.');
 hp_pm_registry_assert(str_contains($registrySource, "self::environment() !== 'staging'"), 'Schema writes must be staging-only.');
 hp_pm_registry_assert(str_contains($registrySource, 'hp_pm_serving_form_unit_registry_backup_v1'), 'Apply/rollback must use the complete versioned JSON backup.');
 hp_pm_registry_assert(str_contains($registrySource, "'field_sha256' => self::field_hash(\$field)"), 'The complete backed-up field must be checksummed.');

@@ -55,27 +55,27 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
     /**
      * @param array<string,mixed> $context
      * @param array<string,mixed> $publicContract
-     * @return array<string,mixed>|\WP_Error
+     * @return array<string,mixed>
      */
     public static function payload(
         string $capability,
         array $context = [],
         array $publicContract = []
-    ): array|\WP_Error {
+    ): array {
         unset($publicContract);
 
         if ($capability !== self::CAPABILITY) {
             return self::error('unsupported_capability', 'The requested editorial-gallery source capability is unsupported.');
         }
 
-        $consumer = isset($context['consumer']) && is_scalar($context['consumer'])
-            ? sanitize_key((string) $context['consumer'])
+        $consumer = isset($context['consumer']) && is_string($context['consumer'])
+            ? $context['consumer']
             : '';
         if ($consumer !== 'hp-catalog') {
             return self::error('unauthorized_consumer', 'The editorial-gallery source is available only to HP-Catalog.');
         }
 
-        $productId = isset($context['product_id']) ? absint($context['product_id']) : 0;
+        $productId = self::exact_positive_id($context['product_id'] ?? null);
         if ($productId < 1) {
             return self::error('invalid_product_id', 'A positive product ID is required.');
         }
@@ -84,7 +84,7 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
         }
 
         $fieldIdentityError = self::field_identity_error();
-        if ($fieldIdentityError instanceof \WP_Error) {
+        if (is_array($fieldIdentityError)) {
             return $fieldIdentityError;
         }
 
@@ -104,7 +104,7 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
         $attachmentIds = self::normalize_attachment_ids(
             get_post_meta($productId, self::FIELD_NAME, true)
         );
-        if (is_wp_error($attachmentIds)) {
+        if (isset($attachmentIds['state']) && $attachmentIds['state'] === 'error') {
             return $attachmentIds;
         }
 
@@ -135,6 +135,8 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
             'schema_version' => self::SCHEMA_VERSION,
             'provider_id' => self::PROVIDER_ID,
             'contract_version' => self::CONTRACT_VERSION,
+            'state' => $attachmentIds === [] ? 'empty' : 'ready',
+            'error' => null,
             'product' => $canonicalSource['product'],
             'field' => $canonicalSource['field'],
             'attachment_ids' => $attachmentIds,
@@ -143,9 +145,9 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
     }
 
     /**
-     * @return list<int>|\WP_Error
+     * @return list<int>|array<string,mixed>
      */
-    public static function normalize_attachment_ids(mixed $raw): array|\WP_Error
+    public static function normalize_attachment_ids(mixed $raw): array
     {
         if ($raw === '' || $raw === null || $raw === false || $raw === []) {
             return [];
@@ -185,7 +187,30 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
         return $normalized;
     }
 
-    private static function field_identity_error(): ?\WP_Error
+    /**
+     * Accept only an exact positive integer or its canonical decimal string.
+     */
+    private static function exact_positive_id(mixed $value): int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : 0;
+        }
+        if (!is_string($value) || preg_match('/^[1-9][0-9]*$/', $value) !== 1) {
+            return 0;
+        }
+
+        $normalized = (int) $value;
+        if ($normalized < 1 || (string) $normalized !== $value) {
+            return 0;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private static function field_identity_error(): ?array
     {
         if (!function_exists('acf_get_field')) {
             return self::error('field_registry_unavailable', 'The governed ACF field registry is unavailable.');
@@ -221,8 +246,26 @@ final class HP_PM_Product_Editorial_Gallery_Source_Provider
         return null;
     }
 
-    private static function error(string $code, string $message): \WP_Error
+    /**
+     * Return an array-only, public-safe failure envelope for HP-Core transport.
+     *
+     * @return array<string,mixed>
+     */
+    private static function error(string $code, string $message): array
     {
-        return new \WP_Error('hp_pm_editorial_gallery_' . $code, $message);
+        return [
+            'schema_version' => self::SCHEMA_VERSION,
+            'provider_id' => self::PROVIDER_ID,
+            'contract_version' => self::CONTRACT_VERSION,
+            'state' => 'error',
+            'error' => [
+                'code' => 'hp_pm_editorial_gallery_' . $code,
+                'message' => $message,
+            ],
+            'product' => null,
+            'field' => null,
+            'attachment_ids' => [],
+            'source_fingerprint' => null,
+        ];
     }
 }

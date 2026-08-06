@@ -5,31 +5,6 @@ declare(strict_types=1);
 namespace {
     define('ABSPATH', __DIR__ . '/');
 
-    final class WP_Error
-    {
-        public function __construct(
-            private string $code,
-            private string $message,
-            private mixed $data = null
-        ) {
-        }
-
-        public function get_error_code(): string
-        {
-            return $this->code;
-        }
-
-        public function get_error_message(): string
-        {
-            return $this->message;
-        }
-
-        public function get_error_data(): mixed
-        {
-            return $this->data;
-        }
-    }
-
     /** @var array<string,list<callable>> */
     $hpPmEditorialActions = [];
     /** @var array<int,object> */
@@ -54,11 +29,6 @@ namespace {
         return strtolower((string) preg_replace('/[^a-z0-9_\-]/', '', $value));
     }
 
-    function absint(mixed $value): int
-    {
-        return abs((int) $value);
-    }
-
     function get_post(int $productId): ?object
     {
         global $hpPmEditorialPosts;
@@ -75,11 +45,6 @@ namespace {
     function wp_json_encode(mixed $value, int $flags = 0): string|false
     {
         return json_encode($value, $flags);
-    }
-
-    function is_wp_error(mixed $value): bool
-    {
-        return $value instanceof WP_Error;
     }
 
     function acf_get_field(string $fieldKey): array|false
@@ -117,11 +82,13 @@ namespace {
 
     function hp_pm_editorial_error_code(mixed $value): string
     {
-        return $value instanceof WP_Error ? $value->get_error_code() : '';
+        return is_array($value) && ($value['state'] ?? '') === 'error'
+            ? (string) ($value['error']['code'] ?? '')
+            : '';
     }
 
-    /** @return array<string,mixed>|WP_Error */
-    function hp_pm_editorial_payload(int $productId = 109731, string $consumer = 'hp-catalog'): array|WP_Error
+    /** @return array<string,mixed> */
+    function hp_pm_editorial_payload(mixed $productId = 109731, mixed $consumer = 'hp-catalog'): array
     {
         return HP_PM_Product_Editorial_Gallery_Source_Provider::payload(
             HP_PM_Product_Editorial_Gallery_Source_Provider::CAPABILITY,
@@ -171,6 +138,12 @@ namespace {
     $payload = hp_pm_editorial_payload();
     hp_pm_editorial_assert(is_array($payload), 'The governed Book fixture must return a source packet.');
     hp_pm_editorial_assert(
+        ($payload['state'] ?? '') === 'ready'
+            && array_key_exists('error', $payload)
+            && $payload['error'] === null,
+        'A populated governed source must use the ready array envelope.'
+    );
+    hp_pm_editorial_assert(
         ($payload['attachment_ids'] ?? []) === [117053, 117054, 117055, 117056, 117057, 117058],
         'The exact six attachment IDs must retain source order.'
     );
@@ -214,13 +187,21 @@ namespace {
     foreach ([[], '', null, false] as $emptySource) {
         $hpPmEditorialMeta[109731]['product_magazine_gallery'] = $emptySource;
         $empty = hp_pm_editorial_payload();
-        hp_pm_editorial_assert(is_array($empty) && ($empty['attachment_ids'] ?? null) === [], 'An empty field must return a valid empty packet.');
+        hp_pm_editorial_assert(
+            is_array($empty)
+                && ($empty['state'] ?? '') === 'empty'
+                && array_key_exists('error', $empty)
+                && $empty['error'] === null
+                && ($empty['attachment_ids'] ?? null) === [],
+            'An empty field must return a valid empty packet.'
+        );
     }
 
     foreach ([
         'scalar' => '117053',
         'object item' => [(object) ['ID' => 117053]],
         'array item' => [['ID' => 117053]],
+        'mixed valid and invalid' => [117053, '117054', 'raw-private-value', 117055],
         'associative source' => ['first' => 117053],
         'zero' => [0],
         'negative' => [-1],
@@ -229,7 +210,19 @@ namespace {
         'overflowing numeric string' => [str_repeat('9', 40)],
     ] as $label => $source) {
         $hpPmEditorialMeta[109731]['product_magazine_gallery'] = $source;
-        hp_pm_editorial_assert(is_wp_error(hp_pm_editorial_payload()), "Malformed source state {$label} must fail soft.");
+        $malformed = hp_pm_editorial_payload();
+        hp_pm_editorial_assert(
+            ($malformed['state'] ?? '') === 'error'
+                && ($malformed['attachment_ids'] ?? null) === []
+                && array_key_exists('product', $malformed)
+                && $malformed['product'] === null,
+            "Malformed source state {$label} must fail soft without returning a partial list."
+        );
+        hp_pm_editorial_assert(
+            !str_contains((string) json_encode($malformed), 'raw-private-value')
+                && !str_contains((string) json_encode($malformed), '_private_meta_attempt'),
+            "Malformed source state {$label} must not expose private source values."
+        );
     }
 
     $hpPmEditorialMeta[109731]['product_magazine_gallery'] = [117053, 117053];
@@ -288,6 +281,32 @@ namespace {
     hp_pm_editorial_assert(
         hp_pm_editorial_error_code(hp_pm_editorial_payload(0)) === 'hp_pm_editorial_gallery_invalid_product_id',
         'A missing product ID must fail soft.'
+    );
+    foreach ([
+        'negative integer' => -109731,
+        'float' => 109731.0,
+        'fractional float' => 109731.5,
+        'scientific string' => '1.09731e5',
+        'leading whitespace' => ' 109731',
+        'trailing whitespace' => '109731 ',
+        'prefix garbage' => 'product-109731',
+        'suffix garbage' => '109731x',
+        'leading zero' => '0109731',
+        'boolean true' => true,
+        'boolean false' => false,
+        'array' => [109731],
+        'object' => (object) ['id' => 109731],
+        'overflow' => str_repeat('9', 40),
+    ] as $label => $invalidProductId) {
+        hp_pm_editorial_assert(
+            hp_pm_editorial_error_code(hp_pm_editorial_payload($invalidProductId)) === 'hp_pm_editorial_gallery_invalid_product_id',
+            "Product ID {$label} must fail before normalization."
+        );
+    }
+    hp_pm_editorial_assert(
+        ($validStringProduct = hp_pm_editorial_payload('109731'))['state'] === 'ready'
+            && ($validStringProduct['product']['id'] ?? 0) === 109731,
+        'A canonical positive numeric string must retain the exact product identity.'
     );
     hp_pm_editorial_assert(
         hp_pm_editorial_error_code(hp_pm_editorial_payload(999999)) === 'hp_pm_editorial_gallery_product_unavailable',

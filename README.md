@@ -39,6 +39,8 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
   the exact governed Book editorial-gallery field. The packet contains only
   public product/field provenance and ordered attachment IDs; it never writes
   product meta or exposes the gallery through Product Manager's admin REST API.
+  The HP-Core callback is array-only, preserves typed public-safe ready/empty/error
+  states, and rejects non-canonical product IDs before normalization.
 
 ### 2.5.3
 

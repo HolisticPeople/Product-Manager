@@ -11,7 +11,13 @@ gallery through HP-Core's fail-soft provider registry.
 - Contract version: `1.0.0`
 - Consumer: `hp-catalog`
 
-The payload contains only:
+Every provider callback result is an array so HP-Core can transport the exact
+public-safe owner state without collapsing diagnostics. Every envelope includes
+`schema_version`, `provider_id`, `contract_version`, `state`, `error`, `product`,
+`field`, `attachment_ids`, and `source_fingerprint`. `state` is `ready`, `empty`,
+or `error`; successful states set `error` to `null`.
+
+The ready payload contains only:
 
 - public Book product identity;
 - exact field key `field_679f5a3cce9a1`, name
@@ -43,5 +49,10 @@ $payload = HP_Core\get_contract_provider_payload(
 ```
 
 Missing, malformed, duplicate, oversized, unpublished, non-product, and
-non-Book sources return typed `WP_Error` results. A missing/empty field returns
-a valid packet with an empty `attachment_ids` list. Consumers must fail soft.
+non-Book sources return `state: error` with a fixed public-safe code/message,
+null product/field/fingerprint, and an empty `attachment_ids` list. A
+missing/empty field returns `state: empty`, `error: null`, and an empty
+`attachment_ids` list. Consumer/product IDs are accepted only in their exact
+governed forms; negative, fractional, scientific, padded, garbage, boolean,
+aggregate, and overflowing product IDs fail before normalization. Consumers
+must fail soft.

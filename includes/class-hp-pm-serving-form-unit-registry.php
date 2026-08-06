@@ -52,11 +52,7 @@ final class HP_PM_Serving_Form_Unit_Registry
      */
     public static function normalize_field(array $field): array
     {
-        if (
-            (string) ($field['key'] ?? '') !== self::FIELD_KEY
-            || (string) ($field['name'] ?? '') !== self::FIELD_NAME
-            || (string) ($field['parent'] ?? '') !== self::FIELD_GROUP
-        ) {
+        if (!self::field_matches_identity($field)) {
             return $field;
         }
 
@@ -265,14 +261,40 @@ final class HP_PM_Serving_Form_Unit_Registry
     /** @param array<string,mixed> $field */
     private static function assert_field_identity(array $field): void
     {
-        if (
-            (string) ($field['key'] ?? '') !== self::FIELD_KEY
-            || (string) ($field['name'] ?? '') !== self::FIELD_NAME
-            || (string) ($field['parent'] ?? '') !== self::FIELD_GROUP
-            || (string) ($field['type'] ?? '') !== 'select'
-        ) {
+        if (!self::field_matches_identity($field)) {
             \WP_CLI::error('The persisted ACF field identity differs from the approved serving-form registry.');
         }
+    }
+
+    /** @param array<string,mixed> $field */
+    private static function field_matches_identity(array $field): bool
+    {
+        return (string) ($field['key'] ?? '') === self::FIELD_KEY
+            && (string) ($field['name'] ?? '') === self::FIELD_NAME
+            && (string) ($field['type'] ?? '') === 'select'
+            && self::parent_matches_group($field['parent'] ?? null);
+    }
+
+    private static function parent_matches_group(mixed $parent): bool
+    {
+        if ($parent === self::FIELD_GROUP) {
+            return true;
+        }
+
+        if (is_int($parent)) {
+            $parentId = $parent;
+        } elseif (is_string($parent) && ctype_digit($parent)) {
+            $parentId = (int) $parent;
+        } else {
+            return false;
+        }
+
+        if ($parentId <= 0 || !function_exists('acf_get_raw_field_group')) {
+            return false;
+        }
+
+        $group = acf_get_raw_field_group($parentId);
+        return is_array($group) && (string) ($group['key'] ?? '') === self::FIELD_GROUP;
     }
 
     private static function assert_staging_environment(): void

@@ -33,6 +33,13 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.2
+
+- Normalize the governed ACF serving-form registry with the exact plain
+  `Dropper` choice while preserving all existing choices and product values.
+- Add staging-only, backup-verified WP-CLI apply/rollback controls and prevent
+  Book products from exposing or submitting the supplement serving-unit field.
+
 ### 2.5.1
 
 - Attribute the Old2New shortcode owner as `products-manager` in HP-Core

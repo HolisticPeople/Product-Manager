@@ -33,6 +33,13 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.4
+
+- Publish the read-only `hp_product_editorial_gallery_source_v1` provider for
+  the exact governed Book editorial-gallery field. The packet contains only
+  public product/field provenance and ordered attachment IDs; it never writes
+  product meta or exposes the gallery through Product Manager's admin REST API.
+
 ### 2.5.3
 
 - Resolve ACF's persisted numeric field-group parent through the exact governed

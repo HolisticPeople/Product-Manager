@@ -6,7 +6,8 @@
     "ERP product fields",
     "product metrics",
     "admin REST tooling",
-    "Old2New product replacement packets"
+    "Old2New product replacement packets",
+    "Product editorial gallery source identity and field provenance"
   ],
   "must_not_own": [
     "WooCommerce core product ownership"
@@ -14,6 +15,7 @@
   "consumes": [
     "WooCommerce products",
     "HP-Catalog",
+    "HP-Core contract provider registry",
     "HP-Inventory hp-inventory/v1 inventory-levels/location-positions/product-history contracts (read-only, fail-soft, product-history floor 2.17.0)"
   ],
   "exposes": {
@@ -49,7 +51,9 @@
     "shortcodes": [
       "old2new_product_block"
     ],
-    "providers": []
+    "providers": [
+      "hp_product_manager_editorial_gallery_source"
+    ]
   },
   "verification": {
     "staging": {

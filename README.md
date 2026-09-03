@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.8
+
+- Normalize native product-list search terms before FiboSearch consumes and
+  clears them, so Hebrew-layout keystrokes produce the same product IDs as the
+  intended English term on Admin Columns-enhanced product screens.
+
 ### 2.5.7
 
 - Recover Hebrew-layout keystrokes in the native WooCommerce Products list,

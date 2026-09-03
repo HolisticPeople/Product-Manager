@@ -17,6 +17,22 @@ namespace {
         $GLOBALS['hp_pm_admin_search_hooks'][] = [$hook, $callback, $priority];
     }
 
+    /** @param array<int,mixed> $args */
+    function hp_pm_admin_search_run_action(string $hook, array $args): void {
+        $callbacks = array_values(array_filter(
+            $GLOBALS['hp_pm_admin_search_hooks'],
+            static fn(array $registered): bool => $registered[0] === $hook
+        ));
+        usort(
+            $callbacks,
+            static fn(array $left, array $right): int => $left[2] <=> $right[2]
+        );
+
+        foreach ($callbacks as $registered) {
+            $registered[1](...$args);
+        }
+    }
+
     function is_admin(): bool {
         return $GLOBALS['hp_pm_admin_search_is_admin'];
     }
@@ -51,18 +67,42 @@ namespace {
     require_once dirname(__DIR__) . '/includes/class-hp-pm-native-product-admin-search.php';
 
     HP_PM_Native_Product_Admin_Search::register();
-    $hook = $GLOBALS['hp_pm_admin_search_hooks'][0] ?? null;
-    is_array($hook) || $fail('The native product adapter must register a query hook.');
-    $hook[0] === 'pre_get_posts' || $fail('The adapter must run on pre_get_posts.');
-    $hook[2] === PHP_INT_MAX || $fail('The adapter must run after product-list extensions.');
+    $hooks = $GLOBALS['hp_pm_admin_search_hooks'];
+    count($hooks) === 2 || $fail('The native product adapter must register early and late query hooks.');
+    $hooks[0][0] === 'pre_get_posts' || $fail('The early adapter must run on pre_get_posts.');
+    $hooks[0][2] === 0 || $fail('The adapter must normalize before product search engines run.');
+    $hooks[1][0] === 'pre_get_posts' || $fail('The late adapter must run on pre_get_posts.');
+    $hooks[1][2] === PHP_INT_MAX || $fail('The late adapter must run after product-list extensions.');
+
+    // Model the real staging path: FiboSearch reads `s`, resolves product IDs,
+    // and clears `s` at priority 900001 before WordPress builds search SQL.
+    $GLOBALS['hp_pm_admin_search_hooks'][] = [
+        'pre_get_posts',
+        static function (HP_PM_Admin_Search_Test_Query $query): void {
+            $phrase = (string) $query->get('s');
+            $GLOBALS['hp_pm_fibosearch_phrase'] = $phrase;
+            $query->set('dgwt_wcas', $phrase);
+            $query->set('post__in', $phrase === 'ultra' ? [101, 102] : [-1]);
+            $query->set('s', '');
+        },
+        900001,
+    ];
 
     $hebrew = new HP_PM_Admin_Search_Test_Query(['post_type' => 'product', 's' => 'וךארש']);
-    HP_PM_Native_Product_Admin_Search::recover_product_query($hebrew);
-    $hebrew->get('s') === 'ultra' || $fail('Hebrew product searches must use the Core QWERTY fallback.');
+    hp_pm_admin_search_run_action('pre_get_posts', [$hebrew]);
+    $GLOBALS['hp_pm_fibosearch_phrase'] === 'ultra'
+        || $fail('FiboSearch must receive the converted QWERTY term.');
+    $hebrew->get('dgwt_wcas') === 'ultra'
+        || $fail('FiboSearch must preserve the converted term for its result query.');
+    $hebrew->get('post__in') === [101, 102]
+        || $fail('The converted FiboSearch path must resolve matching product IDs.');
 
     $english = new HP_PM_Admin_Search_Test_Query(['post_type' => 'product', 's' => 'ultra']);
-    HP_PM_Native_Product_Admin_Search::recover_product_query($english);
-    $english->get('s') === 'ultra' || $fail('English product searches must remain unchanged.');
+    hp_pm_admin_search_run_action('pre_get_posts', [$english]);
+    $GLOBALS['hp_pm_fibosearch_phrase'] === 'ultra'
+        || $fail('English product searches must remain unchanged for FiboSearch.');
+    $english->get('post__in') === [101, 102]
+        || $fail('English FiboSearch product IDs must remain unchanged.');
 
     $other_post_type = new HP_PM_Admin_Search_Test_Query(['post_type' => 'post', 's' => 'וךארש']);
     HP_PM_Native_Product_Admin_Search::recover_product_query($other_post_type);

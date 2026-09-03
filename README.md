@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.7
+
+- Recover Hebrew-layout keystrokes in the native WooCommerce Products list,
+  including Admin Columns refresh requests, through HP Core's shared keyboard
+  mapping.
+
 ### 2.5.6
 
 - Resolve the WordPress root from the deployed plugin path before WP-CLI

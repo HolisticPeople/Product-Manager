@@ -33,6 +33,39 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.5
+
+- Adds HP Core's Hebrew-keyboard recovery to the product table, both Old2New
+  product pickers, and the upsell/cross-sell selectors, while keeping literal
+  matches authoritative.
+
+### 2.5.4
+
+- Publish the read-only `hp_product_editorial_gallery_source_v1` provider for
+  the exact governed Book editorial-gallery field. The packet contains only
+  public product/field provenance and ordered attachment IDs; it never writes
+  product meta or exposes the gallery through Product Manager's admin REST API.
+  The HP-Core callback is array-only, preserves typed public-safe ready/empty/error
+  states, and rejects non-canonical product IDs before normalization.
+
+### 2.5.3
+
+- Resolve ACF's persisted numeric field-group parent through the exact governed
+  raw group key before the serving-form registry status/apply/rollback guard.
+
+### 2.5.2
+
+- Normalize the governed ACF serving-form registry with the exact plain
+  `Dropper` choice while preserving all existing choices and product values.
+- Add staging-only, backup-verified WP-CLI apply/rollback controls and prevent
+  Book products from exposing or submitting the supplement serving-unit field.
+
+### 2.5.1
+
+- Attribute the Old2New shortcode owner as `products-manager` in HP-Core
+  shortcode-registry metadata so live contract verification assigns
+  `[old2new_product_block]` to Product Manager.
+
 ### 2.5.0
 
 - Add a product context header to the detail page with identity, SKU, status,

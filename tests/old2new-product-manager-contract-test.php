@@ -32,8 +32,8 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.5.0'), 'Product Manager plugin header must be 2.5.0.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.5.0'"), 'Product Manager VERSION constant must be 2.5.0.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.5.5'), 'Product Manager plugin header must be 2.5.5.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.5.5'"), 'Product Manager VERSION constant must be 2.5.5.');
 
 // 2.3.2 GTIN brand-prefix advisory — self-learning company-prefix check.
 hp_pm_old2new_assert(str_contains($plugin, 'private function gtin_brand_prefixes'), 'Server must derive brand GTIN prefixes from sibling products.');
@@ -205,6 +205,7 @@ hp_pm_old2new_assert(str_contains($plugin, "'public' => false"), 'Old2New packet
 hp_pm_old2new_assert(str_contains($plugin, "'show_ui' => false"), 'Old2New packet CPT UI must stay hidden behind Product Manager admin.');
 
 hp_pm_old2new_assert(str_contains($plugin, "register_shortcode('old2new_product_block'"), 'HP-Core shortcode registry must expose old2new_product_block.');
+hp_pm_old2new_assert(str_contains($plugin, "'plugin' => 'products-manager'"), 'HP-Core shortcode registry metadata must attribute old2new_product_block to Product Manager.');
 hp_pm_old2new_assert(str_contains($plugin, "add_shortcode('old2new_product_block'"), 'Direct WordPress shortcode fallback must expose old2new_product_block.');
 hp_pm_old2new_assert(str_contains($plugin, 'render_old2new_product_block'), 'Product Manager must own Old2New shortcode rendering.');
 

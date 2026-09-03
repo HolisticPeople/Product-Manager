@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.5.0
+ * Version: 2.5.5
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -23,6 +23,11 @@ if (PHP_VERSION_ID < 80500) {
     return;
 }
 
+require_once __DIR__ . '/includes/class-hp-pm-serving-form-unit-registry.php';
+require_once __DIR__ . '/includes/class-hp-pm-product-editorial-gallery-source-provider.php';
+HP_PM_Serving_Form_Unit_Registry::register();
+HP_PM_Product_Editorial_Gallery_Source_Provider::register();
+
 // Note: WP_Query, WP_Post, WP_REST_Request, WP_REST_Server, WC_Product are global classes
 // No 'use' statements needed - they were causing PHP warnings
 
@@ -39,7 +44,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.5.0';
+    const VERSION = '2.5.5';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -563,6 +568,7 @@ final class HP_Products_Manager {
     public function register_old2new_shortcode(): void {
         if (function_exists('HP_Core\register_shortcode')) {
             \HP_Core\register_shortcode('old2new_product_block', [
+                'plugin' => 'products-manager',
                 'label' => 'Old2New Product Block',
                 'description' => 'Displays Product Manager Old2New replacement packets.',
                 'callback' => [$this, 'render_old2new_product_block'],
@@ -1250,19 +1256,31 @@ final class HP_Products_Manager {
     /**
      * Helper to render an ACF field based on its type
      */
-    private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false, $current_value = null) {
+    private function render_acf_field($field_name, $label, $type = 'text', $choices = null, $multiple = false, $current_value = null, array $allowed_product_types = [], string $current_product_type = '') {
         if ($choices === null) {
             $choices = $this->get_acf_choices($field_name);
         }
-        
+
+        $restricted = $allowed_product_types !== [];
+        $available_for_product = !$restricted || in_array($current_product_type, $allowed_product_types, true);
+        $row_attributes = '';
+        $control_disabled = '';
+        if ($restricted) {
+            $row_attributes .= ' data-hp-pm-product-types="' . esc_attr(implode(',', $allowed_product_types)) . '"';
+            if (!$available_for_product) {
+                $row_attributes .= ' hidden';
+                $control_disabled = ' disabled';
+            }
+        }
+
         $id = 'hp-pm-pd-' . $field_name;
-        $html = '<tr><th>' . esc_html($label) . '</th><td>';
+        $html = '<tr' . $row_attributes . '><th>' . esc_html($label) . '</th><td>';
         
         if ($type === 'textarea') {
             $class = in_array($field_name, ['description_long', 'video_transcription', 'ingredients', 'how_to_use', 'cautions', 'recommended_use', 'community_tips', 'traditional_function', 'expert_article']) ? 'large-text hp-pm-full-width auto-expand' : 'large-text';
             $html .= '<textarea id="' . esc_attr($id) . '" rows="3" class="' . esc_attr($class) . '"></textarea>';
         } elseif ($type === 'select' || $choices !== null) {
-            $html .= '<select id="' . esc_attr($id) . '"' . ($multiple ? ' multiple style="height:120px;"' : '') . ' class="regular-text">';
+            $html .= '<select id="' . esc_attr($id) . '"' . ($multiple ? ' multiple style="height:120px;"' : '') . ' class="regular-text"' . $control_disabled . '>';
             if (!$multiple) $html .= '<option value="">' . esc_html__('— Select —', 'hp-products-manager') . '</option>';
             
             $final_choices = is_array($choices) ? $choices : [];
@@ -1290,9 +1308,9 @@ final class HP_Products_Manager {
             $html .= '</select>';
             if ($multiple) $html .= '<p class="description">' . esc_html__('Hold Ctrl/Cmd to select multiple', 'hp-products-manager') . '</p>';
         } elseif ($type === 'number') {
-            $html .= '<input id="' . esc_attr($id) . '" type="number" step="any" class="regular-text">';
+            $html .= '<input id="' . esc_attr($id) . '" type="number" step="any" class="regular-text"' . $control_disabled . '>';
         } else {
-            $html .= '<input id="' . esc_attr($id) . '" type="text" class="regular-text">';
+            $html .= '<input id="' . esc_attr($id) . '" type="text" class="regular-text"' . $control_disabled . '>';
         }
         
         $html .= '</td></tr>';
@@ -1778,7 +1796,16 @@ final class HP_Products_Manager {
                                     <table class="form-table hp-pm-form">
                                         <?php 
                                             echo $this->render_acf_field('serving_size', __('Serving Size', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'serving_size', true));
-                                            echo $this->render_acf_field('serving_form_unit', __('Serving Form Unit', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'serving_form_unit', true));
+                                            echo $this->render_acf_field(
+                                                'serving_form_unit',
+                                                __('Serving Form Unit', 'hp-products-manager'),
+                                                'select',
+                                                null,
+                                                false,
+                                                get_post_meta($product_id, 'serving_form_unit', true),
+                                                [HP_PM_Serving_Form_Unit_Registry::SUPPLEMENT_TYPE],
+                                                (string) get_post_meta($product_id, 'product_type_hp', true)
+                                            );
                                             echo $this->render_acf_field('servings_per_container', __('Servings Per Container', 'hp-products-manager'), 'number', null, false, get_post_meta($product_id, 'servings_per_container', true));
                                             echo $this->render_acf_field('supplement_form', __('Supplement Form', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'supplement_form', true));
                                         ?>
@@ -2451,45 +2478,58 @@ final class HP_Products_Manager {
 
     public function rest_search_old2new_products(WP_REST_Request $request) {
         $search = sanitize_text_field((string) $request->get_param('search'));
-        $args = [
-            'post_type' => 'product',
-            'post_status' => ['publish', 'draft', 'pending', 'private'],
-            'posts_per_page' => 20,
-            'fields' => 'ids',
-            'no_found_rows' => true,
-            'suppress_filters' => false,
-        ];
-
-        if ($search !== '') {
-            $args['s'] = $search;
-        }
-
-        $query = new WP_Query($args);
         $products = [];
-        $seen = [];
+        foreach ($this->admin_search_keyboard_variants($search) as $query_term) {
+            $args = [
+                'post_type' => 'product',
+                'post_status' => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => 20,
+                'fields' => 'ids',
+                'no_found_rows' => true,
+                'suppress_filters' => false,
+            ];
 
-        if ($search !== '' && function_exists('wc_get_product_id_by_sku')) {
-            $sku_product_id = (int) wc_get_product_id_by_sku($search);
-            if ($sku_product_id > 0) {
-                $sku_product = wc_get_product($sku_product_id);
-                if ($sku_product instanceof WC_Product) {
-                    $products[] = $this->old2new_product_summary($sku_product);
-                    $seen[$sku_product_id] = true;
+            if ($query_term !== '') {
+                $args['s'] = $query_term;
+            }
+
+            $query = new WP_Query($args);
+            $seen = [];
+
+            if ($query_term !== '' && function_exists('wc_get_product_id_by_sku')) {
+                $sku_product_id = (int) wc_get_product_id_by_sku($query_term);
+                if ($sku_product_id > 0) {
+                    $sku_product = wc_get_product($sku_product_id);
+                    if ($sku_product instanceof WC_Product) {
+                        $products[] = $this->old2new_product_summary($sku_product);
+                        $seen[$sku_product_id] = true;
+                    }
                 }
             }
-        }
 
-        foreach ($query->posts as $product_id) {
-            if (isset($seen[(int) $product_id])) {
-                continue;
+            foreach ($query->posts as $product_id) {
+                if (isset($seen[(int) $product_id])) {
+                    continue;
+                }
+                $product = wc_get_product((int) $product_id);
+                if ($product instanceof WC_Product) {
+                    $products[] = $this->old2new_product_summary($product);
+                }
             }
-            $product = wc_get_product((int) $product_id);
-            if ($product instanceof WC_Product) {
-                $products[] = $this->old2new_product_summary($product);
+
+            if ($products !== []) {
+                break;
             }
         }
 
         return rest_ensure_response(['products' => $products]);
+    }
+
+    /** @return array<int,string> */
+    private function admin_search_keyboard_variants(string $term): array {
+        return function_exists('\\HP_Core\\admin_search_keyboard_variants')
+            ? \HP_Core\admin_search_keyboard_variants($term)
+            : [$term];
     }
 
     public function rest_get_old2new_badges(WP_REST_Request $request) {
@@ -4179,6 +4219,10 @@ final class HP_Products_Manager {
             'product_type_hp', 'site_catalog',
         ];
         $apply = array_intersect_key($changes, array_flip($allowed));
+        $effective_product_type = array_key_exists('product_type_hp', $apply)
+            ? sanitize_key((string) $apply['product_type_hp'])
+            : sanitize_key((string) get_post_meta($id, 'product_type_hp', true));
+        $apply = HP_PM_Serving_Form_Unit_Registry::guard_changes_for_product_type($apply, $effective_product_type);
 
         if (empty($apply)) {
             return rest_ensure_response(['updated' => false, 'product' => []]);

@@ -66,6 +66,15 @@ jobs:
             --exclude-from=".github/deploy-exclude.txt" \
             ./ "${{ secrets.KINSTA_USER }}@${{ secrets.KINSTA_HOST }}:${PLUGIN_PATH}"
 
+      - name: Purge Kinsta page cache
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.KINSTA_HOST }}
+          port:     ${{ secrets.KINSTA_PORT }}
+          username: ${{ secrets.KINSTA_USER }}
+          key:      ${{ secrets.KINSTA_SSH_KEY }}
+          script: cd ~/public && wp kinsta cache purge --all
+
       - name: Post-deploy (wp-cli)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -132,3 +141,19 @@ jobs:
             WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
             wp --path="$WP_PATH" cache flush || true
             wp --path="$WP_PATH" plugin activate products-manager || true
+
+      # Kinsta's page/CDN cache serves stale HTML+JS past a plain `wp cache
+      # flush`; a skipped purge left stale JS live after a 2026-07-27 deploy.
+      - name: Purge Kinsta page cache
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.KINSTAPROD_HOST }}
+          port:     ${{ secrets.KINSTAPROD_PORT }}
+          username: ${{ secrets.KINSTAPROD_USER }}
+          key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
+            WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
+            wp --path="$WP_PATH" kinsta cache purge --all
+            echo "Kinsta page cache purged after production deploy"

@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.6
+
+- Resolve the WordPress root from the deployed plugin path before WP-CLI
+  post-deploy and Kinsta cache commands. This prevents the production workflow
+  from stopping at `wp-content` after a successful plugin sync.
+
 ### 2.5.5
 
 - Adds HP Core's Hebrew-keyboard recovery to the product table, both Old2New

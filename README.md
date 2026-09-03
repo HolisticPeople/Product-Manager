@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.5
+
+- Adds HP Core's Hebrew-keyboard recovery to the product table, both Old2New
+  product pickers, and the upsell/cross-sell selectors, while keeping literal
+  matches authoritative.
+
 ### 2.5.4
 
 - Publish the read-only `hp_product_editorial_gallery_source_v1` provider for

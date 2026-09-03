@@ -256,6 +256,16 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         var searchValue = (filters.search || '').toLowerCase();
+        if (searchValue && window.HPAdminSearchKeyboard) {
+            var searchVariants = window.HPAdminSearchKeyboard.variants(searchValue);
+            searchValue = searchVariants.find(function (candidate) {
+                var needle = String(candidate || '').toLowerCase();
+                return allProducts.some(function (row) {
+                    return String(row.name || '').toLowerCase().indexOf(needle) !== -1
+                        || String(row.sku || '').toLowerCase().indexOf(needle) !== -1;
+                });
+            }) || searchValue;
+        }
         var brandName = filters.brand_slug ? (slugToName[filters.brand_slug] || '').toLowerCase() : '';
         var statusValue = filters.status || '';
         var visibilityCode = filters.visibility || '';

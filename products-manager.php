@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.5.4
+ * Version: 2.5.5
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -44,7 +44,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.5.4';
+    const VERSION = '2.5.5';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -2478,45 +2478,58 @@ final class HP_Products_Manager {
 
     public function rest_search_old2new_products(WP_REST_Request $request) {
         $search = sanitize_text_field((string) $request->get_param('search'));
-        $args = [
-            'post_type' => 'product',
-            'post_status' => ['publish', 'draft', 'pending', 'private'],
-            'posts_per_page' => 20,
-            'fields' => 'ids',
-            'no_found_rows' => true,
-            'suppress_filters' => false,
-        ];
-
-        if ($search !== '') {
-            $args['s'] = $search;
-        }
-
-        $query = new WP_Query($args);
         $products = [];
-        $seen = [];
+        foreach ($this->admin_search_keyboard_variants($search) as $query_term) {
+            $args = [
+                'post_type' => 'product',
+                'post_status' => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => 20,
+                'fields' => 'ids',
+                'no_found_rows' => true,
+                'suppress_filters' => false,
+            ];
 
-        if ($search !== '' && function_exists('wc_get_product_id_by_sku')) {
-            $sku_product_id = (int) wc_get_product_id_by_sku($search);
-            if ($sku_product_id > 0) {
-                $sku_product = wc_get_product($sku_product_id);
-                if ($sku_product instanceof WC_Product) {
-                    $products[] = $this->old2new_product_summary($sku_product);
-                    $seen[$sku_product_id] = true;
+            if ($query_term !== '') {
+                $args['s'] = $query_term;
+            }
+
+            $query = new WP_Query($args);
+            $seen = [];
+
+            if ($query_term !== '' && function_exists('wc_get_product_id_by_sku')) {
+                $sku_product_id = (int) wc_get_product_id_by_sku($query_term);
+                if ($sku_product_id > 0) {
+                    $sku_product = wc_get_product($sku_product_id);
+                    if ($sku_product instanceof WC_Product) {
+                        $products[] = $this->old2new_product_summary($sku_product);
+                        $seen[$sku_product_id] = true;
+                    }
                 }
             }
-        }
 
-        foreach ($query->posts as $product_id) {
-            if (isset($seen[(int) $product_id])) {
-                continue;
+            foreach ($query->posts as $product_id) {
+                if (isset($seen[(int) $product_id])) {
+                    continue;
+                }
+                $product = wc_get_product((int) $product_id);
+                if ($product instanceof WC_Product) {
+                    $products[] = $this->old2new_product_summary($product);
+                }
             }
-            $product = wc_get_product((int) $product_id);
-            if ($product instanceof WC_Product) {
-                $products[] = $this->old2new_product_summary($product);
+
+            if ($products !== []) {
+                break;
             }
         }
 
         return rest_ensure_response(['products' => $products]);
+    }
+
+    /** @return array<int,string> */
+    private function admin_search_keyboard_variants(string $term): array {
+        return function_exists('\\HP_Core\\admin_search_keyboard_variants')
+            ? \HP_Core\admin_search_keyboard_variants($term)
+            : [$term];
     }
 
     public function rest_get_old2new_badges(WP_REST_Request $request) {

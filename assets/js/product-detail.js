@@ -438,6 +438,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (input && datalist) {
       input.addEventListener('input', function() {
         var val = input.value;
+        if (val && window.HPAdminSearchKeyboard) {
+          var literalMatches = Array.from(datalist.options).some(function(option) {
+            return String(option.value || '').toLowerCase().indexOf(val.toLowerCase()) !== -1;
+          });
+          if (!literalMatches) {
+            input.value = window.HPAdminSearchKeyboard.hebrewToQwerty(val);
+            val = input.value;
+          }
+        }
         var opt = Array.from(datalist.options).find(function(o){ return o.value === val; });
         if (opt) {
           var id = opt.getAttribute('data-id');

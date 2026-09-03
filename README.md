@@ -33,6 +33,13 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.9
+
+- Normalize native Products-list GET requests during `admin_init`, before
+  Admin Columns and FiboSearch can replace the raw search term with product IDs.
+  This makes Hebrew-layout keystrokes return the same browser-visible product
+  rows as the intended English term.
+
 ### 2.5.8
 
 - Normalize native product-list search terms before FiboSearch consumes and

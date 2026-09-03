@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.5.5
+ * Version: 2.5.9
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -25,8 +25,10 @@ if (PHP_VERSION_ID < 80500) {
 
 require_once __DIR__ . '/includes/class-hp-pm-serving-form-unit-registry.php';
 require_once __DIR__ . '/includes/class-hp-pm-product-editorial-gallery-source-provider.php';
+require_once __DIR__ . '/includes/class-hp-pm-native-product-admin-search.php';
 HP_PM_Serving_Form_Unit_Registry::register();
 HP_PM_Product_Editorial_Gallery_Source_Provider::register();
+HP_PM_Native_Product_Admin_Search::register();
 
 // Note: WP_Query, WP_Post, WP_REST_Request, WP_REST_Server, WC_Product are global classes
 // No 'use' statements needed - they were causing PHP warnings
@@ -44,7 +46,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.5.5';
+    const VERSION = '2.5.9';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';

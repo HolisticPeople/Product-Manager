@@ -33,6 +33,31 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.9
+
+- Normalize native Products-list GET requests during `admin_init`, before
+  Admin Columns and FiboSearch can replace the raw search term with product IDs.
+  This makes Hebrew-layout keystrokes return the same browser-visible product
+  rows as the intended English term.
+
+### 2.5.8
+
+- Normalize native product-list search terms before FiboSearch consumes and
+  clears them, so Hebrew-layout keystrokes produce the same product IDs as the
+  intended English term on Admin Columns-enhanced product screens.
+
+### 2.5.7
+
+- Recover Hebrew-layout keystrokes in the native WooCommerce Products list,
+  including Admin Columns refresh requests, through HP Core's shared keyboard
+  mapping.
+
+### 2.5.6
+
+- Resolve the WordPress root from the deployed plugin path before WP-CLI
+  post-deploy and Kinsta cache commands. This prevents the production workflow
+  from stopping at `wp-content` after a successful plugin sync.
+
 ### 2.5.5
 
 - Adds HP Core's Hebrew-keyboard recovery to the product table, both Old2New

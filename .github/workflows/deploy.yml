@@ -84,7 +84,7 @@ jobs:
           key:      ${{ secrets.KINSTA_SSH_KEY }}
           script: |
             PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-            WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
+            WP_PATH="$(dirname "$(dirname "$(dirname "$PLUGIN_PATH")")")"
             wp --path="$WP_PATH" cache flush || true
             wp --path="$WP_PATH" plugin activate products-manager || true
 
@@ -138,7 +138,7 @@ jobs:
           key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
           script: |
             PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-            WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
+            WP_PATH="$(dirname "$(dirname "$(dirname "$PLUGIN_PATH")")")"
             wp --path="$WP_PATH" cache flush || true
             wp --path="$WP_PATH" plugin activate products-manager || true
 
@@ -154,6 +154,6 @@ jobs:
           script: |
             set -euo pipefail
             PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-            WP_PATH="$(dirname "$(dirname "$PLUGIN_PATH")")"
+            WP_PATH="$(dirname "$(dirname "$(dirname "$PLUGIN_PATH")")")"
             wp --path="$WP_PATH" kinsta cache purge --all
             echo "Kinsta page cache purged after production deploy"

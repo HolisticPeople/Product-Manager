@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.6.0
+
+- Product movement rebuilds now consume HP Core Collection V2 and no longer classify the legacy `on-account` order status as a sale. Unknown or exceptional collection evidence fails closed; Woo's paid signal remains a compatibility fallback while the owner contract is unavailable.
+
 ### 2.5.9
 
 - Normalize native Products-list GET requests during `admin_init`, before

@@ -1,5 +1,9 @@
 # Product Manager Parking Lot
 
+## HP Order Lifecycle V2 — active implementation, 2026-09-14
+
+Before changing order-based sale inference or `wc-on-account`, read `HolisticPeople/HP-Codex-Skills@dev/skills/hp-roadmap/references/roadmaps/hp-order-lifecycle-v2-current-state-2026-09.md`. Sale reporting must consume verified collection facts rather than order status.
+
 ## HP-Roadmap Codex12 Profile R&D Handover
 
 Before planning Woo product candidate review, native Woo `product_brand` supplier research, supplier-brand product matching, Product Manager imports from Codex12 findings, or merchandising review of official supplier-site candidates, read:

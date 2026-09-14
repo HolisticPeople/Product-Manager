@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.5.9
+ * Version: 2.6.0
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -46,7 +46,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.5.9';
+    const VERSION = '2.6.0';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -3512,6 +3512,33 @@ final class HP_Products_Manager {
         update_option('hp_pm_rebuild_all_state', $state, false);
     }
 
+    /**
+     * Collection is a financial fact, never an order-status inference.
+     *
+     * Collection V2 is preferred when HP Core exposes it. During the additive
+     * rollout an unavailable contract falls back to Woo's paid signal only;
+     * legacy `on-account` is deliberately not interpreted as a sale.
+     */
+    private function order_has_verified_collection($order): bool {
+        if (function_exists('hp_core_order_collection_snapshot_v1')) {
+            try {
+                $snapshot = hp_core_order_collection_snapshot_v1($order);
+                if (!is_array($snapshot)
+                    || empty($snapshot['available'])
+                    || ($snapshot['confidence'] ?? '') === 'exception'
+                ) {
+                    return false;
+                }
+
+                return in_array((string) ($snapshot['balance_state'] ?? ''), ['paid', 'overpaid', 'not_required'], true);
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+
+        return method_exists($order, 'is_paid') && (bool) $order->is_paid();
+    }
+
     private function rest_erp_retired_response() {
         return new \WP_Error(
             'hp_pm_erp_retired',
@@ -3579,10 +3606,7 @@ final class HP_Products_Manager {
                     $status = $order->get_status();
                     if ($status === 'refunded' || $status === 'cancelled') {
                         $type = 'restore';
-                    } elseif (
-                        in_array($status, ['on-account'], true) ||
-                        (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
-                    ) {
+                    } elseif ($this->order_has_verified_collection($order)) {
                         $type = 'sale';
                     } else {
                         $type = '';
@@ -3704,10 +3728,7 @@ final class HP_Products_Manager {
                 $status = $order->get_status();
                 if ($status === 'refunded' || $status === 'cancelled') {
                     $type = 'restore';
-                } elseif (
-                    in_array($status, ['on-account'], true) ||
-                    (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
-                ) {
+                } elseif ($this->order_has_verified_collection($order)) {
                     $type = 'sale';
                 } else {
                     continue;

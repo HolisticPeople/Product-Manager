@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
-    var products = {};
+    var products = Object.create(null);
+    var searchRequest = 0;
     var packets = [];
     var oldProduct = null;
     var newProducts = [];
@@ -233,12 +234,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function showForm(packet) {
+        searchRequest++;
+        productList.innerHTML = '';
+        products = Object.create(null);
         openModal();
         packetId.value = packet && packet.id ? String(packet.id) : '';
         originalStatus = packet && packet.status ? normalizeStatus(packet.status) : '';
         oldProduct = packet ? packet.old_product : null;
         newProducts = packet && Array.isArray(packet.new_products) ? packet.new_products.slice() : [];
-        oldInput.value = oldProduct ? (oldProduct.name + ' [' + oldProduct.sku + ']') : '';
+        [oldProduct].concat(newProducts).forEach(function (product) {
+            if (product) products[product.id] = product;
+        });
+        oldInput.value = oldProduct ? productLabel(oldProduct) : '';
         newInput.value = '';
         statusSelect.value = normalizeStatus(packet && packet.status ? packet.status : 'basic_discontinue');
         startedAt.value = packet && packet.hard_redirect_started_at ? packet.hard_redirect_started_at : '';
@@ -263,6 +270,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function closeModal() {
+        searchRequest++;
         if (modal) modal.hidden = true;
     }
 
@@ -299,8 +307,15 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePreview();
     }
 
-    function searchProducts(term) {
+    function productLabel(product) {
+        return product.name + ' [' + (product.sku || '') + ']';
+    }
+
+    function searchProducts(input) {
+        var term = input.value;
+        var request = ++searchRequest;
         if (!term || term.length < 2) {
+            productList.innerHTML = '';
             return;
         }
         var url = new URL(config.searchUrl);
@@ -314,21 +329,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(function (payload) {
+                if (request !== searchRequest || input.value !== term) return;
                 var rows = Array.isArray(payload.products) ? payload.products : [];
                 productList.innerHTML = rows.map(function (product) {
                     products[product.id] = product;
-                    return '<option value="' + escapeHtml(product.name + ' [' + product.sku + ']') + '" data-id="' + escapeHtml(product.id) + '"></option>';
+                    return '<option value="' + escapeHtml(productLabel(product)) + '" data-id="' + escapeHtml(product.id) + '"></option>';
                 }).join('');
             })
             .catch(function () {});
     }
 
     function productFromInput(input) {
-        var value = input.value;
-        var options = Array.prototype.slice.call(productList.querySelectorAll('option'));
-        var option = options.find(function (candidate) { return candidate.value === value; });
-        var id = option ? option.getAttribute('data-id') : '';
-        return id && products[id] ? products[id] : null;
+        // Both fields share suggestions, but a selection must survive their replacement.
+        var id = Object.keys(products).find(function (key) {
+            return productLabel(products[key]) === input.value;
+        });
+        return id ? products[id] : null;
+    }
+
+    function selectProduct(input) {
+        var product = productFromInput(input);
+        if (input === oldInput) {
+            oldProduct = product;
+            renderSelectedOld();
+            updatePreview();
+        } else if (product) {
+            if (!newProducts.some(function (item) { return String(item.id) === String(product.id); })) {
+                newProducts.push(product);
+            }
+            input.value = '';
+            renderSelectedNewProducts();
+        }
+        if (product) {
+            searchRequest++;
+            productList.innerHTML = '';
+        }
+        return product;
     }
 
     document.querySelectorAll('[data-hp-pm-tab]').forEach(function (button) {
@@ -359,25 +395,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     statusSelect.addEventListener('change', updateRedirectType);
-    oldInput.addEventListener('input', function () { searchProducts(oldInput.value); });
-    newInput.addEventListener('input', function () { searchProducts(newInput.value); });
+    [oldInput, newInput].forEach(function (input) {
+        input.addEventListener('input', function () {
+            // Native datalist selection emits input before change (which may wait for blur).
+            if (!selectProduct(input)) searchProducts(input);
+        });
+        input.addEventListener('change', function () { selectProduct(input); });
+    });
     [oldMessage, newMessage, badgeText].forEach(function (field) {
         if (field) field.addEventListener('input', updatePreview);
-    });
-
-    oldInput.addEventListener('change', function () {
-        oldProduct = productFromInput(oldInput);
-        renderSelectedOld();
-        updatePreview();
-    });
-
-    newInput.addEventListener('change', function () {
-        var product = productFromInput(newInput);
-        if (product && !newProducts.some(function (item) { return String(item.id) === String(product.id); })) {
-            newProducts.push(product);
-            newInput.value = '';
-            renderSelectedNewProducts();
-        }
     });
 
     selectedNewProducts.addEventListener('click', function (event) {

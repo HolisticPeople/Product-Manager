@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.6.1
+
+- Fix Old2New product search finding a product without assigning it. Selections now commit immediately, remain available when the other field searches, and ignore outdated search responses. Editing or clearing the old-product field clears its previous assignment.
+
 ### 2.6.0
 
 - Product movement rebuilds now consume HP Core Collection V2 and no longer classify the legacy `on-account` order status as a sale. Unknown or exceptional collection evidence fails closed; Woo's paid signal remains a compatibility fallback while the owner contract is unavailable.

@@ -33,6 +33,11 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.10
+
+- Fix Old2New product assignment when selecting search results. Assign selections immediately, retain their IDs across replacement searches, and ignore outdated responses. Production hotfix excludes development-only Collection V2 changes.
+
+
 ### 2.5.9
 
 - Normalize native Products-list GET requests during `admin_init`, before

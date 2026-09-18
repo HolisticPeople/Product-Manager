@@ -308,6 +308,13 @@
     font-weight: 600;
 }
 
+/* Field helper copy: calm, never competing with the label above it. */
+.hp-old2new-hint {
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--hp-admin-muted, #646970);
+}
+
 .hp-old2new-form input,
 .hp-old2new-form select,
 .hp-old2new-form textarea {

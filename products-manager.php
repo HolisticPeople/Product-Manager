@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.5.10
+ * Version: 2.5.11
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -46,7 +46,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.5.10';
+    const VERSION = '2.5.11';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -54,6 +54,12 @@ final class HP_Products_Manager {
     private const OLD2NEW_LEGACY_MIGRATION_OPTION = 'hp_pm_old2new_legacy_pairs_migrated';
     private const OLD2NEW_STATUS_MIGRATION_OPTION = 'hp_pm_old2new_statuses_migrated';
     private const OLD2NEW_BANNER_WINDOW_DAYS = 180;
+    // A packet still owns exactly ONE old product (redirect, canonical, badge
+    // and purchasability gating all key off that single old SKU). The admin
+    // may pick several old products in one go; the save then fans out into one
+    // packet per old product. Bound the fan-out so a runaway payload can't
+    // create an unbounded number of packets in a single request.
+    private const OLD2NEW_MAX_OLD_PRODUCTS = 25;
     // Query param carried by Old2New links (301 redirect target, banner card
     // clicks) so the new-product page can tell referred visitors from organic
     // ones and only show the replacement banner to the former.
@@ -916,6 +922,128 @@ final class HP_Products_Manager {
         return !empty($query->posts) ? (int) $query->posts[0] : 0;
     }
 
+    /**
+     * Read the admin-selected old products out of a save payload.
+     *
+     * The admin UI sends `old_product_ids` (chip multi-select); the legacy
+     * single `old_product_id` key stays accepted so older clients and the
+     * internal seeders keep working. Order is preserved: the first entry is
+     * the one an edit re-points, the rest fan out into their own packets.
+     */
+    private function old2new_payload_old_product_ids(array $payload): array {
+        $ids = [];
+
+        if (isset($payload['old_product_ids']) && is_array($payload['old_product_ids'])) {
+            foreach ($payload['old_product_ids'] as $candidate) {
+                $ids[] = absint($candidate);
+            }
+        }
+
+        if (isset($payload['old_product_id'])) {
+            $ids[] = absint($payload['old_product_id']);
+        }
+
+        return array_values(array_unique(array_filter($ids)));
+    }
+
+    /**
+     * Save one admin submission that may name several old products.
+     *
+     * Every old product gets its OWN packet (the single-old record shape the
+     * redirect/canonical/badge/commerce lanes depend on), all sharing the same
+     * new products, status, target, window and message overrides. Validation
+     * runs over the whole selection BEFORE anything is written, so a conflict
+     * on the third old product can't leave the first two half-saved.
+     *
+     * @return array|\WP_Error List of packet responses, newest last.
+     */
+    private function save_old2new_packet_group(array $payload, int $packet_id = 0) {
+        $old_product_ids = $this->old2new_payload_old_product_ids($payload);
+
+        if (empty($old_product_ids)) {
+            return new \WP_Error('old2new_invalid_old_product', __('At least one old product is required.', 'hp-products-manager'), ['status' => 400]);
+        }
+
+        if (count($old_product_ids) > self::OLD2NEW_MAX_OLD_PRODUCTS) {
+            return new \WP_Error(
+                'old2new_too_many_old_products',
+                sprintf(
+                    /* translators: %d: maximum number of old products per save. */
+                    __('Select at most %d old products per save.', 'hp-products-manager'),
+                    self::OLD2NEW_MAX_OLD_PRODUCTS
+                ),
+                ['status' => 400]
+            );
+        }
+
+        $missing_products = [];
+        $missing_skus = [];
+        $conflicting_skus = [];
+        foreach ($old_product_ids as $old_product_id) {
+            $old_product = wc_get_product($old_product_id);
+            if (!$old_product instanceof WC_Product) {
+                $missing_products[] = $old_product_id;
+                continue;
+            }
+
+            $old_sku = $this->normalize_old2new_sku((string) $old_product->get_sku());
+            if ($old_sku === '') {
+                $missing_skus[] = $old_product->get_name();
+                continue;
+            }
+
+            if ($this->find_old2new_packet_by_old_sku($old_sku, $packet_id) > 0) {
+                $conflicting_skus[] = $old_sku;
+            }
+        }
+
+        if (!empty($missing_products)) {
+            return new \WP_Error('old2new_invalid_old_product', __('Old product is required.', 'hp-products-manager'), ['status' => 400]);
+        }
+
+        if (!empty($missing_skus)) {
+            return new \WP_Error(
+                'old2new_missing_old_sku',
+                sprintf(
+                    /* translators: %s: comma-separated product names. */
+                    __('These old products have no SKU: %s', 'hp-products-manager'),
+                    implode(', ', $missing_skus)
+                ),
+                ['status' => 400]
+            );
+        }
+
+        if (!empty($conflicting_skus)) {
+            return new \WP_Error(
+                'old2new_duplicate_old_sku',
+                sprintf(
+                    /* translators: %s: comma-separated SKUs. */
+                    __('An Old2New packet already exists for these old SKUs: %s', 'hp-products-manager'),
+                    implode(', ', $conflicting_skus)
+                ),
+                ['status' => 409]
+            );
+        }
+
+        $saved = [];
+        foreach ($old_product_ids as $index => $old_product_id) {
+            $packet_payload = $payload;
+            $packet_payload['old_product_id'] = $old_product_id;
+            unset($packet_payload['old_product_ids']);
+
+            // Only the first old product re-uses the edited packet; the rest
+            // are always new records.
+            $result = $this->save_old2new_packet($packet_payload, $index === 0 ? $packet_id : 0);
+            if (is_wp_error($result)) {
+                return $result;
+            }
+
+            $saved[] = $result;
+        }
+
+        return $saved;
+    }
+
     private function save_old2new_packet(array $payload, int $packet_id = 0) {
         $old_product_id = absint($payload['old_product_id'] ?? 0);
         $new_product_ids = isset($payload['new_product_ids']) && is_array($payload['new_product_ids'])
@@ -1175,6 +1303,7 @@ final class HP_Products_Manager {
                     <p><strong><?php esc_html_e('Canonical:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Everything Basic Discontinue does, plus search engines are told to show the new product in results instead of the old one. Both pages stay reachable.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Hard Redirect:', 'hp-products-manager'); ?></strong> <?php esc_html_e('The old page is taken down: anyone opening it lands on the new product, where a short "this replaces..." note shows for the banner window (default 180 days). After that the note goes away but the redirect stays.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Picking the new product:', 'hp-products-manager'); ?></strong> <?php esc_html_e('If a packet has several replacements, "Auto" sends people to the best seller. Pick one yourself to override — it gets the gold "Recommended" tag in the banner and receives the redirect.', 'hp-products-manager'); ?></p>
+                    <p><strong><?php esc_html_e('Several old products at once:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Pick more than one old product and Save writes one packet per old product, all pointing at the same replacements. The new product then shows every old product it replaces in a single banner.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Who sees what:', 'hp-products-manager'); ?></strong> <?php esc_html_e('Shoppers who follow an Old2New link or redirect see the replacement note on the new product; shoppers who find the new product on their own see a normal page.', 'hp-products-manager'); ?></p>
                     <p><strong><?php esc_html_e('Your own wording:', 'hp-products-manager'); ?></strong> <?php esc_html_e('You can rewrite the banner messages per packet; {old_product}, {new_product}, {new_products} and {new_product_count} are filled in automatically.', 'hp-products-manager'); ?></p>
                 </div>
@@ -1189,13 +1318,15 @@ final class HP_Products_Manager {
                         <button type="button" class="button hp-old2new-form__close" id="hp-old2new-close" aria-label="<?php esc_attr_e('Close', 'hp-products-manager'); ?>">&times;</button>
                     </div>
                     <label for="hp-old2new-old-product" class="hp-old2new-field--half">
-                        <?php esc_html_e('Old Product', 'hp-products-manager'); ?>
-                        <input id="hp-old2new-old-product" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search old product by name or SKU', 'hp-products-manager'); ?>">
+                        <?php esc_html_e('Old Products', 'hp-products-manager'); ?>
+                        <input id="hp-old2new-old-product" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search old products by name or SKU', 'hp-products-manager'); ?>">
+                        <small class="hp-old2new-hint"><?php esc_html_e('Pick one at a time; each stays as a chip. Several old products save as one packet each, sharing the settings below.', 'hp-products-manager'); ?></small>
                         <span id="hp-old2new-selected-old" class="hp-old2new-selected-products"></span>
                     </label>
                     <label for="hp-old2new-new-products" class="hp-old2new-field--half">
                         <?php esc_html_e('New Products', 'hp-products-manager'); ?>
-                        <input id="hp-old2new-new-products" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search replacement product by name or SKU', 'hp-products-manager'); ?>">
+                        <input id="hp-old2new-new-products" type="search" list="hp-old2new-products-list" placeholder="<?php esc_attr_e('Search replacement products by name or SKU', 'hp-products-manager'); ?>">
+                        <small class="hp-old2new-hint"><?php esc_html_e('Pick one at a time; add as many replacements as you need.', 'hp-products-manager'); ?></small>
                         <span id="hp-old2new-selected-new-products" class="hp-old2new-selected-products"></span>
                     </label>
                     <label for="hp-old2new-status-select" class="hp-old2new-field--quarter">
@@ -2450,9 +2581,22 @@ final class HP_Products_Manager {
     }
 
     public function rest_create_old2new_packet(WP_REST_Request $request) {
-        $saved = $this->save_old2new_packet($request->get_json_params() ?: []);
+        $saved = $this->save_old2new_packet_group($request->get_json_params() ?: []);
 
-        return is_wp_error($saved) ? $saved : rest_ensure_response($saved);
+        return is_wp_error($saved) ? $saved : rest_ensure_response($this->old2new_packet_group_response($saved));
+    }
+
+    /**
+     * One save may write several packets (one per selected old product).
+     * `packet` stays the first one so older clients keep reading the same
+     * shape; `packets` carries the whole group.
+     */
+    private function old2new_packet_group_response(array $packets): array {
+        return [
+            'packet' => $packets[0] ?? null,
+            'packets' => array_values($packets),
+            'created_count' => count($packets),
+        ];
     }
 
     public function rest_update_old2new_packet(WP_REST_Request $request) {
@@ -2461,9 +2605,9 @@ final class HP_Products_Manager {
             return new \WP_Error('old2new_not_found', __('Old2New packet not found.', 'hp-products-manager'), ['status' => 404]);
         }
 
-        $saved = $this->save_old2new_packet($request->get_json_params() ?: [], $packet_id);
+        $saved = $this->save_old2new_packet_group($request->get_json_params() ?: [], $packet_id);
 
-        return is_wp_error($saved) ? $saved : rest_ensure_response($saved);
+        return is_wp_error($saved) ? $saved : rest_ensure_response($this->old2new_packet_group_response($saved));
     }
 
     public function rest_delete_old2new_packet(WP_REST_Request $request) {

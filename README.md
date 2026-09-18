@@ -34,7 +34,6 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 ## Release Notes
 
 ### 2.7.0
-
 - Old2New packets can be created for several old products in one pass. The Old Products
   field is now a chip multi-select like New Products: pick as many discontinued products
   as you need, and Save writes one packet per old product, all sharing the replacements,
@@ -56,6 +55,16 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 ### 2.6.0
 
 - Product movement rebuilds now consume HP Core Collection V2 and no longer classify the legacy `on-account` order status as a sale. Unknown or exceptional collection evidence fails closed; Woo's paid signal remains a compatibility fallback while the owner contract is unavailable.
+
+### 2.5.11
+
+- Isolated production release of the 2.7.0 Old2New multi-old selection, cut from `main`
+  so the development-only Collection V2 sale-classification work stays held back. Live in
+  production 2026-09-18 (main 2ca89ff, workflow run 35336732655).
+
+### 2.5.10
+
+- Fix Old2New product assignment when selecting search results. Assign selections immediately, retain their IDs across replacement searches, and ignore outdated responses. Production hotfix excludes development-only Collection V2 changes.
 
 ### 2.5.9
 

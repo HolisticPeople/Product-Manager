@@ -31,7 +31,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var products = Object.create(null);
     var searchRequest = 0;
     var packets = [];
-    var oldProduct = null;
+    // One packet still owns ONE old product; the form collects several so a
+    // single save can fan out into one packet per old product.
+    var oldProducts = [];
     var newProducts = [];
     var originalStatus = '';
 
@@ -195,7 +197,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderTemplate(template) {
-        var oldName = oldProduct && oldProduct.name ? oldProduct.name : '';
+        // Each packet renders its own old product server-side; the preview
+        // joins the selection so the admin sees every name they picked.
+        var oldName = oldProducts.map(function (product) { return product.name || ''; }).filter(Boolean).join(', ');
         var names = newProducts.map(function (product) { return product.name || ''; }).filter(Boolean);
         return String(template || '')
             .replace(/\{old_product\}/g, oldName)
@@ -205,11 +209,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function oldProductInStock() {
-        if (!oldProduct) return false;
-        if (oldProduct.stock !== null && oldProduct.stock !== undefined) {
-            return Number(oldProduct.stock) > 0;
-        }
-        return oldProduct.stock_status === 'instock';
+        // Any still-sellable old product means the "limited stock remains"
+        // wording is the honest default for the preview.
+        return oldProducts.some(function (product) {
+            if (!product) return false;
+            if (product.stock !== null && product.stock !== undefined) {
+                return Number(product.stock) > 0;
+            }
+            return product.stock_status === 'instock';
+        });
     }
 
     function updatePreview() {
@@ -240,12 +248,12 @@ document.addEventListener('DOMContentLoaded', function () {
         openModal();
         packetId.value = packet && packet.id ? String(packet.id) : '';
         originalStatus = packet && packet.status ? normalizeStatus(packet.status) : '';
-        oldProduct = packet ? packet.old_product : null;
+        oldProducts = packet && packet.old_product ? [packet.old_product] : [];
         newProducts = packet && Array.isArray(packet.new_products) ? packet.new_products.slice() : [];
-        [oldProduct].concat(newProducts).forEach(function (product) {
+        oldProducts.concat(newProducts).forEach(function (product) {
             if (product) products[product.id] = product;
         });
-        oldInput.value = oldProduct ? productLabel(oldProduct) : '';
+        oldInput.value = '';
         newInput.value = '';
         statusSelect.value = normalizeStatus(packet && packet.status ? packet.status : 'basic_discontinue');
         startedAt.value = packet && packet.hard_redirect_started_at ? packet.hard_redirect_started_at : '';
@@ -274,18 +282,21 @@ document.addEventListener('DOMContentLoaded', function () {
         if (modal) modal.hidden = true;
     }
 
-    function productChip(product, removable) {
+    function productChip(product, removeAttribute) {
         var img = safeImageUrl(product.image);
         return '<span class="hp-old2new-chip">'
             + (img ? '<img class="hp-old2new-chip__thumb" src="' + escapeHtml(img) + '" alt="" loading="lazy">' : '')
             + escapeHtml(product.name) + ' (' + escapeHtml(product.sku || '') + ')'
-            + (removable ? '<button type="button" class="button-link" data-remove-new="' + escapeHtml(product.id) + '">x</button>' : '')
+            + (removeAttribute ? '<button type="button" class="button-link" ' + removeAttribute + '="' + escapeHtml(product.id) + '">x</button>' : '')
             + '</span>';
     }
 
     function renderSelectedOld() {
         if (!selectedOld) return;
-        selectedOld.innerHTML = oldProduct ? productChip(oldProduct, false) : '';
+        selectedOld.innerHTML = oldProducts.map(function (product) {
+            return productChip(product, 'data-remove-old');
+        }).join('');
+        updatePreview();
     }
 
     function renderTargetOptions(selectedId) {
@@ -301,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderSelectedNewProducts(selectedTargetId) {
         selectedNewProducts.innerHTML = newProducts.map(function (product) {
-            return productChip(product, true);
+            return productChip(product, 'data-remove-new');
         }).join('');
         renderTargetOptions(selectedTargetId);
         updatePreview();
@@ -349,16 +360,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function selectProduct(input) {
         var product = productFromInput(input);
-        if (input === oldInput) {
-            oldProduct = product;
-            renderSelectedOld();
-            updatePreview();
-        } else if (product) {
-            if (!newProducts.some(function (item) { return String(item.id) === String(product.id); })) {
-                newProducts.push(product);
+        if (product) {
+            var bucket = input === oldInput ? oldProducts : newProducts;
+            if (!bucket.some(function (item) { return String(item.id) === String(product.id); })) {
+                bucket.push(product);
             }
             input.value = '';
-            renderSelectedNewProducts();
+            if (input === oldInput) {
+                renderSelectedOld();
+            } else {
+                renderSelectedNewProducts();
+            }
         }
         if (product) {
             searchRequest++;
@@ -413,6 +425,15 @@ document.addEventListener('DOMContentLoaded', function () {
         renderSelectedNewProducts();
     });
 
+    if (selectedOld) {
+        selectedOld.addEventListener('click', function (event) {
+            var id = event.target && event.target.getAttribute ? event.target.getAttribute('data-remove-old') : '';
+            if (!id) return;
+            oldProducts = oldProducts.filter(function (product) { return String(product.id) !== String(id); });
+            renderSelectedOld();
+        });
+    }
+
     table.addEventListener('click', function (event) {
         var action = event.target && event.target.getAttribute ? event.target.getAttribute('data-action') : '';
         if (!action) return;
@@ -442,26 +463,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
     form.addEventListener('submit', function (event) {
         event.preventDefault();
-        if (!oldProduct || !newProducts.length) {
-            setStatus('Choose one old product and at least one new product.');
+        if (!oldProducts.length || !newProducts.length) {
+            setStatus('Choose at least one old product and at least one new product.');
             return;
         }
 
         if (statusSelect.value === 'hard_redirect' && originalStatus !== 'hard_redirect') {
-            // Preview-first for the one transition that takes a live page down.
-            var oldUrl = oldProduct.permalink || 'the old product page';
-            if (!confirm('Hard Redirect takes the old product page down:\n\n'
-                + oldUrl + '\n\nwill return a 301 straight to the selected new product. '
+            // Preview-first for the one transition that takes a live page down:
+            // name every page this save is about to 301.
+            var oldUrls = oldProducts.map(function (product) {
+                return product.permalink || (product.name + ' [' + (product.sku || '') + ']');
+            }).join('\n');
+            if (!confirm('Hard Redirect takes ' + (oldProducts.length > 1 ? 'these old product pages' : 'the old product page') + ' down:\n\n'
+                + oldUrls + '\n\n' + (oldProducts.length > 1 ? 'They' : 'It') + ' will return a 301 straight to the selected new product. '
                 + 'Customers can no longer reach the old page or buy remaining stock.\n\nContinue?')) {
                 return;
             }
+        }
+
+        if (oldProducts.length > 1 && !confirm('Save creates ' + oldProducts.length + ' separate Old2New packets — one per old product, all pointing at the '
+            + newProducts.length + ' replacement' + (newProducts.length === 1 ? '' : 's') + ' you picked.\n\nContinue?')) {
+            return;
         }
 
         var id = packetId.value;
         var method = id ? 'PUT' : 'POST';
         var url = id ? (config.packetsUrl + '/' + encodeURIComponent(id)) : config.packetsUrl;
         var body = {
-            old_product_id: oldProduct.id,
+            old_product_ids: oldProducts.map(function (product) { return product.id; }),
             new_product_ids: newProducts.map(function (product) { return product.id; }),
             status: statusSelect.value,
             hard_redirect_started_at: startedAt.value,

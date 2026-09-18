@@ -33,6 +33,24 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.5.11
+
+- Old2New packets can be created for several old products in one pass. The Old Products
+  field is now a chip multi-select like New Products: pick as many discontinued products
+  as you need, and Save writes one packet per old product, all sharing the replacements,
+  status, target, banner window and message overrides. Each packet still owns exactly one
+  old product — redirect, canonical, badge and purchasability gating all key off that old
+  SKU — so the record shape and every frontend lane are unchanged.
+- The whole selection is validated before anything is written: an old product without an
+  SKU, one that already has a packet, or a selection over the 25-product cap fails the
+  save with the offending SKUs named, leaving no half-written group behind. Multi-packet
+  saves are confirmed first, and a hard-redirect confirmation now lists every page it
+  takes down.
+- `POST`/`PUT /hp-products-manager/v1/old2new-packets` accept `old_product_ids` (the legacy
+  single `old_product_id` still works) and respond with `{ packet, packets, created_count }`.
+- Isolated production release on the 2.5.x line: same change that ships on `dev` as 2.7.0,
+  excluding the development-only Collection V2 sale-classification work.
+
 ### 2.5.10
 
 - Fix Old2New product assignment when selecting search results. Assign selections immediately, retain their IDs across replacement searches, and ignore outdated responses. Production hotfix excludes development-only Collection V2 changes.

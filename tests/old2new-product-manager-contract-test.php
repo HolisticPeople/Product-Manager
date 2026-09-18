@@ -32,8 +32,65 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.6.1'), 'Product Manager plugin header must be 2.6.1.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.6.1'"), 'Product Manager VERSION constant must be 2.6.1.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.7.0'), 'Product Manager plugin header must be 2.7.0.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.7.0'"), 'Product Manager VERSION constant must be 2.7.0.');
+
+// 2.7.0 multi-old selection: one admin save may name several old products and
+// fans out into one packet each. A packet still owns exactly ONE old product,
+// because redirect/canonical/badge/commerce gating all key off that old SKU.
+hp_pm_old2new_assert(
+    str_contains($plugin, 'private function save_old2new_packet_group(array $payload, int $packet_id = 0)'),
+    'Multi-old saves must run through a group saver.'
+);
+$hp_pm_old2new_group_start = strpos($plugin, 'private function save_old2new_packet_group(');
+$hp_pm_old2new_group_end = $hp_pm_old2new_group_start !== false
+    ? strpos($plugin, 'private function save_old2new_packet(array $payload', $hp_pm_old2new_group_start)
+    : false;
+$hp_pm_old2new_group_body = ($hp_pm_old2new_group_start !== false && $hp_pm_old2new_group_end !== false)
+    ? substr($plugin, $hp_pm_old2new_group_start, $hp_pm_old2new_group_end - $hp_pm_old2new_group_start)
+    : '';
+hp_pm_old2new_assert($hp_pm_old2new_group_body !== '', 'Group saver body must be readable for the ordering checks below.');
+
+// Ordering is the point: every validation marker has to appear BEFORE the
+// write loop, or a conflict on the third old product could leave the first
+// two already written.
+$hp_pm_old2new_write_loop = strpos($hp_pm_old2new_group_body, 'foreach ($old_product_ids as $index => $old_product_id)');
+hp_pm_old2new_assert($hp_pm_old2new_write_loop !== false, 'Group saver must write one packet per old product.');
+foreach ([
+    'count($old_product_ids) > self::OLD2NEW_MAX_OLD_PRODUCTS' => 'bound how many old products one save may fan out into',
+    'old2new_duplicate_old_sku' => 'reject conflicting old SKUs',
+    'old2new_missing_old_sku' => 'reject old products without an SKU',
+    'old2new_invalid_old_product' => 'reject old products that do not resolve',
+] as $hp_pm_old2new_marker => $hp_pm_old2new_reason) {
+    $hp_pm_old2new_at = strpos($hp_pm_old2new_group_body, $hp_pm_old2new_marker);
+    hp_pm_old2new_assert(
+        $hp_pm_old2new_at !== false && $hp_pm_old2new_at < $hp_pm_old2new_write_loop,
+        "The group saver must {$hp_pm_old2new_reason} BEFORE writing any packet (no half-saved fan-out)."
+    );
+}
+hp_pm_old2new_assert(
+    preg_match('/OLD2NEW_MAX_OLD_PRODUCTS = (\d+)/', $plugin, $hp_pm_old2new_cap) === 1
+        && (int) $hp_pm_old2new_cap[1] > 0
+        && (int) $hp_pm_old2new_cap[1] <= 100,
+    'The old-product fan-out cap must stay a small positive bound.'
+);
+hp_pm_old2new_assert(
+    str_contains($plugin, '$this->save_old2new_packet($packet_payload, $index === 0 ? $packet_id : 0)'),
+    'Only the first old product may re-use the edited packet; the rest must be new records.'
+);
+hp_pm_old2new_assert(
+    str_contains($plugin, 'save_old2new_packet_group($request->get_json_params() ?: [])')
+        && str_contains($plugin, 'save_old2new_packet_group($request->get_json_params() ?: [], $packet_id)'),
+    'Both REST create and update must use the group saver.'
+);
+hp_pm_old2new_assert(
+    str_contains($plugin, "'packets' => array_values(\$packets)") && str_contains($plugin, "'packet' => \$packets[0] ?? null"),
+    'Save responses must carry the whole packet group while keeping the single-packet key.'
+);
+hp_pm_old2new_assert(
+    str_contains($plugin, "isset(\$payload['old_product_ids'])") && str_contains($plugin, "isset(\$payload['old_product_id'])"),
+    'Payload reader must accept the new id list and the legacy single id.'
+);
 
 // 2.3.2 GTIN brand-prefix advisory — self-learning company-prefix check.
 hp_pm_old2new_assert(str_contains($plugin, 'private function gtin_brand_prefixes'), 'Server must derive brand GTIN prefixes from sibling products.');

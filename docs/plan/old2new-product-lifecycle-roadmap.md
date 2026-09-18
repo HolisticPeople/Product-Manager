@@ -96,6 +96,15 @@ Current packet records store the fields needed by the admin and shortcode:
 Future SEO and redirect slices should use the existing packet fields before
 adding new data.
 
+A packet holds exactly ONE old product. The admin form may select several old
+products at once (2.7.0), but the save fans out into one packet per old product
+sharing the same replacements and settings; it does not turn the record into a
+many-to-many mapping. Keep it that way: the 301 redirect, canonical tag, loop
+badge, backorder/purchasability gating and the per-request old-SKU index all
+resolve a page through a single old SKU. A new product that replaces several
+old products is still rendered as one banner — `resolve_old2new_packet_for_new_sku`
+already aggregates every packet naming that new SKU.
+
 ## Future Visibility Slices
 
 - HP-Zen owns FiboSearch visibility and rendering while consuming Product
@@ -108,5 +117,7 @@ adding new data.
 ## Guardrails
 
 - Do not move WooCommerce product truth into Product Manager packet records.
+- Do not let a multi-old save write packets one at a time without validating the
+  whole selection first; a conflict must fail the save before anything is written.
 - Do not reintroduce HP-UI shortcode ownership.
 - Keep legacy ACF row reads only as rollback and migration safety.

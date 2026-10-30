@@ -14,6 +14,11 @@ on:
           - production
           - staging
         default: production
+      ignore_staging_leases:
+        description: Deploy even if an active staging QA lease names products-manager (staging only)
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -34,6 +39,62 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Test staging lease check
+        run: python3 -B .github/hp-deploy/staging-lease-check-test.py
+
+      # P4/P4b (2026-10-30): a lane mid-browser-QA books a lease naming the
+      # plugins its QA measures (HP-Codex-Skills staging-lease.py). Wait for
+      # unexpired leases naming products-manager; missing directory = free; SSH error =
+      # fail closed. Leases from other plugins never block this deploy.
+      - name: Respect active staging leases
+        env:
+          IGNORE_STAGING_LEASES: ${{ github.event_name == 'workflow_dispatch' && inputs.ignore_staging_leases == true }}
+          KINSTA_HOST: ${{ secrets.KINSTA_HOST }}
+          KINSTA_PORT: ${{ secrets.KINSTA_PORT }}
+          KINSTA_USER: ${{ secrets.KINSTA_USER }}
+          KINSTA_SSH_KEY: ${{ secrets.KINSTA_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ "$IGNORE_STAGING_LEASES" == "true" ]]; then
+            echo "::warning::ignore_staging_leases=true: deploying without checking staging leases"
+            exit 0
+          fi
+          lease_tmp="$(mktemp -d)"
+          trap 'rm -rf "$lease_tmp"' EXIT
+          printf '%s\n' "$KINSTA_SSH_KEY" > "$lease_tmp/key"
+          chmod 600 "$lease_tmp/key"
+          if ! ssh-keyscan -p "${KINSTA_PORT:-22}" "${KINSTA_HOST}" > "$lease_tmp/known_hosts" 2> "$lease_tmp/keyscan.err" || [[ ! -s "$lease_tmp/known_hosts" ]]; then
+            echo "::error::Staging lease check could not reach the staging host (ssh-keyscan): $(tail -c 500 "$lease_tmp/keyscan.err")"
+            exit 1
+          fi
+          set +e
+          ssh -i "$lease_tmp/key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$lease_tmp/known_hosts" \
+            -o ConnectTimeout=20 -p "${KINSTA_PORT:-22}" "${KINSTA_USER}@${KINSTA_HOST}" \
+            "python3 - --plugin products-manager" < .github/hp-deploy/staging-lease-check.py \
+            > "$lease_tmp/out.json" 2> "$lease_tmp/err.txt"
+          rc=$?
+          set -e
+          cat "$lease_tmp/out.json"
+          case "$rc" in
+            0)
+              echo "No active staging lease names products-manager; deploying."
+              ;;
+            3)
+              python3 - "$lease_tmp/out.json" <<'PY'
+          import json, sys
+          for lease in json.load(open(sys.argv[1]))["blocking"]:
+              print("::error::" + lease["message"])
+          PY
+              echo "::error::products-manager is leased for browser QA on staging. Re-run after the lease expires or is released, or dispatch with ignore_staging_leases=true."
+              exit 1
+              ;;
+            *)
+              echo "::error::Staging lease check failed closed (exit $rc): $(tail -c 500 "$lease_tmp/err.txt")"
+              exit 1
+              ;;
+          esac
 
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.10.0

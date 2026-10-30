@@ -27,4 +27,30 @@ hp_pm_deploy_assert(
     'Production deploys must purge Kinsta page cache from the resolved WordPress root.'
 );
 
+// P4/P4b (2026-10-30): the staging job respects per-plugin staging leases
+// before its first host step; production is never lease-gated.
+$hp_pm_parts = explode('  deploy-production:', $workflow, 2);
+$hp_pm_staging = $hp_pm_parts[0];
+$hp_pm_production = $hp_pm_parts[1] ?? '';
+$hp_pm_lease_at = strpos($hp_pm_staging, '- name: Respect active staging leases');
+hp_pm_deploy_assert(
+    $hp_pm_lease_at !== false && str_contains($hp_pm_staging, '- name: Test staging lease check'),
+    'The staging job must self-test and run the staging lease check.'
+);
+foreach (['- name: Load SSH key', '- name: Ensure plugin dir exists', '- name: Rsync plugin files'] as $hp_pm_host_step) {
+    $hp_pm_step_at = strpos($hp_pm_staging, $hp_pm_host_step);
+    hp_pm_deploy_assert(
+        $hp_pm_step_at !== false && $hp_pm_step_at > $hp_pm_lease_at,
+        'The staging lease check must precede ' . $hp_pm_host_step . '.'
+    );
+}
+hp_pm_deploy_assert(
+    str_contains($hp_pm_staging, '"python3 - --plugin products-manager" < .github/hp-deploy/staging-lease-check.py'),
+    'The staging lease check must name the products-manager slug.'
+);
+hp_pm_deploy_assert(
+    $hp_pm_production !== '' && !str_contains($hp_pm_production, 'staging-lease'),
+    'Production deploys must never be gated on staging leases.'
+);
+
 echo "Deploy workflow contract passed\n";

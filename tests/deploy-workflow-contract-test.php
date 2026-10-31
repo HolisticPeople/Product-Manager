@@ -53,4 +53,21 @@ hp_pm_deploy_assert(
     'Production deploys must never be gated on staging leases.'
 );
 
+// Canonical two-job guard (2026-10-31 side-findings sweep): a production
+// dispatch from the dev ref must never also run staging, so the staging
+// auto-trigger is scoped to push events; production runs only on dispatch.
+$hp_pm_norm = static fn(string $s): string => (string) preg_replace('/\s+/', ' ', $s);
+hp_pm_deploy_assert(
+    preg_match('/deploy-staging:\s*\n\s*if:\s*\|?\s*\n?(.*?)\n\s*name:/s', $hp_pm_staging, $hp_pm_guard) === 1,
+    'The staging job must declare an if: guard.'
+);
+hp_pm_deploy_assert(
+    trim($hp_pm_norm($hp_pm_guard[1])) === "(github.event_name == 'push' && github.ref_name == 'dev') || (github.event_name == 'workflow_dispatch' && inputs.deploy == 'staging')",
+    'The staging guard must be the canonical push-scoped dev guard OR a staging dispatch.'
+);
+hp_pm_deploy_assert(
+    preg_match("/^\s*if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'production'\s*$/m", $hp_pm_production) === 1,
+    'The production job must run only on a production dispatch.'
+);
+
 echo "Deploy workflow contract passed\n";

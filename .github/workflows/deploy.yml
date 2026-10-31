@@ -30,7 +30,7 @@ env:
 jobs:
   deploy-staging:
     if: |
-      github.ref_name == 'dev' ||
+      (github.event_name == 'push' && github.ref_name == 'dev') ||
       (github.event_name == 'workflow_dispatch' && inputs.deploy == 'staging')
     name: Deploy to STAGING
     runs-on: ubuntu-latest

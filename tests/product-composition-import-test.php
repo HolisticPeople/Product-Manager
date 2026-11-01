@@ -29,23 +29,24 @@ namespace {
     function get_option($key,$default=false){return $GLOBALS['options'][$key]??$default;}
     function add_option($key,$v,$deprecated='',$autoload=false){if(array_key_exists($key,$GLOBALS['options']))return false;$GLOBALS['options'][$key]=$v;return true;}
     function update_option($key,$v,$autoload=false){if($GLOBALS['fault']==='rollback_drift'&&($v['phase']??'')==='rollback_intent'){$GLOBALS['meta'][101]['ingredients']='foreign during rollback intent';}if($GLOBALS['fault']==='rollback_between_rows'&&($v['rows']['natural_constituents']['phase']??'')==='restored'){$GLOBALS['meta'][101]['ingredients']='foreign between inverse rows';}if($GLOBALS['fault']==='journal'&&($v['rows']['ingredients']['phase']??'')==='verified'){return false;}$GLOBALS['options'][$key]=$v;return true;}
-    function update_post_meta($id,$key,$v){$GLOBALS['writes']++;$GLOBALS['meta'][$id][$key]=$v;return true;}
+    function update_post_meta($id,$key,$v,$previous=''){if(!empty($previous)&&serialize($GLOBALS['meta'][$id][$key]??null)!==serialize($previous))return false;$GLOBALS['writes']++;$GLOBALS['meta'][$id][$key]=wp_unslash($v);return true;}
     function add_post_meta($id,$key,$v,$unique=false){if($unique&&metadata_exists('post',$id,$key))return false;return update_post_meta($id,$key,$v);}
-    function delete_post_meta($id,$key){$GLOBALS['writes']++;unset($GLOBALS['meta'][$id][$key]);return true;}
-    function wp_slash($v){return $v;}
+    function delete_post_meta($id,$key,$expected=''){if(($GLOBALS['useActualDeleteMetadata']??false)&&function_exists('delete_metadata'))return delete_metadata('post',$id,$key,$expected);$expected=wp_unslash($expected);if($expected!==''&&$expected!==null&&$expected!==false&&serialize($GLOBALS['meta'][$id][$key]??null)!==serialize($expected))return false;$GLOBALS['writes']++;unset($GLOBALS['meta'][$id][$key]);return true;}
+    function wp_slash($v){if(is_array($v))return array_map('wp_slash',$v);return is_string($v)?addslashes($v):$v;}
+    function wp_unslash($v){if(is_array($v))return array_map('wp_unslash',$v);return is_string($v)?stripslashes($v):$v;}
     function wp_kses_post($v){return str_replace('<script>','',$v);}
     function wp_json_encode($v,$flags=0){return json_encode($v,$flags);}
     function get_object_taxonomies($type){return ['product_cat','product_visibility'];}
     function wp_get_object_terms($id,$tax,$args){return $tax==='product_cat'?[55,66]:[];}
     function is_wp_error($v){return false;}
-    function wp_update_post($values,$error=false){$GLOBALS['writes']++;$id=$values['ID'];foreach($values as $k=>$v){if($k!=='ID')$GLOBALS['posts'][$id]->$k=$v;}return $id;}
+    function wp_update_post($values,$error=false){$GLOBALS['writes']++;$id=$values['ID'];foreach($values as $k=>$v){if($k!=='ID')$GLOBALS['posts'][$id]->$k=wp_unslash($v);}return $id;}
     function acf_get_field($name){$schema=HP_PM_Product_Composition_Fields::schema()['fields'];if(isset($schema[$name]))return $schema[$name]+['name'=>$name];return ['key'=>'field_test_'.$name,'name'=>$name,'type'=>'textarea'];}
     function update_field($key,$v,$id){
         if(!\HP_Catalog\Product_Source_Update::active($id))throw new \RuntimeException('missing_boundary');
         $schema=HP_PM_Product_Composition_Fields::schema()['fields'];$name=str_replace('field_test_','',$key);foreach($schema as $k=>$row){if($row['key']===$key)$name=$k;}
         update_post_meta($id,$name,$v);if($GLOBALS['fault']==='pointer')throw new \RuntimeException('pointer_fault');update_post_meta($id,'_'.$name,$key);return true;
     }
-    function apply_filters($hook,$default,$args=[]){if(is_callable($GLOBALS['duringSummaryFilter']??null)){$callback=$GLOBALS['duringSummaryFilter'];$GLOBALS['duringSummaryFilter']=null;$callback();}return ['schemaVersion'=>'hp_catalog_ingredient_summary_v1','status'=>'available','results'=>[['termId'=>55,'status'=>'resolved','canonical'=>['slug'=>'linalool','name'=>'Linalool']]]];}
+    function apply_filters($hook,$default,...$args){if($hook!=='hp_catalog_ingredient_summaries_v1')return $default;if(is_callable($GLOBALS['duringSummaryFilter']??null)){$callback=$GLOBALS['duringSummaryFilter'];$GLOBALS['duringSummaryFilter']=null;$callback();}return ['schemaVersion'=>'hp_catalog_ingredient_summary_v1','status'=>'available','results'=>[['termId'=>55,'status'=>'resolved','canonical'=>['slug'=>'linalool','name'=>'Linalool']]]];}
     function get_term($id,$tax){return(object)['term_id'=>$id,'slug'=>'linalool','name'=>'Linalool'];}
     require __DIR__.'/../includes/class-hp-pm-product-composition-fields.php';
     require __DIR__.'/../includes/class-hp-pm-reviewed-product-import.php';
@@ -63,7 +64,7 @@ namespace {
     function packet(){ $packet = ['schemaVersion'=>HP_PM_Reviewed_Product_Import::SCHEMA,'operationId'=>'synthetic-lavender-1','siteUrl'=>home_url('/'),'environment'=>'staging','productId'=>101,'identity'=>HP_PM_Reviewed_Product_Import::identity(101),'review'=>['decision'=>'approved','reference'=>'review/synthetic','reviewer'=>'Independent synthetic reviewer','identityApproved'=>true,'sourceMarket'=>'US','holds'=>[]],'fields'=>[
         ['field'=>'ingredients','before'=>['exists'=>true,'value'=>'old oil'],'proposed'=>'Lavender essential oil','referenceBefore'=>['exists'=>true,'value'=>'field_test_ingredients'],'evidence'=>['pip:ingredients']],
         ['field'=>'application_methods','before'=>['exists'=>false,'value'=>null],'proposed'=>['aromatic','topical_external'],'referenceBefore'=>['exists'=>false,'value'=>null],'evidence'=>['pip:explicit badges']],
-        ['field'=>'natural_constituents','before'=>['exists'=>false,'value'=>null],'proposed'=>[['sourceName'=>'Linalool','canonicalIngredient'=>['termId'=>55,'slug'=>'linalool','name'=>'Linalool','reviewRef'=>'identity/review'],'chemicalClass'=>'monoterpenoid alcohol','amount'=>'UNKNOWN','species'=>'UNKNOWN','isomer'=>'UNKNOWN']],'referenceBefore'=>['exists'=>false,'value'=>null],'evidence'=>['pip:main components']],
+        ['field'=>'natural_constituents','before'=>['exists'=>false,'value'=>null],'proposed'=>[['sourceName'=>'Synthetic "Linalool" \\ constituent','canonicalIngredient'=>['termId'=>55,'slug'=>'linalool','name'=>'Linalool','reviewRef'=>'identity/review'],'chemicalClass'=>'monoterpenoid alcohol','amount'=>'UNKNOWN','species'=>'UNKNOWN','isomer'=>'UNKNOWN']],'referenceBefore'=>['exists'=>false,'value'=>null],'evidence'=>['pip:main components']],
     ]];$packet['review']['finalCopySha256']=HP_PM_Reviewed_Product_Import::final_copy_hash($packet['fields']);$packet['review']['sourceFidelityReviewer']='Independent source reviewer';$packet['review']['sourceFidelityReference']='review/final-copy';return $packet;}
     if ($GLOBALS['fixtureOnly'] ?? false) { return; }
     reset_fixture();$p=packet();$before=$meta;

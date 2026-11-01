@@ -1,0 +1,37 @@
+name: Verify PM deployment controls
+on:
+  pull_request:
+    branches: [dev, main]
+permissions:
+  contents: read
+concurrency:
+  group: pm-deployment-control-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  deployment-controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test actual performer and remote guards with offline command doubles
+        run: python3 -B .github/hp-deploy/test-deployment-controls.py
+      - name: Test staging lease parser
+        run: python3 -B .github/hp-deploy/staging-lease-check-test.py
+      - name: Verify workflow coupling
+        run: php tests/deploy-workflow-contract-test.php
+      - name: Record actual packaging comparison without imposing an old runtime on future features
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 -B .github/hp-deploy/package-equivalence.py --baseline "$BASE_SHA" --candidate "$HEAD_SHA" --output "$RUNNER_TEMP/pm-packaging-comparison.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pm-controls-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/pm-packaging-comparison.json
+          if-no-files-found: error

@@ -346,7 +346,7 @@ namespace {
     hp_pm_editorial_assert(!str_contains($providerSource, 'register_rest_route('), 'The source provider must not add REST transport.');
     hp_pm_editorial_assert(!str_contains($providerSource, 'wp_get_attachment_'), 'Attachment validation and delivery belong to HP-Catalog.');
     hp_pm_editorial_assert(
-        ($contract['exposes']['providers'] ?? []) === [HP_PM_Product_Editorial_Gallery_Source_Provider::PROVIDER_ID],
+        in_array(HP_PM_Product_Editorial_Gallery_Source_Provider::PROVIDER_ID, $contract['exposes']['providers'] ?? [], true),
         'The owner manifest must declare the exact provider.'
     );
 

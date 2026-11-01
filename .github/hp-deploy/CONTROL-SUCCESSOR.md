@@ -8,7 +8,7 @@ comparison receipt proves those separate facts; equal runtime is not equal tree.
 No merge, workflow dispatch, target probe or native mutation belongs to this
 preparation task. Source CI does not establish route READY. The existing sole
 Publisher must select and qualify a successor, without silently amending the
-issued wave-7 freeze or relabeling the rejected old workflow as qualified.
+current issued freeze or relabeling the rejected old workflow as qualified.
 
 ## Roles and exact inputs
 

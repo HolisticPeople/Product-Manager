@@ -1,14 +1,15 @@
-# Product-Manager deployment control successor — proposed, unselected
+# Product-Manager controller — recovery-only carrier, not selected
 
-This is a source/CI-only option. The complete rsync-deployed tracked payload and
-2.7.2 header/constant remain byte-equal to accepted dev
-`8c2e777288025e4010a75c6455a96dd831e38d23`; control/docs/tests live under existing
-excluded `.github/` or `tests/`. Full Git trees differ. The immutable package
-comparison receipt proves those separate facts; equal runtime is not equal tree.
-No merge, workflow dispatch, target probe or native mutation belongs to this
-preparation task. Source CI does not establish route READY. The existing sole
-Publisher must select and qualify a successor, without silently amending the
-current issued freeze or relabeling the rejected old workflow as qualified.
+This is the **RECOVERY_ONLY_NOT_SELECTED** carrier. Its complete 27-file
+rsync-deployed payload and 2.5.11 header/constant equal actual main
+`2ca89ffdfc65ff59a3727c1f1510bad6710d2708` and the Publisher's independently
+verified prior-code map. The controller, packaging, remote guard, lease parser,
+workflow and test bodies are retained byte-for-byte from reviewed forward
+`989de9b1654b4501916f4ab61eb6b484859bfa25`; only excluded recovery documentation
+differs. See [the exact recovery plan](RECOVERY-ONLY.md). Full trees differ.
+No merge, dispatch, native action or route READY claim belongs to this carrier.
+PR 76 remains the unchanged forward proposal. The current issued freeze is not
+amended by this separate draft recovery proposal.
 
 ## Roles and exact inputs
 
@@ -133,6 +134,6 @@ PR CI executes the actual performer with command doubles, actual remote guard
 code with fake WP-CLI, real local Git archive/rsync copy regressions, staging
 lease parser and workflow coupling. No target host is contacted. Packaging CI
 records comparison against that PR's actual base/head; it does not permanently
-require all future runtime feature work to equal historical 2.7.2. This particular
-control-only candidate must independently prove complete payload equality to
-accepted `8c2e777` before Publisher selection.
+require all future runtime feature work to equal historical 2.7.2. This recovery
+carrier must independently prove complete 27-file payload equality
+to actual main `2ca89ff` and the Publisher prior-code map before any selection.

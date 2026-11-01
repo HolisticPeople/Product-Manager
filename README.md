@@ -33,17 +33,8 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
-### 2.7.2
+### 2.5.11
 
-- Preserve literal backslashes in conditional rollback deletion: WordPress unslashes the delete comparison value before serialization. Keep update previous-value comparisons unslashed, as required by that separate native API.
-
-### 2.7.1
-
-- Add brand-neutral application methods, oil preparation and structured natural constituents through native product ACF ownership.
-- Add a private reviewed finite import command with exact before/reference guards, durable intents, readback, zero-write repeat and conditional scoped inverse; Catalog's existing per-product boundary is required, with no policy activation.
-- Expose a privacy-filtered, public-eligible source summary for product presentation and separate Catalog relationship review. See [the contract](docs/contracts/reviewed-product-import-v1.md).
-
-### 2.7.0
 - Old2New packets can be created for several old products in one pass. The Old Products
   field is now a chip multi-select like New Products: pick as many discontinued products
   as you need, and Save writes one packet per old product, all sharing the replacements,
@@ -57,24 +48,13 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
   takes down.
 - `POST`/`PUT /hp-products-manager/v1/old2new-packets` accept `old_product_ids` (the legacy
   single `old_product_id` still works) and respond with `{ packet, packets, created_count }`.
-
-### 2.6.1
-
-- Fix Old2New product search finding a product without assigning it. Selections now commit immediately, remain available when the other field searches, and ignore outdated search responses. Editing or clearing the old-product field clears its previous assignment.
-
-### 2.6.0
-
-- Product movement rebuilds now consume HP Core Collection V2 and no longer classify the legacy `on-account` order status as a sale. Unknown or exceptional collection evidence fails closed; Woo's paid signal remains a compatibility fallback while the owner contract is unavailable.
-
-### 2.5.11
-
-- Isolated production release of the 2.7.0 Old2New multi-old selection, cut from `main`
-  so the development-only Collection V2 sale-classification work stays held back. Live in
-  production 2026-09-18 (main 2ca89ff, workflow run 35336732655).
+- Isolated production release on the 2.5.x line: same change that ships on `dev` as 2.7.0,
+  excluding the development-only Collection V2 sale-classification work.
 
 ### 2.5.10
 
 - Fix Old2New product assignment when selecting search results. Assign selections immediately, retain their IDs across replacement searches, and ignore outdated responses. Production hotfix excludes development-only Collection V2 changes.
+
 
 ### 2.5.9
 

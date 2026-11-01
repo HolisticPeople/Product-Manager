@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.7.2
+ * Version: 2.5.11
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -26,10 +26,6 @@ if (PHP_VERSION_ID < 80500) {
 require_once __DIR__ . '/includes/class-hp-pm-serving-form-unit-registry.php';
 require_once __DIR__ . '/includes/class-hp-pm-product-editorial-gallery-source-provider.php';
 require_once __DIR__ . '/includes/class-hp-pm-native-product-admin-search.php';
-require_once __DIR__ . '/includes/class-hp-pm-product-composition-fields.php';
-require_once __DIR__ . '/includes/class-hp-pm-reviewed-product-import.php';
-HP_PM_Product_Composition_Fields::register();
-HP_PM_Reviewed_Product_Import::register();
 HP_PM_Serving_Form_Unit_Registry::register();
 HP_PM_Product_Editorial_Gallery_Source_Provider::register();
 HP_PM_Native_Product_Admin_Search::register();
@@ -50,7 +46,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.7.2';
+    const VERSION = '2.5.11';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -1971,7 +1967,6 @@ final class HP_Products_Manager {
                                         <?php 
                                             echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients', true));
                                             echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients_other', true));
-                                            echo HP_PM_Product_Composition_Fields::render_admin_rows($product_id);
                                             echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'potency', true));
                                             echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'potency_units', true));
                                         ?>
@@ -3661,33 +3656,6 @@ final class HP_Products_Manager {
         update_option('hp_pm_rebuild_all_state', $state, false);
     }
 
-    /**
-     * Collection is a financial fact, never an order-status inference.
-     *
-     * Collection V2 is preferred when HP Core exposes it. During the additive
-     * rollout an unavailable contract falls back to Woo's paid signal only;
-     * legacy `on-account` is deliberately not interpreted as a sale.
-     */
-    private function order_has_verified_collection($order): bool {
-        if (function_exists('hp_core_order_collection_snapshot_v1')) {
-            try {
-                $snapshot = hp_core_order_collection_snapshot_v1($order);
-                if (!is_array($snapshot)
-                    || empty($snapshot['available'])
-                    || ($snapshot['confidence'] ?? '') === 'exception'
-                ) {
-                    return false;
-                }
-
-                return in_array((string) ($snapshot['balance_state'] ?? ''), ['paid', 'overpaid', 'not_required'], true);
-            } catch (\Throwable $e) {
-                return false;
-            }
-        }
-
-        return method_exists($order, 'is_paid') && (bool) $order->is_paid();
-    }
-
     private function rest_erp_retired_response() {
         return new \WP_Error(
             'hp_pm_erp_retired',
@@ -3755,7 +3723,10 @@ final class HP_Products_Manager {
                     $status = $order->get_status();
                     if ($status === 'refunded' || $status === 'cancelled') {
                         $type = 'restore';
-                    } elseif ($this->order_has_verified_collection($order)) {
+                    } elseif (
+                        in_array($status, ['on-account'], true) ||
+                        (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
+                    ) {
                         $type = 'sale';
                     } else {
                         $type = '';
@@ -3877,7 +3848,10 @@ final class HP_Products_Manager {
                 $status = $order->get_status();
                 if ($status === 'refunded' || $status === 'cancelled') {
                     $type = 'restore';
-                } elseif ($this->order_has_verified_collection($order)) {
+                } elseif (
+                    in_array($status, ['on-account'], true) ||
+                    (method_exists($order, 'is_paid') ? $order->is_paid() : in_array($status, ['processing', 'completed'], true))
+                ) {
                     $type = 'sale';
                 } else {
                     continue;

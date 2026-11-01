@@ -33,6 +33,12 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.7.1
+
+- Add brand-neutral application methods, oil preparation and structured natural constituents through native product ACF ownership.
+- Add a private reviewed finite import command with exact before/reference guards, durable intents, readback, zero-write repeat and conditional scoped inverse; Catalog's existing per-product boundary is required, with no policy activation.
+- Expose a privacy-filtered, public-eligible source summary for product presentation and separate Catalog relationship review. See [the contract](docs/contracts/reviewed-product-import-v1.md).
+
 ### 2.7.0
 - Old2New packets can be created for several old products in one pass. The Old Products
   field is now a chip multi-select like New Products: pick as many discontinued products

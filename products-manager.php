@@ -3,7 +3,7 @@
  * Plugin Name: Products Manager
  * Description: Adds a persistent blue Products shortcut after the Inventory button in the admin top actions.
  * Author: Holistic People Dev Team
- * Version: 2.7.0
+ * Version: 2.7.1
  * Requires at least: 6.0
  * Requires PHP: 8.5
  * Text Domain: hp-products-manager
@@ -26,6 +26,10 @@ if (PHP_VERSION_ID < 80500) {
 require_once __DIR__ . '/includes/class-hp-pm-serving-form-unit-registry.php';
 require_once __DIR__ . '/includes/class-hp-pm-product-editorial-gallery-source-provider.php';
 require_once __DIR__ . '/includes/class-hp-pm-native-product-admin-search.php';
+require_once __DIR__ . '/includes/class-hp-pm-product-composition-fields.php';
+require_once __DIR__ . '/includes/class-hp-pm-reviewed-product-import.php';
+HP_PM_Product_Composition_Fields::register();
+HP_PM_Reviewed_Product_Import::register();
 HP_PM_Serving_Form_Unit_Registry::register();
 HP_PM_Product_Editorial_Gallery_Source_Provider::register();
 HP_PM_Native_Product_Admin_Search::register();
@@ -46,7 +50,7 @@ add_action('before_woocommerce_init', function () {
 final class HP_Products_Manager {
     private const REST_NAMESPACE = 'hp-products-manager/v1';
 
-    const VERSION = '2.7.0';
+    const VERSION = '2.7.1';
     const HANDLE  = 'hp-products-manager';
     private const OLD2NEW_PACKET_CPT = 'hp_old2new_packet';
     private const OLD2NEW_LEGACY_FIELD = 'old2new_product_pairs';
@@ -1967,6 +1971,7 @@ final class HP_Products_Manager {
                                         <?php 
                                             echo $this->render_acf_field('ingredients', __('Active Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients', true));
                                             echo $this->render_acf_field('ingredients_other', __('Other Ingredients', 'hp-products-manager'), 'textarea', null, false, get_post_meta($product_id, 'ingredients_other', true));
+                                            echo HP_PM_Product_Composition_Fields::render_admin_rows($product_id);
                                             echo $this->render_acf_field('potency', __('Potency Value', 'hp-products-manager'), 'text', null, false, get_post_meta($product_id, 'potency', true));
                                             echo $this->render_acf_field('potency_units', __('Potency Units', 'hp-products-manager'), 'select', null, false, get_post_meta($product_id, 'potency_units', true));
                                         ?>

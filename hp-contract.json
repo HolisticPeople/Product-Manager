@@ -16,7 +16,8 @@
     "WooCommerce products",
     "HP-Catalog",
     "HP-Core contract provider registry",
-    "HP-Inventory hp-inventory/v1 inventory-levels/location-positions/product-history contracts (read-only, fail-soft, product-history floor 2.17.0)"
+    "HP-Inventory hp-inventory/v1 inventory-levels/location-positions/product-history contracts (read-only, fail-soft, product-history floor 2.17.0)",
+    "HP-Catalog Product_Source_Update v1 private source boundary and ingredient summaries v1 (fail-soft public admission; required for finite native writes)"
   ],
   "exposes": {
     "cpts": [
@@ -52,7 +53,10 @@
       "old2new_product_block"
     ],
     "providers": [
-      "hp_product_manager_editorial_gallery_source"
+      "hp_product_manager_editorial_gallery_source",
+      "hp_pm_product_composition_schema_v1",
+      "hp_pm_product_composition_v1",
+      "hp_pm_validate_product_composition_v1"
     ]
   },
   "verification": {

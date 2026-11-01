@@ -33,6 +33,10 @@ Ensure the associated public SSH keys are installed on both Kinsta environments.
 
 ## Release Notes
 
+### 2.7.2
+
+- Preserve literal backslashes in conditional rollback deletion: WordPress unslashes the delete comparison value before serialization. Keep update previous-value comparisons unslashed, as required by that separate native API.
+
 ### 2.7.1
 
 - Add brand-neutral application methods, oil preparation and structured natural constituents through native product ACF ownership.

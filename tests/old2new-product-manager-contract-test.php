@@ -32,8 +32,8 @@ $admin_css = (string) file_get_contents($root . '/assets/css/old2new-admin.css')
 $admin_js = (string) file_get_contents($root . '/assets/js/old2new-admin.js');
 $roadmap = (string) file_get_contents($root . '/docs/plan/old2new-product-lifecycle-roadmap.md');
 
-hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.7.1'), 'Product Manager plugin header must be 2.7.1.');
-hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.7.1'"), 'Product Manager VERSION constant must be 2.7.1.');
+hp_pm_old2new_assert(str_contains($plugin, 'Version: 2.7.2'), 'Product Manager plugin header must be 2.7.2.');
+hp_pm_old2new_assert(str_contains($plugin, "const VERSION = '2.7.2'"), 'Product Manager VERSION constant must be 2.7.2.');
 
 // 2.7.0 multi-old selection: one admin save may name several old products and
 // fans out into one packet each. A packet still owns exactly ONE old product,

@@ -185,3 +185,32 @@ loads the actual supplied Catalog boundary/lifecycle/category/semantic classes
 while native functions remain synthetic. Neither boots WordPress or claims
 native ACF behavior, served browser QA, staging content execution, production
 execution or human/device acceptance. Record those levels independently.
+
+## Native conditional deletion regression — 2.7.2
+
+WordPress `delete_metadata()` unslashes its comparison value before serialization;
+pass `wp_slash(currentValue)` to conditional `delete_post_meta()` when restoring
+original absence. Otherwise a structured constituent with a literal backslash
+remains in storage while its pointer may already have been removed. The retained
+journal/boundary then correctly refuses final readback. `update_metadata()` does
+not unslash its previous-value comparison, so keep that argument raw. The source
+fix changes only deletion comparison encoding; original manifest hashes, source
+before/after values, drift guards and recovery ownership remain unchanged.
+
+The ordinary disconnected import test now models native recursive unslashing and
+conditional comparison, with quoted/backslash structured source. The optional
+WordPress-core regression loads `delete_metadata()` from a supplied exact upstream
+`wp-includes/meta.php` and exercises its actual code with a synthetic database.
+Native staging recovery remains separately qualified by the root writer.
+
+Exact captured-core command (WordPress7.1 metadata SHA256
+`b1b49d1d3ddbf10d0f17286f53c30ce9582c636a4679f9a0ef92ee5ebb020a3e`):
+
+```text
+WP_CORE_META_FILE=/private/qualified/wp-includes/meta.php php tests/product-composition-wordpress-delete-test.php
+```
+
+The upstream function is extracted unchanged from that pinned file; the fixture
+database is synthetic. A source PASS does not authorize replaying the retained
+staging inverse: its existing manifest/journal/boundary and the separately
+reviewed source-pin migration must remain intact.

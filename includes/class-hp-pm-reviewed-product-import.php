@@ -328,7 +328,8 @@ final class HP_PM_Reviewed_Product_Import
         $current = self::state($id, $name);
         if (!in_array($current, [$before, $after], true)) { throw new \RuntimeException('rollback_action_time_meta_drift:' . $name); }
         if ($current === $state) { return; }
-        if (!$state['exists']) { delete_post_meta($id, $name, $current['value']); }
+        // Native delete unslashes the comparison; native update leaves its previous-value comparison raw.
+        if (!$state['exists']) { delete_post_meta($id, $name, wp_slash($current['value'])); }
         elseif (!$current['exists']) { add_post_meta($id, $name, wp_slash($state['value']), true); }
         else { update_post_meta($id, $name, wp_slash($state['value']), $current['value']); }
     }

@@ -1,0 +1,624 @@
+{
+  "method": "Historical selected Git payload references, not fresh installed/native admission; actual post-promotion main source identity must be separately selected and bound.",
+  "plugin": "products-manager",
+  "references": {
+    "forward": {
+      "files": {
+        ".gitignore": {
+          "bytes": 164,
+          "gitBlobSHA1": "c0ae426976fb36995ef439e3bd19b9a75ba97ecf",
+          "mode": 420,
+          "sha256": "c38e07071ea30faba6f17ef8b5ed5b4d827608b5ec5151d640bf773fd32ebc9b",
+          "type": "blob"
+        },
+        "AGENTS.md": {
+          "bytes": 1743,
+          "gitBlobSHA1": "26b987870a4d2fcf6f479e8b697f0783f5b4d1cd",
+          "mode": 420,
+          "sha256": "2dbe8acaa31627f3b753d244dffbedb9d0991df8e62a0130a89f2326fcbf87a7",
+          "type": "blob"
+        },
+        "Agent-SSH-Runbook.md": {
+          "bytes": 3706,
+          "gitBlobSHA1": "350af05c1701f99c2dd4d4db06e7cabe2faaa775",
+          "mode": 420,
+          "sha256": "aff0c7356bd8db8588e4a0f3e6afddb06d97eb823a500a9a898660ec6c99d757",
+          "type": "blob"
+        },
+        "CLAUDE.md": {
+          "bytes": 1743,
+          "gitBlobSHA1": "26b987870a4d2fcf6f479e8b697f0783f5b4d1cd",
+          "mode": 420,
+          "sha256": "2dbe8acaa31627f3b753d244dffbedb9d0991df8e62a0130a89f2326fcbf87a7",
+          "type": "blob"
+        },
+        "MCP_PRODUCT_TOOLS.md": {
+          "bytes": 4898,
+          "gitBlobSHA1": "a4e16e80d5022430c9504c3f92b731fdc24135e9",
+          "mode": 420,
+          "sha256": "40509b87423118fa63389d5d7c951ac9d0fe03e11f3ba9637900046fcc92cd11",
+          "type": "blob"
+        },
+        "MCP_TOOL_DEFINITION.md": {
+          "bytes": 2146,
+          "gitBlobSHA1": "bf382b5997a906a79b0d606096872321d401111a",
+          "mode": 420,
+          "sha256": "ad0ca6dd31c7b66c819e7714dc5ac822a3ce93274ddac1f0a50385b67fb0c650",
+          "type": "blob"
+        },
+        "README.md": {
+          "bytes": 20649,
+          "gitBlobSHA1": "fc0dc2e5212b6bc222eb0edda4d273951b997fdf",
+          "mode": 420,
+          "sha256": "400b4bbd48784b8802b54154d4bdace91c9cc4b289ec1f0ca8de93fe37f00d87",
+          "type": "blob"
+        },
+        "SESSION_STATUS.md": {
+          "bytes": 4396,
+          "gitBlobSHA1": "4fa5509b9f8e49101e3aa99dda854a83ed24b395",
+          "mode": 420,
+          "sha256": "42661bceebffd1ad62e09dcdba43f7874c9a48b85830ff2f29d757b1efe4dc27",
+          "type": "blob"
+        },
+        "assets/css/admin.css": {
+          "bytes": 1164,
+          "gitBlobSHA1": "6296fd78b5c12fc940ac52e418f8789d06d46512",
+          "mode": 420,
+          "sha256": "7a4a3a021e5f16aeba4218c9cde61db74a06d26f56c2f2c2022ff781212ad8d8",
+          "type": "blob"
+        },
+        "assets/css/old2new-admin.css": {
+          "bytes": 9241,
+          "gitBlobSHA1": "2f4f75ac0ffbf88ef4f382b1b3f66ac6a4425f92",
+          "mode": 420,
+          "sha256": "87ab9a536d5b2c2411983ec139383ce10e186114181b8aa38f00a81d4e8a8cfd",
+          "type": "blob"
+        },
+        "assets/css/old2new-product-block.css": {
+          "bytes": 6434,
+          "gitBlobSHA1": "9ec01ef24e2dba6166cac619f25cfff22e72a58f",
+          "mode": 420,
+          "sha256": "a9e1bf008ecd74f57e1fef17e2aea966e51f3c535e1c8f1d8f905496659ef80f",
+          "type": "blob"
+        },
+        "assets/css/product-detail.css": {
+          "bytes": 11015,
+          "gitBlobSHA1": "79e84a8ce0daa15a11af76b2f79fdcc99661b671",
+          "mode": 420,
+          "sha256": "49d831b58764e44a23e618477b27e57e1a0177742e4ec864bf80dc0ab28bd949",
+          "type": "blob"
+        },
+        "assets/css/products-page.css": {
+          "bytes": 7918,
+          "gitBlobSHA1": "41e4c0ab8b4ae8469a0a7f5a931be91d9972ca8c",
+          "mode": 420,
+          "sha256": "51ff688f30de095f0dc74f587f08e56225821d9e84ccdfb3cac6fd2db908927b",
+          "type": "blob"
+        },
+        "assets/images/special-order-shipping.svg": {
+          "bytes": 527,
+          "gitBlobSHA1": "137c6ecbc3035166f55d546e61a1664da5940983",
+          "mode": 420,
+          "sha256": "b1f74a32bee21c35682728e70654b4848a9d3b5d144609882130e3db906008a5",
+          "type": "blob"
+        },
+        "assets/images/special-order.svg": {
+          "bytes": 468,
+          "gitBlobSHA1": "e6a5eb4ea3ff56a34390cd948edf1d4e8bccfe2d",
+          "mode": 420,
+          "sha256": "65592cecb97bc1d05fa2a1c3cfe19252c725be76167a6de5406daa4edb67b7da",
+          "type": "blob"
+        },
+        "assets/js/admin.js": {
+          "bytes": 1804,
+          "gitBlobSHA1": "04474318d8e8018cbe648a0c09fc323365576da7",
+          "mode": 420,
+          "sha256": "1ab7c7502df69d34d148aed54e355e0c7497ad12d8bd64440ad1ffa9a78bdc33",
+          "type": "blob"
+        },
+        "assets/js/old2new-admin.js": {
+          "bytes": 24861,
+          "gitBlobSHA1": "e71353b7bf4b33001032c36f81801ecb533ca858",
+          "mode": 420,
+          "sha256": "80f695dae72673927c8a5d454bdcde90b635628f9123a92d0dc2c16f5cf6c7ad",
+          "type": "blob"
+        },
+        "assets/js/product-detail.js": {
+          "bytes": 64295,
+          "gitBlobSHA1": "6c405156ad00f19b9ee66f59a7081fbe40e5a129",
+          "mode": 420,
+          "sha256": "4edade3c23c7bf8029912389922d20541ba5d6d276170118b11ceafd0f25d8c8",
+          "type": "blob"
+        },
+        "assets/js/products-page.js": {
+          "bytes": 23363,
+          "gitBlobSHA1": "f1cd3802c9cea8de580357d1b515a59f399de152",
+          "mode": 420,
+          "sha256": "65a03931e9b579bc9cc2daee7f024c33e5aa29d6a3ef7951249fd9952b8f0093",
+          "type": "blob"
+        },
+        "docs/contracts/product-editorial-gallery-source.md": {
+          "bytes": 2422,
+          "gitBlobSHA1": "385fea4609925ac5b81b6c6275df25032ec3254f",
+          "mode": 420,
+          "sha256": "275a44267cef66f5290dbc516073bedd0407ff8e5e35241fa832836a9e29b05b",
+          "type": "blob"
+        },
+        "docs/contracts/reviewed-product-import-v1.md": {
+          "bytes": 12590,
+          "gitBlobSHA1": "6ab1c5cbc26bc715235aee425c6b6bf889b48e9f",
+          "mode": 420,
+          "sha256": "c4ee94321e203b7b8eabfbbde21db3aaaeb4f6d112513904ddcb319a9dd45ad3",
+          "type": "blob"
+        },
+        "docs/plan/old2new-product-lifecycle-roadmap.md": {
+          "bytes": 4899,
+          "gitBlobSHA1": "adc701b575e0f435918107c0975bd0e93e4fe8b8",
+          "mode": 420,
+          "sha256": "24336330240710b1089a6989c3bb96746699aad4f318dbb6c4d2ed4005671e12",
+          "type": "blob"
+        },
+        "docs/plan/parking-lot.md": {
+          "bytes": 2389,
+          "gitBlobSHA1": "7f5ebeff75cb80712193344f5ea7da24c34adde8",
+          "mode": 420,
+          "sha256": "b572406828668e7e59793140b49d1227a044f95093e143c457382f234ee0256a",
+          "type": "blob"
+        },
+        "hp-contract.json": {
+          "bytes": 2550,
+          "gitBlobSHA1": "999d99cddb3570bad5050a6b95f2ed1de696b4fc",
+          "mode": 420,
+          "sha256": "5071f1a255cd38ef5b36801cbbca05effeaae46e385ca66cd24745faf4035dd2",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-acf-natural-constituents.php": {
+          "bytes": 1119,
+          "gitBlobSHA1": "9bd8b967fa4cfbcde655c3807c885fc11769a4dd",
+          "mode": 420,
+          "sha256": "37004dcf7af5c4b68cad5521c59c1b96f3341166a7758aef232c0b6042c5385a",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-native-product-admin-search.php": {
+          "bytes": 3758,
+          "gitBlobSHA1": "7becaa32aa74bcc9971621eb96e9eb4b11fbbaad",
+          "mode": 420,
+          "sha256": "0362e99b5158955dad8c680370c129ea96adebf48fdfc2ac45c6cebf3e00af61",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-product-composition-fields.php": {
+          "bytes": 12211,
+          "gitBlobSHA1": "4557fb524a89c6ac05a77b17b0c6679a516bc483",
+          "mode": 420,
+          "sha256": "6cf5ea2817152e16a7e52d96352603a223acba4631753f530159edc7eb76b015",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-product-editorial-gallery-source-provider.php": {
+          "bytes": 10291,
+          "gitBlobSHA1": "d1d35630917482976462ec4c439bdef2c2369b21",
+          "mode": 420,
+          "sha256": "4a3e124c62f0fe55ac15b108d9e2f059150b47eb547e01cd6dae2c7485b4696e",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-reviewed-product-import.php": {
+          "bytes": 28618,
+          "gitBlobSHA1": "7da8b9a61578d1532a3fcdbf2da782962be5f206",
+          "mode": 420,
+          "sha256": "0191b0522104e89607ab20b0bad83497a66e99b10c1d5279df9ef87362793130",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-serving-form-unit-registry.php": {
+          "bytes": 17507,
+          "gitBlobSHA1": "c26a255a84dfc8013fb4c357bb2ed98b622f572b",
+          "mode": 420,
+          "sha256": "f5d3f0bbfc7c86640b637cd33cf2389de19a1447a8f329533e78d2ec7595d855",
+          "type": "blob"
+        },
+        "products-manager.php": {
+          "bytes": 284895,
+          "gitBlobSHA1": "cdb1a1a1474adb19d6e0627090d6e3fae102f748",
+          "mode": 420,
+          "sha256": "b6eb09c895e1f607af620476cc25165b55f04405d1f65dfce31699779fc5d947",
+          "type": "blob"
+        }
+      },
+      "sha": "989de9b1654b4501916f4ab61eb6b484859bfa25",
+      "tree": "81cae30353283368597003d284d660dc2f70761f"
+    },
+    "prior": {
+      "files": {
+        ".gitignore": {
+          "bytes": 164,
+          "gitBlobSHA1": "c0ae426976fb36995ef439e3bd19b9a75ba97ecf",
+          "mode": 420,
+          "sha256": "c38e07071ea30faba6f17ef8b5ed5b4d827608b5ec5151d640bf773fd32ebc9b",
+          "type": "blob"
+        },
+        "AGENTS.md": {
+          "bytes": 1743,
+          "gitBlobSHA1": "26b987870a4d2fcf6f479e8b697f0783f5b4d1cd",
+          "mode": 420,
+          "sha256": "2dbe8acaa31627f3b753d244dffbedb9d0991df8e62a0130a89f2326fcbf87a7",
+          "type": "blob"
+        },
+        "Agent-SSH-Runbook.md": {
+          "bytes": 3706,
+          "gitBlobSHA1": "350af05c1701f99c2dd4d4db06e7cabe2faaa775",
+          "mode": 420,
+          "sha256": "aff0c7356bd8db8588e4a0f3e6afddb06d97eb823a500a9a898660ec6c99d757",
+          "type": "blob"
+        },
+        "CLAUDE.md": {
+          "bytes": 1743,
+          "gitBlobSHA1": "26b987870a4d2fcf6f479e8b697f0783f5b4d1cd",
+          "mode": 420,
+          "sha256": "2dbe8acaa31627f3b753d244dffbedb9d0991df8e62a0130a89f2326fcbf87a7",
+          "type": "blob"
+        },
+        "MCP_PRODUCT_TOOLS.md": {
+          "bytes": 4898,
+          "gitBlobSHA1": "a4e16e80d5022430c9504c3f92b731fdc24135e9",
+          "mode": 420,
+          "sha256": "40509b87423118fa63389d5d7c951ac9d0fe03e11f3ba9637900046fcc92cd11",
+          "type": "blob"
+        },
+        "MCP_TOOL_DEFINITION.md": {
+          "bytes": 2146,
+          "gitBlobSHA1": "bf382b5997a906a79b0d606096872321d401111a",
+          "mode": 420,
+          "sha256": "ad0ca6dd31c7b66c819e7714dc5ac822a3ce93274ddac1f0a50385b67fb0c650",
+          "type": "blob"
+        },
+        "README.md": {
+          "bytes": 19175,
+          "gitBlobSHA1": "721d815862a853c2c851c7fadd191f431ff16738",
+          "mode": 420,
+          "sha256": "77fbb03a7732d01a4744280a1c692e0420621dcf285daee9c4d926c3015b65a9",
+          "type": "blob"
+        },
+        "SESSION_STATUS.md": {
+          "bytes": 4396,
+          "gitBlobSHA1": "4fa5509b9f8e49101e3aa99dda854a83ed24b395",
+          "mode": 420,
+          "sha256": "42661bceebffd1ad62e09dcdba43f7874c9a48b85830ff2f29d757b1efe4dc27",
+          "type": "blob"
+        },
+        "assets/css/admin.css": {
+          "bytes": 1164,
+          "gitBlobSHA1": "6296fd78b5c12fc940ac52e418f8789d06d46512",
+          "mode": 420,
+          "sha256": "7a4a3a021e5f16aeba4218c9cde61db74a06d26f56c2f2c2022ff781212ad8d8",
+          "type": "blob"
+        },
+        "assets/css/old2new-admin.css": {
+          "bytes": 9241,
+          "gitBlobSHA1": "2f4f75ac0ffbf88ef4f382b1b3f66ac6a4425f92",
+          "mode": 420,
+          "sha256": "87ab9a536d5b2c2411983ec139383ce10e186114181b8aa38f00a81d4e8a8cfd",
+          "type": "blob"
+        },
+        "assets/css/old2new-product-block.css": {
+          "bytes": 6434,
+          "gitBlobSHA1": "9ec01ef24e2dba6166cac619f25cfff22e72a58f",
+          "mode": 420,
+          "sha256": "a9e1bf008ecd74f57e1fef17e2aea966e51f3c535e1c8f1d8f905496659ef80f",
+          "type": "blob"
+        },
+        "assets/css/product-detail.css": {
+          "bytes": 11015,
+          "gitBlobSHA1": "79e84a8ce0daa15a11af76b2f79fdcc99661b671",
+          "mode": 420,
+          "sha256": "49d831b58764e44a23e618477b27e57e1a0177742e4ec864bf80dc0ab28bd949",
+          "type": "blob"
+        },
+        "assets/css/products-page.css": {
+          "bytes": 7918,
+          "gitBlobSHA1": "41e4c0ab8b4ae8469a0a7f5a931be91d9972ca8c",
+          "mode": 420,
+          "sha256": "51ff688f30de095f0dc74f587f08e56225821d9e84ccdfb3cac6fd2db908927b",
+          "type": "blob"
+        },
+        "assets/images/special-order-shipping.svg": {
+          "bytes": 527,
+          "gitBlobSHA1": "137c6ecbc3035166f55d546e61a1664da5940983",
+          "mode": 420,
+          "sha256": "b1f74a32bee21c35682728e70654b4848a9d3b5d144609882130e3db906008a5",
+          "type": "blob"
+        },
+        "assets/images/special-order.svg": {
+          "bytes": 468,
+          "gitBlobSHA1": "e6a5eb4ea3ff56a34390cd948edf1d4e8bccfe2d",
+          "mode": 420,
+          "sha256": "65592cecb97bc1d05fa2a1c3cfe19252c725be76167a6de5406daa4edb67b7da",
+          "type": "blob"
+        },
+        "assets/js/admin.js": {
+          "bytes": 1804,
+          "gitBlobSHA1": "04474318d8e8018cbe648a0c09fc323365576da7",
+          "mode": 420,
+          "sha256": "1ab7c7502df69d34d148aed54e355e0c7497ad12d8bd64440ad1ffa9a78bdc33",
+          "type": "blob"
+        },
+        "assets/js/old2new-admin.js": {
+          "bytes": 24861,
+          "gitBlobSHA1": "e71353b7bf4b33001032c36f81801ecb533ca858",
+          "mode": 420,
+          "sha256": "80f695dae72673927c8a5d454bdcde90b635628f9123a92d0dc2c16f5cf6c7ad",
+          "type": "blob"
+        },
+        "assets/js/product-detail.js": {
+          "bytes": 64295,
+          "gitBlobSHA1": "6c405156ad00f19b9ee66f59a7081fbe40e5a129",
+          "mode": 420,
+          "sha256": "4edade3c23c7bf8029912389922d20541ba5d6d276170118b11ceafd0f25d8c8",
+          "type": "blob"
+        },
+        "assets/js/products-page.js": {
+          "bytes": 23363,
+          "gitBlobSHA1": "f1cd3802c9cea8de580357d1b515a59f399de152",
+          "mode": 420,
+          "sha256": "65a03931e9b579bc9cc2daee7f024c33e5aa29d6a3ef7951249fd9952b8f0093",
+          "type": "blob"
+        },
+        "docs/contracts/product-editorial-gallery-source.md": {
+          "bytes": 2422,
+          "gitBlobSHA1": "385fea4609925ac5b81b6c6275df25032ec3254f",
+          "mode": 420,
+          "sha256": "275a44267cef66f5290dbc516073bedd0407ff8e5e35241fa832836a9e29b05b",
+          "type": "blob"
+        },
+        "docs/plan/old2new-product-lifecycle-roadmap.md": {
+          "bytes": 4899,
+          "gitBlobSHA1": "adc701b575e0f435918107c0975bd0e93e4fe8b8",
+          "mode": 420,
+          "sha256": "24336330240710b1089a6989c3bb96746699aad4f318dbb6c4d2ed4005671e12",
+          "type": "blob"
+        },
+        "docs/plan/parking-lot.md": {
+          "bytes": 2053,
+          "gitBlobSHA1": "0610beae8e4b8638575d3039eba7777a4ea29744",
+          "mode": 420,
+          "sha256": "ef423164ce0d1f3520b1dec71285400805f2cad456bbed772ab2805d8cd5181d",
+          "type": "blob"
+        },
+        "hp-contract.json": {
+          "bytes": 2261,
+          "gitBlobSHA1": "e4335c222ce0544f77d766eed12ed85781729c0c",
+          "mode": 420,
+          "sha256": "914278fa8482ffadad6a6b65adf00338f9dfb5dac85c460a84f6111c261ee7a1",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-native-product-admin-search.php": {
+          "bytes": 3758,
+          "gitBlobSHA1": "7becaa32aa74bcc9971621eb96e9eb4b11fbbaad",
+          "mode": 420,
+          "sha256": "0362e99b5158955dad8c680370c129ea96adebf48fdfc2ac45c6cebf3e00af61",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-product-editorial-gallery-source-provider.php": {
+          "bytes": 10291,
+          "gitBlobSHA1": "d1d35630917482976462ec4c439bdef2c2369b21",
+          "mode": 420,
+          "sha256": "4a3e124c62f0fe55ac15b108d9e2f059150b47eb547e01cd6dae2c7485b4696e",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-serving-form-unit-registry.php": {
+          "bytes": 17507,
+          "gitBlobSHA1": "c26a255a84dfc8013fb4c357bb2ed98b622f572b",
+          "mode": 420,
+          "sha256": "f5d3f0bbfc7c86640b637cd33cf2389de19a1447a8f329533e78d2ec7595d855",
+          "type": "blob"
+        },
+        "products-manager.php": {
+          "bytes": 283794,
+          "gitBlobSHA1": "d61d47ea0a069db1dcf5ea2726df34ee9a1c2667",
+          "mode": 420,
+          "sha256": "b53755654cc9eea7f9413f6cdbeb83ba752adfd27f3912e39625c368684381b1",
+          "type": "blob"
+        }
+      },
+      "sha": "2ca89ffdfc65ff59a3727c1f1510bad6710d2708",
+      "tree": "083336aa9ecad2ff350d4579cfffcb6582910ed6"
+    },
+    "recovery": {
+      "files": {
+        ".gitignore": {
+          "bytes": 164,
+          "gitBlobSHA1": "c0ae426976fb36995ef439e3bd19b9a75ba97ecf",
+          "mode": 420,
+          "sha256": "c38e07071ea30faba6f17ef8b5ed5b4d827608b5ec5151d640bf773fd32ebc9b",
+          "type": "blob"
+        },
+        "AGENTS.md": {
+          "bytes": 1743,
+          "gitBlobSHA1": "26b987870a4d2fcf6f479e8b697f0783f5b4d1cd",
+          "mode": 420,
+          "sha256": "2dbe8acaa31627f3b753d244dffbedb9d0991df8e62a0130a89f2326fcbf87a7",
+          "type": "blob"
+        },
+        "Agent-SSH-Runbook.md": {
+          "bytes": 3706,
+          "gitBlobSHA1": "350af05c1701f99c2dd4d4db06e7cabe2faaa775",
+          "mode": 420,
+          "sha256": "aff0c7356bd8db8588e4a0f3e6afddb06d97eb823a500a9a898660ec6c99d757",
+          "type": "blob"
+        },
+        "CLAUDE.md": {
+          "bytes": 1743,
+          "gitBlobSHA1": "26b987870a4d2fcf6f479e8b697f0783f5b4d1cd",
+          "mode": 420,
+          "sha256": "2dbe8acaa31627f3b753d244dffbedb9d0991df8e62a0130a89f2326fcbf87a7",
+          "type": "blob"
+        },
+        "MCP_PRODUCT_TOOLS.md": {
+          "bytes": 4898,
+          "gitBlobSHA1": "a4e16e80d5022430c9504c3f92b731fdc24135e9",
+          "mode": 420,
+          "sha256": "40509b87423118fa63389d5d7c951ac9d0fe03e11f3ba9637900046fcc92cd11",
+          "type": "blob"
+        },
+        "MCP_TOOL_DEFINITION.md": {
+          "bytes": 2146,
+          "gitBlobSHA1": "bf382b5997a906a79b0d606096872321d401111a",
+          "mode": 420,
+          "sha256": "ad0ca6dd31c7b66c819e7714dc5ac822a3ce93274ddac1f0a50385b67fb0c650",
+          "type": "blob"
+        },
+        "README.md": {
+          "bytes": 19175,
+          "gitBlobSHA1": "721d815862a853c2c851c7fadd191f431ff16738",
+          "mode": 420,
+          "sha256": "77fbb03a7732d01a4744280a1c692e0420621dcf285daee9c4d926c3015b65a9",
+          "type": "blob"
+        },
+        "SESSION_STATUS.md": {
+          "bytes": 4396,
+          "gitBlobSHA1": "4fa5509b9f8e49101e3aa99dda854a83ed24b395",
+          "mode": 420,
+          "sha256": "42661bceebffd1ad62e09dcdba43f7874c9a48b85830ff2f29d757b1efe4dc27",
+          "type": "blob"
+        },
+        "assets/css/admin.css": {
+          "bytes": 1164,
+          "gitBlobSHA1": "6296fd78b5c12fc940ac52e418f8789d06d46512",
+          "mode": 420,
+          "sha256": "7a4a3a021e5f16aeba4218c9cde61db74a06d26f56c2f2c2022ff781212ad8d8",
+          "type": "blob"
+        },
+        "assets/css/old2new-admin.css": {
+          "bytes": 9241,
+          "gitBlobSHA1": "2f4f75ac0ffbf88ef4f382b1b3f66ac6a4425f92",
+          "mode": 420,
+          "sha256": "87ab9a536d5b2c2411983ec139383ce10e186114181b8aa38f00a81d4e8a8cfd",
+          "type": "blob"
+        },
+        "assets/css/old2new-product-block.css": {
+          "bytes": 6434,
+          "gitBlobSHA1": "9ec01ef24e2dba6166cac619f25cfff22e72a58f",
+          "mode": 420,
+          "sha256": "a9e1bf008ecd74f57e1fef17e2aea966e51f3c535e1c8f1d8f905496659ef80f",
+          "type": "blob"
+        },
+        "assets/css/product-detail.css": {
+          "bytes": 11015,
+          "gitBlobSHA1": "79e84a8ce0daa15a11af76b2f79fdcc99661b671",
+          "mode": 420,
+          "sha256": "49d831b58764e44a23e618477b27e57e1a0177742e4ec864bf80dc0ab28bd949",
+          "type": "blob"
+        },
+        "assets/css/products-page.css": {
+          "bytes": 7918,
+          "gitBlobSHA1": "41e4c0ab8b4ae8469a0a7f5a931be91d9972ca8c",
+          "mode": 420,
+          "sha256": "51ff688f30de095f0dc74f587f08e56225821d9e84ccdfb3cac6fd2db908927b",
+          "type": "blob"
+        },
+        "assets/images/special-order-shipping.svg": {
+          "bytes": 527,
+          "gitBlobSHA1": "137c6ecbc3035166f55d546e61a1664da5940983",
+          "mode": 420,
+          "sha256": "b1f74a32bee21c35682728e70654b4848a9d3b5d144609882130e3db906008a5",
+          "type": "blob"
+        },
+        "assets/images/special-order.svg": {
+          "bytes": 468,
+          "gitBlobSHA1": "e6a5eb4ea3ff56a34390cd948edf1d4e8bccfe2d",
+          "mode": 420,
+          "sha256": "65592cecb97bc1d05fa2a1c3cfe19252c725be76167a6de5406daa4edb67b7da",
+          "type": "blob"
+        },
+        "assets/js/admin.js": {
+          "bytes": 1804,
+          "gitBlobSHA1": "04474318d8e8018cbe648a0c09fc323365576da7",
+          "mode": 420,
+          "sha256": "1ab7c7502df69d34d148aed54e355e0c7497ad12d8bd64440ad1ffa9a78bdc33",
+          "type": "blob"
+        },
+        "assets/js/old2new-admin.js": {
+          "bytes": 24861,
+          "gitBlobSHA1": "e71353b7bf4b33001032c36f81801ecb533ca858",
+          "mode": 420,
+          "sha256": "80f695dae72673927c8a5d454bdcde90b635628f9123a92d0dc2c16f5cf6c7ad",
+          "type": "blob"
+        },
+        "assets/js/product-detail.js": {
+          "bytes": 64295,
+          "gitBlobSHA1": "6c405156ad00f19b9ee66f59a7081fbe40e5a129",
+          "mode": 420,
+          "sha256": "4edade3c23c7bf8029912389922d20541ba5d6d276170118b11ceafd0f25d8c8",
+          "type": "blob"
+        },
+        "assets/js/products-page.js": {
+          "bytes": 23363,
+          "gitBlobSHA1": "f1cd3802c9cea8de580357d1b515a59f399de152",
+          "mode": 420,
+          "sha256": "65a03931e9b579bc9cc2daee7f024c33e5aa29d6a3ef7951249fd9952b8f0093",
+          "type": "blob"
+        },
+        "docs/contracts/product-editorial-gallery-source.md": {
+          "bytes": 2422,
+          "gitBlobSHA1": "385fea4609925ac5b81b6c6275df25032ec3254f",
+          "mode": 420,
+          "sha256": "275a44267cef66f5290dbc516073bedd0407ff8e5e35241fa832836a9e29b05b",
+          "type": "blob"
+        },
+        "docs/plan/old2new-product-lifecycle-roadmap.md": {
+          "bytes": 4899,
+          "gitBlobSHA1": "adc701b575e0f435918107c0975bd0e93e4fe8b8",
+          "mode": 420,
+          "sha256": "24336330240710b1089a6989c3bb96746699aad4f318dbb6c4d2ed4005671e12",
+          "type": "blob"
+        },
+        "docs/plan/parking-lot.md": {
+          "bytes": 2053,
+          "gitBlobSHA1": "0610beae8e4b8638575d3039eba7777a4ea29744",
+          "mode": 420,
+          "sha256": "ef423164ce0d1f3520b1dec71285400805f2cad456bbed772ab2805d8cd5181d",
+          "type": "blob"
+        },
+        "hp-contract.json": {
+          "bytes": 2261,
+          "gitBlobSHA1": "e4335c222ce0544f77d766eed12ed85781729c0c",
+          "mode": 420,
+          "sha256": "914278fa8482ffadad6a6b65adf00338f9dfb5dac85c460a84f6111c261ee7a1",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-native-product-admin-search.php": {
+          "bytes": 3758,
+          "gitBlobSHA1": "7becaa32aa74bcc9971621eb96e9eb4b11fbbaad",
+          "mode": 420,
+          "sha256": "0362e99b5158955dad8c680370c129ea96adebf48fdfc2ac45c6cebf3e00af61",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-product-editorial-gallery-source-provider.php": {
+          "bytes": 10291,
+          "gitBlobSHA1": "d1d35630917482976462ec4c439bdef2c2369b21",
+          "mode": 420,
+          "sha256": "4a3e124c62f0fe55ac15b108d9e2f059150b47eb547e01cd6dae2c7485b4696e",
+          "type": "blob"
+        },
+        "includes/class-hp-pm-serving-form-unit-registry.php": {
+          "bytes": 17507,
+          "gitBlobSHA1": "c26a255a84dfc8013fb4c357bb2ed98b622f572b",
+          "mode": 420,
+          "sha256": "f5d3f0bbfc7c86640b637cd33cf2389de19a1447a8f329533e78d2ec7595d855",
+          "type": "blob"
+        },
+        "products-manager.php": {
+          "bytes": 283794,
+          "gitBlobSHA1": "d61d47ea0a069db1dcf5ea2726df34ee9a1c2667",
+          "mode": 420,
+          "sha256": "b53755654cc9eea7f9413f6cdbeb83ba752adfd27f3912e39625c368684381b1",
+          "type": "blob"
+        }
+      },
+      "sha": "686d8317b6d46f370be008bde1d20abcfe22f3a0",
+      "tree": "2a7a33aaf420db2dd8ad7f061c9c3455b37d6dce"
+    }
+  },
+  "root": "/www/holisticpeoplecom_349/public",
+  "schema": "hp_pm_state_bound_package_references_v1",
+  "selectedForExecution": false,
+  "site": "https://holisticpeople.com",
+  "sourceMapArtifactSHA256": "fdff0d0f5ca038d0be87dda83e502a998ad1e2256fafa75b5f45b81705edb608"
+}

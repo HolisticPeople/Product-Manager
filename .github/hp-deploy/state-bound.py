@@ -121,6 +121,10 @@ def validate(plan, references, parent=None):
          and plan['referencesSHA256'] == digest(references), 'Exact selected reference/action binding required')
     need(plan['site'] == references['site'] and plan['root'] == references['root']
          and plan['plugin'] == references['plugin'], 'Site/root/plugin mismatch')
+    journal = PurePosixPath(plan['journalRoot'])
+    public = PurePosixPath(references['root'])
+    need(journal.is_absolute() and str(journal) == plan['journalRoot'] and '..' not in journal.parts
+         and journal != public and public not in journal.parents, 'Journal must remain outside public root')
     need(re.fullmatch('[a-f0-9]{32}', plan['operationId']) is not None, 'Exclusive operation identity required')
     need(sha40(plan['releaseSHA']) and sha40(plan['releaseTree']), 'Actual post-promotion source identity required')
     after = refs['forward' if plan['action'] == 'forward' else 'recovery']

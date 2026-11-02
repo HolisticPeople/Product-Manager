@@ -30,6 +30,8 @@ plugin, full expected-before/after maps, journal root and unique operation ID.
 It cannot authorize version-only recovery, unknown current files, extra/missing
 files, wrong bytes/modes, foreign roots/sites, FIELD-in-flight or a generic mixed
 package. The separately retained prior image must still match all27 records.
+The selected absolute canonical journal namespace must remain outside the public
+WordPress root; its equality/descendant paths refuse before intent or performer.
 
 ## Source transition and recovery contract
 

@@ -276,6 +276,18 @@ class StateBoundTests(unittest.TestCase):
         self.assertTrue((store.path / 'intent.json').exists())
         self.assertFalse((store.path / 'complete.json').exists())
 
+    def test_public_root_journals_refuse_before_intent_or_performer(self):
+        for action in ('forward', 'recovery'):
+            for journal in (REFERENCES['root'], REFERENCES['root'] + '/private-attempts'):
+                with self.subTest(action=action, journal=journal):
+                    plan = self.selection(action)
+                    store, performer = self.store(plan), OfflinePerformer(plan)
+                    plan['journalRoot'] = journal
+                    with self.assertRaisesRegex(control.Refused, 'outside public root'):
+                        control.transition(plan, REFERENCES, store, performer)
+                    self.assertFalse(performer.calls)
+                    self.assertFalse(list(store.path.iterdir()))
+
     def test_duplicate_json_private_modes_and_symlink_journal_refuse(self):
         with self.assertRaises(control.Refused): control.decode(b'{"state":1,"state":2}')
         plan = self.selection()

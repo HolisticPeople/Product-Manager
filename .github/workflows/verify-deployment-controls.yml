@@ -24,6 +24,18 @@ jobs:
         run: python3 -B .github/hp-deploy/staging-lease-check-test.py
       - name: Test state-bound forward and recovery qualifier without target calls
         run: python3 -B .github/hp-deploy/test-state-bound.py
+      - name: Test actual adapter process and private raw-capture faults
+        run: python3 -B .github/hp-deploy/test-pm-actual-adapter.py
+      - name: Test actual full-metadata transition and immutable repeat
+        run: python3 -B .github/hp-deploy/test-pm-actual-transition.py
+      - name: Test copy guardian actual FD and process lifetime
+        run: python3 -B .github/hp-deploy/test-pm-copy-guardian.py
+      - name: Test Linux authenticated broker and guardian loss with a temporary fake server
+        run: python3 -B .github/hp-deploy/test-pm-broker-copy.py
+      - name: Test actual finite native reader with disconnected boundaries
+        run: php -n .github/hp-deploy/test-pm-native-reader.php
+      - name: Test actual private pre-init getter and durable record methods
+        run: php -n .github/hp-deploy/test-pm-preinit-guard.php
       - name: Verify workflow coupling
         run: php tests/deploy-workflow-contract-test.php
       - name: Record actual packaging comparison without imposing an old runtime on future features

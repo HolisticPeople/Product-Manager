@@ -22,6 +22,8 @@ jobs:
         run: python3 -B .github/hp-deploy/test-deployment-controls.py
       - name: Test staging lease parser
         run: python3 -B .github/hp-deploy/staging-lease-check-test.py
+      - name: Test state-bound forward and recovery qualifier without target calls
+        run: python3 -B .github/hp-deploy/test-state-bound.py
       - name: Verify workflow coupling
         run: php tests/deploy-workflow-contract-test.php
       - name: Record actual packaging comparison without imposing an old runtime on future features

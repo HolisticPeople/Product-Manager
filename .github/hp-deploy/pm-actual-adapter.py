@@ -250,10 +250,26 @@ def phase_resource(path):
 
 class Broker:
     """Runs only inside the selected target's persistent SSH process."""
-    def __init__(self, selection, directory, controls):
+    def __init__(self, selection, directory, controls, mode='transition', observation_id=None):
         self.selection = selection
-        self.directory = private_dir(directory)
-        need(not list(self.directory.iterdir()), 'Existing/unknown target attempt is never adopted')
+        need(mode in ('transition','completed-repeat'), 'Closed broker mode required')
+        self.mode = mode
+        self.base_directory = private_dir(directory)
+        if mode == 'transition':
+            need(observation_id is None and not list(self.base_directory.iterdir()), 'Existing/unknown target attempt is never adopted')
+            self.directory = self.base_directory
+        else:
+            need(isinstance(observation_id,str) and re.fullmatch('[a-f0-9]{32}',observation_id), 'Fresh read-only observation identity required')
+            reservation = decode(private_read(self.base_directory / 'broker-reservation.json'))
+            need(reservation == {'operation':selection['operationId'],'attempt':selection['phase']['attempt'],
+                'phase':selection['phase']['phase'],'selectedDigest':selection['phase']['selectedDigest'],
+                'state':'UNKNOWN_BEFORE_FIRST_NATIVE','automaticRetry':False}, 'Original immutable target reservation differs')
+            parent = private_dir(self.base_directory / 'observations')
+            self.directory = parent / observation_id
+            self.directory.mkdir(mode=0o700)  # Exclusive fresh read evidence, never a new mutation attempt.
+            fd = os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+            try: os.fsync(fd)
+            finally: os.close(fd)
         self.token_raw = None
         need(not (Path(ROOT) == self.directory or Path(ROOT) in self.directory.parents), 'Outside-public target journal required')
         self.count = 0
@@ -266,9 +282,14 @@ class Broker:
         need((observed.st_dev,observed.st_ino) == (self.phase_identity.st_dev,self.phase_identity.st_ino), 'Separate phase observation inode differs')
         try:
             self.check()
-            durable(self.directory / 'broker-reservation.json',encoded({'operation':selection['operationId'],
-                'attempt':selection['phase']['attempt'],'phase':selection['phase']['phase'],
-                'selectedDigest':selection['phase']['selectedDigest'],'state':'UNKNOWN_BEFORE_FIRST_NATIVE','automaticRetry':False}))
+            if mode == 'transition':
+                durable(self.directory / 'broker-reservation.json',encoded({'operation':selection['operationId'],
+                    'attempt':selection['phase']['attempt'],'phase':selection['phase']['phase'],
+                    'selectedDigest':selection['phase']['selectedDigest'],'state':'UNKNOWN_BEFORE_FIRST_NATIVE','automaticRetry':False}))
+                (self.directory / 'observations').mkdir(mode=0o700)
+                fd = os.open(self.directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+                try: os.fsync(fd)
+                finally: os.close(fd)
         except BaseException:
             os.close(self.observation_fd); os.close(self.fd)
             raise
@@ -329,9 +350,9 @@ class Broker:
              and isinstance(selected.get('phases'),list) and self.selection['phase']['phase'] in selected['phases'],
              'Immutable selected attempt/phase graph differs or unavailable')
         state = decode(private_read(operation / 'state.json'))
-        need(set(state) == {'state','phase'} and state['state'] == 'INFLIGHT'
+        need(set(state) == {'state','phase'} and state['state'] in (['INFLIGHT'] if self.mode == 'transition' else ['INFLIGHT','PHASE_VERIFIED'])
              and state['phase'] == self.selection['phase']['phase'], 'Selected durable phase unknown/not INFLIGHT')
-        need(operation == self.directory.parent and self.directory.name == self.selection['phase']['attempt'],
+        need(operation == self.base_directory.parent and self.base_directory.name == self.selection['phase']['attempt'],
              'Exact selected fresh attempt directory differs')
 
     def wp(self, root, *arguments):
@@ -469,6 +490,8 @@ class Broker:
         return result
 
     def call(self, action, version=None):
+        need(self.mode != 'completed-repeat' or action in ('native','observe','preflight'),
+             'Read-only completed repeat cannot dispatch copy or effects')
         self.check()
         if action == 'arm-copy':
             return self.arm_copy()
@@ -492,7 +515,7 @@ def broker_main():
     need(set(controls) == {'remote-guard.py','pm-native-before-reader.php','pm-preinit-guard.php','pm-copy-guardian.py'}, 'Exact broker controls required')
     for name, raw in controls.items():
         need(sha(raw) == message['selection']['controlsSHA256'][name], 'Pinned broker control differs')
-    broker = Broker(message['selection'], message['directory'], controls)
+    broker = Broker(message['selection'], message['directory'], controls, message['mode'], message['observationId'])
     for line in sys.stdin.buffer:
         need(len(line) <= MAX, 'Bounded broker request required')
         request = decode(line)
@@ -509,7 +532,7 @@ def broker_main():
 
 
 class SSHBroker:
-    def __init__(self, spec, selection, directory, controls, source, local_store):
+    def __init__(self, spec, selection, directory, controls, source, local_store, mode, observation_id):
         self.store = local_store
         target = spec['user'] + '@' + spec['host']
         bootstrap = 'import base64; namespace={"__name__":"pm_actual_broker"}; exec(compile(base64.b64decode(' + repr(base64.b64encode(source).decode()) + '),"pinned-pm-actual-adapter.py","exec"),namespace); namespace["broker_main"]()'
@@ -520,11 +543,27 @@ class SSHBroker:
         # Capture stderr to a private file from spawn, including initialization failure.
         self.error_path = self.store.path / 'broker.stderr'
         self.error_fd = os.open(self.error_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        self.process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.error_fd)
-        message = {'selection':selection,'directory':directory,
-                   'controls':{name:base64.b64encode(raw).decode() for name,raw in controls.items()}}
-        self.process.stdin.write(encoded(message) + b'\n'); self.process.stdin.flush()
-        self.count = 0
+        os.fsync(self.error_fd)
+        fd = os.open(self.store.path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try: os.fsync(fd)
+        finally: os.close(fd)
+        self.process = None
+        try:
+            self.process = subprocess.Popen(argv,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=self.error_fd,start_new_session=True)
+            message = {'selection':selection,'directory':directory,'mode':mode,'observationId':observation_id,
+                       'controls':{name:base64.b64encode(raw).decode() for name,raw in controls.items()}}
+            self.process.stdin.write(encoded(message) + b'\n'); self.process.stdin.flush()
+            self.count = 0
+        except BaseException as error:
+            self.store.create('broker-start.error.json',encoded(error_value(error)))
+            if self.process is not None:
+                try:
+                    self.process.stdin.close()
+                    self.process.wait(timeout=20)
+                except BaseException as cleanup:
+                    self.store.create('broker-start.cleanup.error.json',encoded(error_value(cleanup)))
+            os.fsync(self.error_fd); os.close(self.error_fd)
+            raise
 
     def call(self, action, version=None):
         self.count += 1
@@ -660,9 +699,12 @@ def main():
     # Explicit CLI invocation is required. Import/test never reads target env.
     need(len(sys.argv) == 2, 'Specify one private exact adapter selection file')
     selection = decode(private_read(Path(sys.argv[1])))
-    need(set(selection) == {'schema','plan','adapter','mode','evidenceDirectory'}, 'Closed actual adapter selection required')
+    need(set(selection) == {'schema','plan','adapter','mode','evidenceDirectory','observationId'}, 'Closed actual adapter selection required')
     need(selection['schema'] == 'hp_pm_actual_adapter_selection_v1', 'Actual adapter schema differs')
     need(selection['mode'] in ('transition','completed-repeat'), 'Explicit bounded execution mode required')
+    need((selection['mode'] == 'transition' and selection['observationId'] is None)
+         or (selection['mode'] == 'completed-repeat' and isinstance(selection['observationId'],str)
+             and re.fullmatch('[a-f0-9]{32}',selection['observationId'])), 'Explicit read-only observation identity required')
     plan, adapter = selection['plan'],selection['adapter']
     keys = {'targetJournal','sourcePins','expectedNativeBefore','nativeRequest','wpCli','controlsSHA256',
             'phase','operationId','token','rsync','python'}
@@ -704,13 +746,17 @@ def main():
         payload, proof = deploy.materialize_payload(repo,plan['releaseSHA'],work / 'selected')
         prior, prior_proof = deploy.materialize_payload(repo,refs['references']['prior']['sha'],work / 'prior')
         need(observed_map(payload) == plan['expectedAfter'] and observed_map(prior) == refs['references']['prior']['files'], 'Immutable payload/prior complete map differs')
-        broker = SSHBroker(spec,adapter,adapter['targetJournal'],controls,Path(__file__).read_bytes(),evidence)
+        broker = SSHBroker(spec,adapter,adapter['targetJournal'],controls,Path(__file__).read_bytes(),evidence,selection['mode'],selection['observationId'])
         try:
             performer = ActualPerformer(spec,repo,payload,prior,broker,evidence,deploy,adapter)
             if selection['mode'] == 'completed-repeat':
                 result = core.completed_repeat(plan,refs,store,performer,parent)
             else:
                 result = transition(core,plan,refs,store,performer,parent)
+                # Immediate immutable verification uses this SAME broker; no
+                # second mutation reservation or transport attempt is opened.
+                repeated = core.completed_repeat(plan,refs,store,performer,parent)
+                evidence.create('immediate-completed-repeat.json',encoded(repeated))
         finally:
             broker.close()
     print(encoded(result).decode())

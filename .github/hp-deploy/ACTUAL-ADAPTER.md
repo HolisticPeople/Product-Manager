@@ -162,8 +162,12 @@ classification. Original exception/partial streams are recorded before cleanup;
 cleanup failures remain separate. Byte-valued filenames are lossless base64.
 Oversized output refuses parsing while retaining both complete original files
 and the literal process result. Existing attempts/intent files are never reused.
-Completed-repeat retains original intent/completion bytes and uses a fresh,
-separate observation evidence directory; it does not copy or execute effects.
+Immediate completed-repeat reuses the SAME persistent broker after transition.
+Standalone completed-repeat retains the SAME immutable operation/attempt and
+reservation; a fresh observationId creates only attempt/observations/<id> read
+evidence. That mode allows only native/observe/preflight, never copy/effects.
+Original intent/completion and target record bytes remain unchanged. A new local
+evidenceDirectory alone does not grant a new target mutation attempt.
 
 ## Validation and remaining qualification
 

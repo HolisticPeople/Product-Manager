@@ -81,6 +81,19 @@ class ActualTests(unittest.TestCase):
         self.assertEqual((self.path/'large.stderr').read_bytes(),b'entire-error')
         self.assertEqual(a.decode(a.private_read(self.path/'large.return.json')),{'returncode':0})
 
+    def test_persistent_broker_spawn_error_is_retained_without_network(self):
+        class Store:
+            path=self.path
+            def create(inner,name,raw):a.durable(inner.path/name,raw)
+        error=OSError(2,'literal broker spawn failure',b'\xff-broker')
+        with patch.object(a.subprocess,'Popen',side_effect=error):
+            with self.assertRaises(OSError):
+                a.SSHBroker({'user':'fixture','host':'invalid.test','port':22},{},'/private/fixture',{},b'pass',Store(),'transition',None)
+        row=a.decode(a.private_read(self.path/'broker-start.error.json'))
+        self.assertEqual(row['class'],'FileNotFoundError')
+        self.assertEqual(row['filename'],{'type':'bytes','base64':'/y1icm9rZXI='})
+        self.assertEqual(a.private_read(self.path/'broker.stderr'),b'')
+
     def test_existing_intent_refuses_before_spawn(self):
         a.durable(self.path / 'same.intent.json',b'original')
         with patch.object(a.subprocess,'Popen') as run:

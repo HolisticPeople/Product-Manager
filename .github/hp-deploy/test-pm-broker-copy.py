@@ -72,6 +72,9 @@ class BrokerCopyTests(unittest.TestCase):
             if fd is not None:
                 try:os.close(fd)
                 except OSError:pass
+        if self.guardian is not None:
+            if self.guardian.stdout:self.guardian.stdout.close()
+            if self.guardian.stderr:self.guardian.stderr.close()
         self.root_patch.stop();self.temp.cleanup()
 
     def start(self):
@@ -100,6 +103,21 @@ class BrokerCopyTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):self.broker.call('copy-result')
         self.assertEqual(a.decode(a.private_read(self.op/'state.json')),{'state':'INFLIGHT','phase':'code'})
         with self.assertRaisesRegex(a.Refused,'never adopted'):a.Broker(self.selection,str(self.attempt),self.controls)
+
+    def test_real_repeat_reuses_immutable_attempt_in_read_only_namespace(self):
+        self.start();self.guardian.communicate(timeout=3);self.broker.call('copy-result')
+        originals={p.name:p.read_bytes() for p in self.attempt.iterdir() if p.is_file()}
+        # Close this fixture's broker owner only after its server/guardian exited.
+        os.close(self.broker.fd);self.broker.fd=None
+        repeated=a.Broker(self.selection,str(self.attempt),self.controls,'completed-repeat','c'*32)
+        try:
+            self.assertEqual(repeated.base_directory,self.attempt)
+            self.assertEqual(repeated.directory,self.attempt/'observations'/('c'*32))
+            with self.assertRaisesRegex(a.Refused,'cannot dispatch'):repeated.call('arm-copy')
+            with self.assertRaisesRegex(a.Refused,'cannot dispatch'):repeated.call('effects','fixture')
+            self.assertEqual(originals,{p.name:p.read_bytes() for p in self.attempt.iterdir() if p.is_file()})
+        finally:os.close(repeated.fd);os.close(repeated.observation_fd)
+        with self.assertRaises(FileExistsError):a.Broker(self.selection,str(self.attempt),self.controls,'completed-repeat','c'*32)
 
     def test_combined_owner_loss_does_not_release_unknown_selection(self):
         self.start();self.guardian.kill();self.guardian.wait();os.close(self.broker.fd);self.broker.fd=None

@@ -36,6 +36,10 @@ jobs:
         run: php .github/hp-deploy/test-pm-native-reader.php
       - name: Test actual private pre-init getter and durable record methods
         run: php .github/hp-deploy/test-pm-preinit-guard.php
+      - name: Test standalone first observation with local files and child doubles
+        run: python3 -I -B .github/hp-deploy/test-pm-first-observer.py
+      - name: Test fixed prebootstrap source census privacy and filesystem faults
+        run: python3 -I -B .github/hp-deploy/test-pm-prebootstrap-source.py
       - name: Verify workflow coupling
         run: php tests/deploy-workflow-contract-test.php
       - name: Record actual packaging comparison without imposing an old runtime on future features

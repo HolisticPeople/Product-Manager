@@ -1,0 +1,12 @@
+{
+  "sourceRepository": "HolisticPeople/HP-Zen",
+  "head": "316135074d31a70502711f385ed00a9e972b740c",
+  "files": {
+    "selected_wire.py": "7e55a035baa3156e5e75db59e9070927c5a31ba3b1d1f96dd6fb83c32f5861d8",
+    "zen_pair_files.py": "40d7362549013bfaa013d82020547f86afa568768c89394b54dfd57c1540632d",
+    "pm_process.py": "f486451d256bb26a52bb6fc227be4aaec1d94e89910638be9164ab2858ac3396",
+    "zen_phase_process.py": "ca2a17e9146eeec1f3070d157bb3bb00ab6fadd1006d9a37660e6285c92bfcda",
+    "hp-deploy-native-read.php": "93c06287816e31923dbfeae0b333cc5cddd4b5573d86e5a453a16c09300d3a76"
+  },
+  "ownership": "Immutable verbatim dependency snapshots; shared source remains Zen-owned. No standalone target adoption or MUprofile from packaging."
+}

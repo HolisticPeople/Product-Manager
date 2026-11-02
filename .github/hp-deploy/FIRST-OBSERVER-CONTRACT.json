@@ -1,0 +1,39 @@
+{
+  "schema": "hp_pm_first_observer_source_contract_v1",
+  "executionAuthority": false,
+  "sourceOnly": true,
+  "entry": "python -I -B pm-first-observer.py --selection <private600JSON> --selection-sha256 <independentlyfrozenoriginalSHA>",
+  "selectionSchema": "hp_pm_first_observation_v1",
+  "selectionFields": [
+    "schema",
+    "operation",
+    "attempt",
+    "privateAttempt",
+    "deadlineUTC",
+    "sourcePins",
+    "wpCli",
+    "nativeRequest",
+    "resourceAdmissionRef"
+  ],
+  "fixedRoot": "/www/holisticpeoplecom_349/public",
+  "wpCliFields": [
+    "path",
+    "sha256",
+    "startupEnvironmentSHA256",
+    "cwd"
+  ],
+  "startupContext": "R2a returns actualcwd+hashof12finiteexistingstartupenvvalues, nevervalues; R3comparescurrentcontext withoutalteringit. CurrentWPCLI/PHP/config/MU/dropin/effects still require separateindependentactualadmission. Sourcepinsmax64, stablecanonicalregularfiles<=16MiB, exactsha/bytes/mode/uid.",
+  "privateSources": "ExactPM81db/abe867+Zen316shim93c/fourimmutablehelpers packagedverbatim withPROVENANCE; runtimeprivatebundle parent0700/files0600 ownedoutsidepublic. Installing/copyingbundle is separateactualoperation, neverautomaticrunnerbehavior.",
+  "resource": "ExistingactualPairFiles.phase_lock(create=False); state/lockmustexist, selected-phase-owner mustbeABSENT before/under/after. Nevercreate/adopt/releaseforeignstate. RealparentprivateCLOEXECowner; actualobservation_process separately opensreadonlysameinodeview/pass_fds+directparent. Lockisnotallmutatoradoption or nativepermission.",
+  "native": "Fixedactor7474/root/site/3product/requestsourcecallbacks and sourceguard; no predictednative snapshot. Exactlyone45scommunicatebudget, acceptedraw_process cleanupwait<=20s additional. No codepath toCODE/FIELD/worker/terms/payment/provider/cache operations.",
+  "evidence": "Exclusiveprivateoriginalselection/resource/intent/config/raw/startup/result; literalstdout/stderr/processreturn retainedbeforeparse. SOURCEresultCOMPLETE remains observation/executionAuthorityfalse; no automaticnextoperation.",
+  "lifetime": "Actualinteger(notbool)returncode ONLY establishes observedexit. Onmissing/nullcleanupreturn CHILD_LIFETIME_UNKNOWN; retainoriginaltimeout/error/cleanupraw. ClosingwrapperFD doesnotprovechildexit/ownerretention. No resourceclear/holdreturn/nextcall; actualPublisher retains exactattempt/resourceexclusion pendingindependentreconciliation. No newcustodian/globalpause/foreignownerrecord.",
+  "sourceTests": "test-pm-first-observer.py: realtemporarylock/readonlyview/directparent/childunlocknoninterference, onechild/rawzero-wrongtype, nosetup/ownerconflict/source/context/refusal, acceptedrawprocess cleanupwaitfailure/nullreturn and strictboolreturnrejection. Syntheticnativeoutput notrealPHP/nativequalification.",
+  "census": "pm-prebootstrap-source.py fixed13files/4dirs/3namelookups+128immediateMUnames; hashes/metadata/cwd/envhashonly.16MiBfile/64KiBoutput. No sourcebody/config/secret/envvalue/recursivescan/exec/SQL/native/targetwrites. Actualscope separatelyselectedbyPublisher.",
+  "learningDisposition": "ExistingstagingreceiptUNKNOWN/validatedrequiredeffects andPMpreinit/readonlyFD contracts coverinvariants; explicitnewwrappercontext/failurecase retainedhereandintests. This sourceunit doesnotclaimproduction/runtime/humanlearningcloseout.",
+  "outputValidation": "Closed finite full/startup producer structure, typed3product hashes/count/emptyjournals+leases, exactstartup3/rawcachedrows+12Inventorycronpredicates/sourcecallbackmaps, ERPtypedflags, policy/cronstate/eventlists/ActionSchedulerpresence null-vs-observedlist. No predictednativevalue snapshot comparison, no businesssetter/readercomponent changes.",
+  "newSourceFindingCapture": {
+    "original": "Wrapperv1nestedemptyobjects/4headerstartup fixture incorrectlyacceptedCOMPLETE; sourcev1b4ea+2retainedbodies andCatalogR3SOURCEv1review preserved.",
+    "correction": "One finite producer-shape validator and coherent syntheticproducerfixture; malformedliteral0 remainsUNKNOWN withoriginalraw; newnegativecases coverempty/missing/wrongtyped/absence-versus-list andminimalstartup."
+  }
+}

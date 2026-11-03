@@ -2,158 +2,178 @@ name: Deploy Products Manager plugin to Kinsta
 
 on:
   push:
-    branches:
-      - dev          # auto deploy to STAGING
+    branches: [dev]
   workflow_dispatch:
     inputs:
       deploy:
-        description: "Which environment to deploy?"
+        description: Target environment (production requires the selected post-promotion main identity)
         required: true
         type: choice
-        options:
-          - production
-          - staging
-        default: production
+        options: [staging, production]
+        default: staging
+      expected_main_sha:
+        description: Required production selected main commit (40 lowercase hex)
+        required: false
+        type: string
+      expected_main_tree:
+        description: Required production selected full Git tree (40 lowercase hex)
+        required: false
+        type: string
+      expected_site_url:
+        description: Required production exact HTTPS home origin
+        required: false
+        type: string
+      expected_current_version:
+        description: Required production already-active plugin version before copy
+        required: false
+        type: string
 
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 env:
   PLUGIN_SLUG: products-manager
 
 jobs:
   deploy-staging:
-    if: |
-      github.ref_name == 'dev' ||
-      (github.event_name == 'workflow_dispatch' && inputs.deploy == 'staging')
+    if: (github.event_name == 'push' && github.ref_name == 'dev') || (github.event_name == 'workflow_dispatch' && inputs.deploy == 'staging')
     name: Deploy to STAGING
     runs-on: ubuntu-latest
     environment: staging
-
+    concurrency:
+      group: hp-products-manager-staging
+      cancel-in-progress: false
     steps:
-      - name: Checkout
+      - name: Checkout exact selected staging revision
         uses: actions/checkout@v5
-
-      - name: Load SSH key
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Use the qualified Python control runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test offline deployment controls
+        run: python3 -B .github/hp-deploy/test-deployment-controls.py
+      - name: Test staging lease check
+        run: python3 -B .github/hp-deploy/staging-lease-check-test.py
+      - name: Respect active staging leases
+        env:
+          KINSTA_HOST: ${{ secrets.KINSTA_HOST }}
+          KINSTA_PORT: ${{ secrets.KINSTA_PORT }}
+          KINSTA_USER: ${{ secrets.KINSTA_USER }}
+          KINSTA_SSH_KEY: ${{ secrets.KINSTA_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          lease_tmp="$(mktemp -d)"
+          trap 'rm -rf "$lease_tmp"' EXIT
+          printf '%s\n' "$KINSTA_SSH_KEY" > "$lease_tmp/key"
+          chmod 600 "$lease_tmp/key"
+          ssh-keyscan -p "${KINSTA_PORT:-22}" "$KINSTA_HOST" > "$lease_tmp/known_hosts"
+          test -s "$lease_tmp/known_hosts"
+          ssh -i "$lease_tmp/key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$lease_tmp/known_hosts" \
+            -o ConnectTimeout=20 -p "${KINSTA_PORT:-22}" "$KINSTA_USER@$KINSTA_HOST" \
+            "python3 - --plugin products-manager" < .github/hp-deploy/staging-lease-check.py
+      - name: Load existing staging SSH key
         uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.KINSTA_SSH_KEY }}
-
-      - name: Trust host key (custom port, bracketed form)
+      - name: Trust configured staging host
+        env:
+          PM_HOST: ${{ secrets.KINSTA_HOST }}
+          PM_PORT: ${{ secrets.KINSTA_PORT }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.KINSTA_PORT }}" "${{ secrets.KINSTA_HOST }}" \
-            | sed -e "s/^${{ secrets.KINSTA_HOST }}/[${{ secrets.KINSTA_HOST }}]:${{ secrets.KINSTA_PORT }}/" \
-            >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${PM_PORT:-22}" "$PM_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-
-      - name: Ensure plugin dir exists
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.KINSTA_HOST }}
-          port:     ${{ secrets.KINSTA_PORT }}
-          username: ${{ secrets.KINSTA_USER }}
-          key:      ${{ secrets.KINSTA_SSH_KEY }}
-          script: |
-            mkdir -p "${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-
-      - name: Rsync plugin files
+      - name: Guard and deploy selected staging bytes
+        env:
+          PM_EXPECTED_SHA: ${{ github.sha }}
+          PM_EXPECTED_SITE: https://env-holisticpeoplecom-hpdevplus.kinsta.cloud/
+          PM_EXPECTED_CURRENT_VERSION: ''
+          PM_HOST: ${{ secrets.KINSTA_HOST }}
+          PM_PORT: ${{ secrets.KINSTA_PORT }}
+          PM_USER: ${{ secrets.KINSTA_USER }}
+          PM_PLUGINS_BASE: ${{ secrets.KINSTA_PLUGINS_BASE }}
+          PM_DEPLOY_RECEIPT: ${{ runner.temp }}/products-manager-staging-receipt.json
         run: |
-          PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-          rsync -az --delete \
-            -e "ssh -p ${{ secrets.KINSTA_PORT }}" \
-            --exclude-from=".github/deploy-exclude.txt" \
-            ./ "${{ secrets.KINSTA_USER }}@${{ secrets.KINSTA_HOST }}:${PLUGIN_PATH}"
-
-      - name: Purge Kinsta page cache
-        uses: appleboy/ssh-action@v1.0.3
+          set -euo pipefail
+          export PM_EXPECTED_TREE="$(git rev-parse HEAD^{tree})"
+          python3 -B .github/hp-deploy/deploy.py staging
+      - name: Retain staging outcome receipt
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          host:     ${{ secrets.KINSTA_HOST }}
-          port:     ${{ secrets.KINSTA_PORT }}
-          username: ${{ secrets.KINSTA_USER }}
-          key:      ${{ secrets.KINSTA_SSH_KEY }}
-          script: cd ~/public && wp kinsta cache purge --all
-
-      - name: Post-deploy (wp-cli)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.KINSTA_HOST }}
-          port:     ${{ secrets.KINSTA_PORT }}
-          username: ${{ secrets.KINSTA_USER }}
-          key:      ${{ secrets.KINSTA_SSH_KEY }}
-          script: |
-            PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTA_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-            WP_PATH="$(dirname "$(dirname "$(dirname "$PLUGIN_PATH")")")"
-            wp --path="$WP_PATH" cache flush || true
-            wp --path="$WP_PATH" plugin activate products-manager || true
+          name: products-manager-staging-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/products-manager-staging-receipt.json
+          if-no-files-found: warn
 
   deploy-production:
     if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'production'
     name: Deploy to PRODUCTION
     runs-on: ubuntu-latest
     environment: production
-
+    concurrency:
+      group: hp-products-manager-production
+      cancel-in-progress: false
     steps:
-      - name: Checkout
+      - name: Require explicit selected main identity
+        env:
+          PM_EXPECTED_SHA: ${{ inputs.expected_main_sha }}
+          PM_EXPECTED_TREE: ${{ inputs.expected_main_tree }}
+          PM_EXPECTED_SITE: ${{ inputs.expected_site_url }}
+          PM_EXPECTED_CURRENT_VERSION: ${{ inputs.expected_current_version }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$PM_EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$PM_EXPECTED_TREE" =~ ^[a-f0-9]{40}$ ]]
+          test "$GITHUB_SHA" = "$PM_EXPECTED_SHA"
+          test -n "$PM_EXPECTED_SITE"
+          test -n "$PM_EXPECTED_CURRENT_VERSION"
+      - name: Checkout pinned expected main commit
         uses: actions/checkout@v5
-
-      - name: Load SSH key
+        with:
+          ref: ${{ inputs.expected_main_sha }}
+          fetch-depth: 0
+      - name: Use the qualified Python control runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test offline deployment controls
+        run: python3 -B .github/hp-deploy/test-deployment-controls.py
+      - name: Load existing production SSH key
         uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.KINSTAPROD_SSH_KEY }}
-
-      - name: Trust host key (custom port, bracketed form)
+      - name: Trust configured production host
+        env:
+          PM_HOST: ${{ secrets.KINSTAPROD_HOST }}
+          PM_PORT: ${{ secrets.KINSTAPROD_PORT }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.KINSTAPROD_PORT }}" "${{ secrets.KINSTAPROD_HOST }}" \
-            | sed -e "s/^${{ secrets.KINSTAPROD_HOST }}/[${{ secrets.KINSTAPROD_HOST }}]:${{ secrets.KINSTAPROD_PORT }}/" \
-            >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${PM_PORT:-22}" "$PM_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-
-      - name: Ensure plugin dir exists
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Guard and deploy exact selected main bytes
+        env:
+          PM_EXPECTED_SHA: ${{ inputs.expected_main_sha }}
+          PM_EXPECTED_TREE: ${{ inputs.expected_main_tree }}
+          PM_EXPECTED_SITE: ${{ inputs.expected_site_url }}
+          PM_EXPECTED_CURRENT_VERSION: ${{ inputs.expected_current_version }}
+          PM_HOST: ${{ secrets.KINSTAPROD_HOST }}
+          PM_PORT: ${{ secrets.KINSTAPROD_PORT }}
+          PM_USER: ${{ secrets.KINSTAPROD_USER }}
+          PM_PLUGINS_BASE: ${{ secrets.KINSTAPROD_PLUGINS_BASE }}
+          PM_DEPLOY_RECEIPT: ${{ runner.temp }}/products-manager-production-receipt.json
+        run: python3 -B .github/hp-deploy/deploy.py production
+      - name: Retain production outcome receipt
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          host:     ${{ secrets.KINSTAPROD_HOST }}
-          port:     ${{ secrets.KINSTAPROD_PORT }}
-          username: ${{ secrets.KINSTAPROD_USER }}
-          key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
-          script: |
-            mkdir -p "${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-
-      - name: Rsync plugin files
-        run: |
-          PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-          rsync -az --delete \
-            -e "ssh -p ${{ secrets.KINSTAPROD_PORT }}" \
-            --exclude-from=".github/deploy-exclude.txt" \
-            ./ "${{ secrets.KINSTAPROD_USER }}@${{ secrets.KINSTAPROD_HOST }}:${PLUGIN_PATH}"
-
-      - name: Post-deploy (wp-cli)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.KINSTAPROD_HOST }}
-          port:     ${{ secrets.KINSTAPROD_PORT }}
-          username: ${{ secrets.KINSTAPROD_USER }}
-          key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
-          script: |
-            PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-            WP_PATH="$(dirname "$(dirname "$(dirname "$PLUGIN_PATH")")")"
-            wp --path="$WP_PATH" cache flush || true
-            wp --path="$WP_PATH" plugin activate products-manager || true
-
-      # Kinsta's page/CDN cache serves stale HTML+JS past a plain `wp cache
-      # flush`; a skipped purge left stale JS live after a 2026-07-27 deploy.
-      - name: Purge Kinsta page cache
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.KINSTAPROD_HOST }}
-          port:     ${{ secrets.KINSTAPROD_PORT }}
-          username: ${{ secrets.KINSTAPROD_USER }}
-          key:      ${{ secrets.KINSTAPROD_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            PLUGIN_PATH="${{ format('{0}/{1}', secrets.KINSTAPROD_PLUGINS_BASE, env.PLUGIN_SLUG) }}"
-            WP_PATH="$(dirname "$(dirname "$(dirname "$PLUGIN_PATH")")")"
-            wp --path="$WP_PATH" kinsta cache purge --all
-            echo "Kinsta page cache purged after production deploy"
+          name: products-manager-production-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/products-manager-production-receipt.json
+          if-no-files-found: warn
